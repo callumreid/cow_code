@@ -81,7 +81,7 @@ export type PromptInputHistory = {
 
 export type PromptInputSubmission = {
   abort: () => Promise<void> | void
-  handleSubmit: (event: Event) => Promise<void> | void
+  handleSubmit: (event: Event, opts?: { steer?: boolean }) => Promise<void> | void
 }
 
 export type PromptInputControls = {
@@ -368,12 +368,31 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     return text.trim().length === 0 && imageAttachments().length === 0 && commentCount() === 0
   })
   const stopping = createMemo(() => working() && blank())
+  const steerable = createMemo(() => working() && !blank() && store.mode === "normal" && !!props.shouldQueue?.())
   const tip = () => {
     if (stopping()) {
       return (
         <div class="flex items-center gap-2">
           <span>{language.t("prompt.action.stop")}</span>
           <span class="text-icon-base text-12-medium text-[10px]!">{language.t("common.key.esc")}</span>
+        </div>
+      )
+    }
+
+    if (steerable()) {
+      return (
+        <div class="flex flex-col gap-1">
+          <div class="flex items-center justify-between gap-2">
+            <span>{language.t("settings.general.row.followup.option.queue")}</span>
+            <Icon name="enter" size="small" class="text-icon-base" />
+          </div>
+          <div class="flex items-center justify-between gap-2">
+            <span>{language.t("settings.general.row.followup.option.steer")}</span>
+            <span class="flex items-center gap-1">
+              <span class="text-icon-base text-12-medium text-[10px]!">{language.t("common.key.shift")}</span>
+              <Icon name="enter" size="small" class="text-icon-base" />
+            </span>
+          </div>
         </div>
       )
     }
@@ -1369,10 +1388,17 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     }
 
     // Handle Shift+Enter BEFORE IME check - Shift+Enter is never used for IME input
-    // and should always insert a newline regardless of composition state
+    // and never triggers composition. While the session is busy and there is input,
+    // Shift+Enter steers: it sends immediately so the running loop picks it up,
+    // bypassing the followup queue. Otherwise it inserts a newline.
     if (event.key === "Enter" && event.shiftKey) {
-      addPart({ type: "text", content: "\n", start: 0, end: 0 })
       event.preventDefault()
+      if (working() && store.mode === "normal" && !store.popover && !blank()) {
+        if (event.repeat) return
+        void handleSubmit(event, { steer: true })
+        return
+      }
+      addPart({ type: "text", content: "\n", start: 0, end: 0 })
       return
     }
 
