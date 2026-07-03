@@ -77,7 +77,7 @@ export function DialogDebug() {
         </For>
       </box>
       <box flexDirection="row" justifyContent="space-between">
-        <text fg={theme.textMuted}>Share this when reporting an issue.</text>
+        <text fg={theme.textMuted}>Share this when reporting an issue. 🐄</text>
         <text onMouseUp={copy}>
           <span style={{ fg: copied() ? theme.success : theme.text }}>
             <b>{copied() ? "✓ copied" : "copy"}</b>{" "}
