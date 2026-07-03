@@ -170,6 +170,10 @@ export const Info = Schema.Struct({
       openTelemetry: Schema.optional(Schema.Boolean).annotate({
         description: "Enable OpenTelemetry spans for AI SDK calls (using the 'experimental_telemetry' flag)",
       }),
+      traceExport: Schema.optional(Schema.Boolean).annotate({
+        description:
+          "Export turn/step/tool spans (with time-to-first-token) as OTLP JSON to OTEL_EXPORTER_OTLP_ENDPOINT (default: http://localhost:4318)",
+      }),
       primary_tools: Schema.optional(Schema.mutable(Schema.Array(Schema.String))).annotate({
         description: "Tools that should only be available to primary agents.",
       }),

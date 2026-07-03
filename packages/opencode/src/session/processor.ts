@@ -22,6 +22,7 @@ import type { Provider } from "@/provider/provider"
 import { Question } from "@/question"
 import { errorMessage } from "@/util/error"
 import { isRecord } from "@/util/record"
+import { TurnTiming } from "@/observability/turn-timing"
 import { EventV2Bridge } from "@/event-v2-bridge"
 import { Database } from "@opencode-ai/core/database/database"
 import { Usage, type LLMEvent } from "@opencode-ai/llm"
@@ -292,6 +293,7 @@ const layer = Layer.effect(
           case "reasoning-delta":
             // Match dev: silently drop orphan deltas (no preceding reasoning-start).
             if (!(value.id in ctx.reasoningMap)) return
+            TurnTiming.markFirstToken(ctx.assistantMessage.id)
             ctx.reasoningMap[value.id].text += value.text
             if (value.providerMetadata) ctx.reasoningMap[value.id].metadata = value.providerMetadata
             yield* session.updatePartDelta({
@@ -496,6 +498,7 @@ const layer = Layer.effect(
 
           case "text-delta":
             if (!ctx.currentText) return
+            TurnTiming.markFirstToken(ctx.assistantMessage.id)
             ctx.currentText.text += value.text
             if (value.providerMetadata) ctx.currentText.metadata = value.providerMetadata
             yield* session.updatePartDelta({
@@ -635,6 +638,7 @@ const layer = Layer.effect(
             ctx.currentText = undefined
             ctx.reasoningMap = {}
             yield* status.set(ctx.sessionID, { type: "busy" })
+            TurnTiming.markRequestStart(ctx.assistantMessage.id)
             const stream = llm.stream(streamInput)
 
             yield* stream.pipe(
