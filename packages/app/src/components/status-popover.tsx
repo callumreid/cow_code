@@ -95,13 +95,17 @@ function DirectoryStatusPopover() {
     if (failed) return "critical" as const
     if (warn) return "warning" as const
   })
-  const healthy = createMemo(() => serverHealth() === true && !mcpIssue())
+  // Health poll fine but the event stream stuck reconnecting = live updates are
+  // not flowing; show the warning dot instead of failing silently.
+  const streamIssue = createMemo(() => serverHealth() === true && server().event.connection() === "reconnecting")
+  const issue = createMemo(() => mcpIssue() ?? (streamIssue() ? ("warning" as const) : undefined))
+  const healthy = createMemo(() => serverHealth() === true && !issue())
   const state = createMemo<StatusPopoverState>(() => ({
     shown: shown(),
     ready: ready(),
     healthy: healthy(),
     serverHealth: serverHealth(),
-    issue: mcpIssue(),
+    issue: issue(),
     label: language.t("status.popover.trigger"),
     onOpenChange: setShown,
     body: () => (

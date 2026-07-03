@@ -2,7 +2,7 @@ import type { Event } from "@opencode-ai/sdk/v2/client"
 import { createSimpleContext } from "@opencode-ai/ui/context"
 import { createGlobalEmitter } from "@solid-primitives/event-bus"
 import { makeEventListener } from "@solid-primitives/event-listener"
-import { type Accessor, batch, createMemo, onCleanup, onMount } from "solid-js"
+import { type Accessor, batch, createMemo, createSignal, onCleanup, onMount } from "solid-js"
 import { createSdkForServer } from "@/utils/server"
 import { useLanguage } from "./language"
 import { usePlatform } from "./platform"
@@ -137,6 +137,10 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
   }
 
   let streamErrorLogged = false
+  // Reactive connection state for the event stream, so the UI can surface a
+  // dropped connection instead of only console.error-ing. "reconnecting" while
+  // the retry loop spins; "connected" once the SSE response is established.
+  const [connection, setConnection] = createSignal<"connected" | "reconnecting">("reconnecting")
   const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
   let attempt: AbortController | undefined
   let run: Promise<void> | undefined
@@ -188,6 +192,7 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
             },
           })
           let yielded = Date.now()
+          setConnection("connected")
           resetHeartbeat()
           for await (const event of events.stream) {
             resetHeartbeat()
@@ -215,6 +220,7 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
           abort.signal.removeEventListener("abort", onAbort)
           attempt = undefined
           clearHeartbeat()
+          setConnection("reconnecting")
         }
 
         if (abort.signal.aborted || !started || generation !== active) return
@@ -268,6 +274,7 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
       on: emitter.on.bind(emitter),
       listen: emitter.listen.bind(emitter),
       start,
+      connection,
     },
     createClient(opts: Omit<Parameters<typeof createSdkForServer>[0], "server" | "fetch">) {
       return createSdkForServer({

@@ -190,6 +190,24 @@ export function registerIpcHandlers(deps: Deps) {
     new Notification({ title, body }).show()
   })
 
+  ipcMain.on("set-badge-count", (_event: IpcMainEvent, count: number) => {
+    if (!Number.isFinite(count)) return
+    app.setBadgeCount(Math.max(0, Math.floor(count)))
+  })
+
+  ipcMain.on("request-attention", (event: IpcMainEvent) => {
+    // Attention requests are only meaningful while the app is in the background.
+    if (BrowserWindow.getAllWindows().some((win) => win.isFocused())) return
+    if (process.platform === "darwin") {
+      app.dock?.bounce("informational")
+      return
+    }
+    const win = BrowserWindow.fromWebContents(event.sender)
+    if (!win) return
+    win.flashFrame(true)
+    win.once("focus", () => win.flashFrame(false))
+  })
+
   ipcMain.handle("get-window-count", () => BrowserWindow.getAllWindows().length)
 
   ipcMain.handle("get-window-id", (event: IpcMainInvokeEvent) => {

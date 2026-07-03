@@ -1,5 +1,15 @@
 import { createStore, reconcile } from "solid-js/store"
-import { type Accessor, batch, createEffect, createMemo, createRoot, getOwner, onCleanup } from "solid-js"
+import {
+  type Accessor,
+  batch,
+  createEffect,
+  createMemo,
+  createRoot,
+  createSignal,
+  getOwner,
+  on,
+  onCleanup,
+} from "solid-js"
 import { useParams, useSearchParams } from "@solidjs/router"
 import { createSimpleContext } from "@opencode-ai/ui/context"
 import type { ServerSDK } from "./server-sdk"
@@ -35,7 +45,15 @@ type ErrorNotification = NotificationBase & {
   error: EventSessionError["properties"]["error"]
 }
 
-export type Notification = TurnCompleteNotification | ErrorNotification
+// Emitted by the session watchdog (context/session-watchdog.ts) when a busy
+// session goes silent or loops retries. Persists alongside the other types so
+// old notification.v1 data (which simply lacks the type) deserializes cleanly.
+type StuckNotification = NotificationBase & {
+  type: "stuck"
+  reason: "silent" | "retry"
+}
+
+export type Notification = TurnCompleteNotification | ErrorNotification | StuckNotification
 
 type NotificationIndex = {
   session: {
@@ -123,6 +141,8 @@ export const { use: useNotification, provider: NotificationProvider } = createSi
     const language = useLanguage()
     const owner = getOwner()
     const states = new Map<ServerScope, { dispose: () => void; state: NotificationState }>()
+    const [stateList, setStateList] = createSignal<NotificationState[]>([])
+    const refreshStateList = () => setStateList([...states.values()].map((value) => value.state))
 
     const activeServer = createMemo(() => {
       if (params.serverKey) return requireServerKey(params.serverKey)
@@ -158,6 +178,7 @@ export const { use: useNotification, provider: NotificationProvider } = createSi
         owner ?? undefined,
       )
       states.set(ctx.sdk.scope, root)
+      refreshStateList()
       return root.state
     }
 
@@ -167,14 +188,27 @@ export const { use: useNotification, provider: NotificationProvider } = createSi
 
     createEffect(() => {
       const scopes = new Set(global.servers.list().map((conn) => server.scope(ServerConnection.key(conn))))
+      const before = states.size
       states.forEach((value, scope) => {
         if (scopes.has(scope)) return
         value.dispose()
         states.delete(scope)
       })
+      if (states.size !== before) refreshStateList()
     })
 
     onCleanup(() => states.forEach((value) => value.dispose()))
+
+    // Desktop attention: aggregate unseen count across every connected server
+    // drives the dock/taskbar badge; increases request a dock bounce / frame
+    // flash (the main process skips it while any window is focused).
+    const aggregateUnseen = createMemo(() => stateList().reduce((total, state) => total + state.totalUnseen(), 0))
+    createEffect(
+      on(aggregateUnseen, (count, prev) => {
+        void platform.setBadgeCount?.(count)
+        if (prev !== undefined && count > prev) void platform.requestAttention?.()
+      }),
+    )
 
     const selected = () => ensure(activeServer())
 
@@ -351,6 +385,31 @@ function createServerNotificationState(input: {
     })
   }
 
+  // Child-session errors roll up to their root parent instead of being dropped:
+  // the parent is the session the user actually has open in the sidebar.
+  const rootSessionOf = (directory: string, session: { id: string; parentID?: string; title?: string }) => {
+    const sync = serverSync().ensureDirSyncContext(directory)
+    const seen = new Set([session.id])
+    let current = session
+    while (current.parentID) {
+      const parent = sync.session.get(current.parentID)
+      if (!parent || seen.has(parent.id)) return current
+      seen.add(parent.id)
+      current = parent
+    }
+    return current
+  }
+
+  // Prompt-level errors (agent/model not found, skill/plugin failures) never
+  // attach to an assistant message, so the open session view renders nothing
+  // for them — those must NOT be auto-marked viewed just because the session
+  // is on screen.
+  const errorInTimeline = (sessionID: string) => {
+    const messages = serverSync().session.data.message[sessionID]
+    const last = messages?.findLast((message) => message.role === "assistant")
+    return last?.role === "assistant" && !!last.error
+  }
+
   const handleSessionError = (
     directory: string,
     event: { properties: { sessionID?: string; error?: EventSessionError["properties"]["error"] } },
@@ -359,28 +418,57 @@ function createServerNotificationState(input: {
     const sessionID = event.properties.sessionID
     void lookup(directory, sessionID).then((session) => {
       if (meta.disposed) return
-      if (session?.parentID) return
+      const target = session?.parentID ? rootSessionOf(directory, session) : session
+      const targetID = target?.id ?? sessionID
 
       if (settings.sounds.errorsEnabled()) {
         void playSoundById(settings.sounds.errors())
       }
 
       const error = "error" in event.properties ? event.properties.error : undefined
+      const rolledUp = !!targetID && targetID !== sessionID
+      // Rolled-up child errors surface in the parent's task card; aborted turns
+      // render as the interrupted divider. Everything else needs an assistant
+      // message error to count as visible in the open timeline.
+      const represented =
+        rolledUp ||
+        (typeof error === "object" && error?.name === "MessageAbortedError") ||
+        (!!sessionID && errorInTimeline(sessionID))
       append({
         directory,
         time,
-        viewed: viewedInCurrentSession(directory, sessionID),
+        viewed: viewedInCurrentSession(directory, targetID) && represented,
         type: "error",
-        session: sessionID ?? "global",
+        session: targetID ?? "global",
         error,
       })
       const description =
-        session?.title ??
+        target?.title ??
         (typeof error === "string" ? error : language.t("notification.session.error.fallbackDescription"))
-      const href = sessionID ? `/${base64Encode(directory)}/session/${sessionID}` : `/${base64Encode(directory)}`
+      const href = targetID ? `/${base64Encode(directory)}/session/${targetID}` : `/${base64Encode(directory)}`
       if (settings.notifications.errors()) {
         void platform.notify(language.t("notification.session.error.title"), description, href)
       }
+    })
+  }
+
+  // Called by the session watchdog exactly once per stuck transition, so no
+  // extra dedupe is needed here (badge + OS notification; the toast lives in
+  // the layout's attention surface).
+  const reportStuck = (info: { directory: string; sessionID: string; reason: "silent" | "retry" }) => {
+    void lookup(info.directory, info.sessionID).then((session) => {
+      if (meta.disposed) return
+      append({
+        directory: info.directory,
+        time: Date.now(),
+        viewed: viewedInCurrentSession(info.directory, info.sessionID),
+        type: "stuck",
+        session: info.sessionID,
+        reason: info.reason,
+      })
+      if (!settings.notifications.stuck()) return
+      const href = `/${base64Encode(info.directory)}/session/${info.sessionID}`
+      void platform.notify(language.t("notification.session.stuck.title"), session?.title ?? info.sessionID, href)
     })
   }
 
@@ -401,8 +489,14 @@ function createServerNotificationState(input: {
     unsub()
   })
 
+  const totalUnseen = createMemo(() =>
+    Object.values(index.session.unseenCount).reduce((total, count) => total + (count ?? 0), 0),
+  )
+
   return {
     ready,
+    reportStuck,
+    totalUnseen,
     session: {
       all(session: string) {
         return index.session.all[session] ?? empty

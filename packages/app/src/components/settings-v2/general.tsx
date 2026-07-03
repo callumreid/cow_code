@@ -571,6 +571,18 @@ export const SettingsGeneralV2: Component<{
             />
           </div>
         </SettingsRowV2>
+
+        <SettingsRowV2
+          title={language.t("settings.general.notifications.stuck.title")}
+          description={language.t("settings.general.notifications.stuck.description")}
+        >
+          <div data-action="settings-notifications-stuck">
+            <Switch
+              checked={settings.notifications.stuck()}
+              onChange={(checked) => settings.notifications.setStuck(checked)}
+            />
+          </div>
+        </SettingsRowV2>
       </SettingsListV2>
     </div>
   )

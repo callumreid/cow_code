@@ -387,6 +387,15 @@ export const dict = {
   "context.usage.cost": "Omkostning",
   "context.usage.clickToView": "Klik for at se kontekst",
   "context.usage.view": "Se kontekstforbrug",
+  "context.usage.subagents": "Underagenter",
+  "work.empty": "Intet kører lige nu",
+  "work.tools.title": "Kørende værktøjer",
+  "work.subagents.title": "Underagenter",
+  "work.badge.background": "baggrund",
+  "work.badge.retrying": "Prøver igen",
+  "work.tokens": "{{count}} tokens",
+  "work.chip.running": "{{count}} kørende",
+  "work.open": "Se igangværende arbejde",
 
   "language.en": "English",
   "language.zh": "简体中文",
@@ -497,6 +506,14 @@ export const dict = {
   "notification.session.responseReady.title": "Svar klar",
   "notification.session.error.title": "Sessionsfejl",
   "notification.session.error.fallbackDescription": "Der opstod en fejl",
+  "notification.session.stuck.title": "Sessionen kan være gået i stå",
+  "notification.session.stuck.silentDescription":
+    "{{sessionTitle}} har været optaget uden aktivitet i {{minutes}} minutter",
+  "notification.session.stuck.retryDescription": "{{sessionTitle}} bliver ved med at prøve igen (forsøg {{attempt}})",
+  "status.connection.reconnecting": "Forbindelsen er afbrudt — genopretter…",
+  "toast.sidecarExit.title": "Lokal server stoppet",
+  "toast.sidecarExit.description": "Den lokale opencode-server afsluttede uventet (kode {{code}}).",
+  "toast.sidecarExit.action.restart": "Genstart appen",
 
   "home.recentProjects": "Seneste projekter",
   "home.empty.title": "Ingen seneste projekter",
@@ -505,6 +522,7 @@ export const dict = {
   "session.tab.session": "Session",
   "session.tab.review": "Gennemgang",
   "session.tab.context": "Kontekst",
+  "session.tab.work": "Aktivitet",
   "session.panel.reviewAndFiles": "Gennemgang og filer",
   "session.review.filesChanged": "{{count}} Filer ændret",
   "session.review.change.one": "Ændring",
@@ -730,6 +748,9 @@ export const dict = {
   "settings.general.notifications.permissions.description": "Vis systemmeddelelse når en tilladelse er påkrævet",
   "settings.general.notifications.errors.title": "Fejl",
   "settings.general.notifications.errors.description": "Vis systemmeddelelse når der opstår en fejl",
+  "settings.general.notifications.stuck.title": "Fastlåste sessioner",
+  "settings.general.notifications.stuck.description":
+    "Vis systemnotifikation, når en optaget session ikke længere gør fremskridt",
 
   "settings.general.sounds.agent.title": "Agent",
   "settings.general.sounds.agent.description": "Afspil lyd når agenten er færdig eller kræver opmærksomhed",

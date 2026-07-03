@@ -259,6 +259,16 @@ const createPlatform = (windowState: DesktopWindowState): Platform => {
       }
     },
 
+    setBadgeCount: (count) => {
+      window.api.setBadgeCount(count)
+    },
+
+    requestAttention: () => {
+      window.api.requestAttention()
+    },
+
+    onSidecarExit: (cb) => window.api.onSidecarExit(cb),
+
     fetch: (input, init) => {
       if (input instanceof Request) return fetch(input)
       return fetch(input, init)

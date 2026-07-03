@@ -6,7 +6,7 @@ import { homedir, tmpdir } from "node:os"
 import { join } from "node:path"
 import { getCACertificates, setDefaultCACertificates } from "node:tls"
 import type { Event } from "electron"
-import { app } from "electron"
+import { app, BrowserWindow } from "electron"
 
 import { Deferred, Effect, Fiber } from "effect"
 import contextMenu from "electron-context-menu"
@@ -57,6 +57,9 @@ const jsCallStackFeature = "DocumentPolicyIncludeJSCallStacksInCrashReports"
 
 let logger: ReturnType<typeof initLogging>
 let server: SidecarListener | null = null
+// Set while the sidecar is being stopped on purpose (restart/quit) so the
+// exit handler only surfaces UNEXPECTED deaths to the renderer.
+let sidecarStopping = false
 
 const pendingDeepLinks: string[] = []
 
@@ -78,9 +81,19 @@ function emitDeepLinks(urls: string[]) {
 
 async function killSidecar() {
   if (!server) return
+  sidecarStopping = true
   const current = server
   server = null
-  await current.stop()
+  await current.stop().finally(() => {
+    sidecarStopping = false
+  })
+}
+
+function broadcastSidecarExit(code: number | null) {
+  BrowserWindow.getAllWindows().forEach((win) => {
+    if (win.webContents.isDestroyed()) return
+    win.webContents.send("sidecar-exited", code)
+  })
 }
 
 function ensureLoopbackNoProxy() {
@@ -340,7 +353,11 @@ const main = Effect.gen(function* () {
         userDataPath: app.getPath("userData"),
         onStdout: (message) => writeLog("server", "stdout", { message }),
         onStderr: (message) => writeLog("server", "stderr", { message }, "warn"),
-        onExit: (code) => writeLog("utility", "sidecar exited", { code }, "warn"),
+        onExit: (code) => {
+          writeLog("utility", "sidecar exited", { code }, "warn")
+          if (sidecarStopping) return
+          broadcastSidecarExit(code ?? null)
+        },
       }),
     )
     server = listener

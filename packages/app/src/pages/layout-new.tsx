@@ -6,6 +6,7 @@ import { Titlebar, type TitlebarUpdate } from "@/components/titlebar"
 import { usePlatform } from "@/context/platform"
 import { setNavigate } from "@/utils/notification-click"
 import { setV2Toast, ToastRegion } from "@/utils/toast"
+import { AttentionSurface } from "@/pages/layout/attention-toasts"
 
 export default function NewLayout(props: ParentProps) {
   const platform = usePlatform()
@@ -33,6 +34,7 @@ export default function NewLayout(props: ParentProps) {
       }}
     >
       <Titlebar update={update} />
+      <AttentionSurface />
       <main class="flex-1 min-h-0 min-w-0 overflow-x-hidden flex flex-col items-start contain-strict">
         <Suspense>{props.children}</Suspense>
       </main>

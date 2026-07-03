@@ -474,6 +474,16 @@ export const dict = {
   "context.usage.cost": "Cost",
   "context.usage.clickToView": "Click to view context",
   "context.usage.view": "View context usage",
+  "context.usage.subagents": "Subagents",
+
+  "work.empty": "Nothing running right now",
+  "work.tools.title": "Running tools",
+  "work.subagents.title": "Subagents",
+  "work.badge.background": "background",
+  "work.badge.retrying": "Retrying",
+  "work.tokens": "{{count}} tokens",
+  "work.chip.running": "{{count}} running",
+  "work.open": "View running work",
 
   "language.en": "English",
   "language.zh": "简体中文",
@@ -598,6 +608,17 @@ export const dict = {
   "notification.session.error.title": "Session error",
   "notification.session.error.fallbackDescription": "An error occurred",
 
+  "notification.session.stuck.title": "Session may be stuck",
+  "notification.session.stuck.silentDescription":
+    "{{sessionTitle}} has been busy with no activity for {{minutes}} minutes",
+  "notification.session.stuck.retryDescription": "{{sessionTitle}} keeps retrying (attempt {{attempt}})",
+
+  "status.connection.reconnecting": "Connection lost — reconnecting…",
+
+  "toast.sidecarExit.title": "Local server stopped",
+  "toast.sidecarExit.description": "The local opencode server exited unexpectedly (code {{code}}).",
+  "toast.sidecarExit.action.restart": "Restart app",
+
   "home.recentProjects": "Recent projects",
   "home.empty.title": "No recent projects",
   "home.empty.description": "Get started by opening a local project",
@@ -620,6 +641,7 @@ export const dict = {
   "session.tab.session": "Session",
   "session.tab.review": "Review",
   "session.tab.context": "Context",
+  "session.tab.work": "Activity",
   "session.tab.unknown": "Unknown Session",
   "session.panel.reviewAndFiles": "Review and files",
   "session.error.notFound": "This session cannot be found",
@@ -963,6 +985,9 @@ export const dict = {
   "settings.general.notifications.permissions.description": "Show system notification when a permission is required",
   "settings.general.notifications.errors.title": "Errors",
   "settings.general.notifications.errors.description": "Show system notification when an error occurs",
+  "settings.general.notifications.stuck.title": "Stuck sessions",
+  "settings.general.notifications.stuck.description":
+    "Show system notification when a busy session stops making progress",
 
   "settings.general.sounds.agent.title": "Agent",
   "settings.general.sounds.agent.description": "Play sound when the agent is complete or needs attention",

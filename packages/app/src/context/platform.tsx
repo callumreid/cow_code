@@ -49,6 +49,15 @@ type PlatformBase = {
   /** Send a system notification (optional deep link) */
   notify(title: string, description?: string, href?: string): Promise<void>
 
+  /** Set the dock/taskbar badge count (desktop only) */
+  setBadgeCount?(count: number): Promise<void> | void
+
+  /** Request user attention: dock bounce / taskbar flash while unfocused (desktop only) */
+  requestAttention?(): Promise<void> | void
+
+  /** Subscribe to unexpected local sidecar exits (desktop only) */
+  onSidecarExit?(cb: (code: number | null) => void): () => void
+
   /** Open a native attachment picker and read selected files sequentially (desktop only) */
   openAttachmentPickerDialog?(
     opts: OpenAttachmentPickerOptions,

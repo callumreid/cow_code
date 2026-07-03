@@ -16,6 +16,7 @@ import { useLanguage } from "@/context/language"
 import { getAvatarColors, type LocalProject, useLayout } from "@/context/layout"
 import { useNotification } from "@/context/notification"
 import { usePermission } from "@/context/permission"
+import { useSessionWatchdog } from "@/context/session-watchdog"
 import { messageAgentColor } from "@/utils/agent"
 import { sessionTitle } from "@/utils/session-title"
 import { showToast } from "@/utils/toast"
@@ -32,11 +33,13 @@ export const ProjectIcon = (props: {
   const serverSync = useServerSync()
   const notification = useNotification()
   const permission = usePermission()
+  const watchdog = useSessionWatchdog()
   const dirs = createMemo(() => [props.project.worktree, ...(props.project.sandboxes ?? [])])
   const unseenCount = createMemo(() =>
     dirs().reduce((total, directory) => total + notification.project.unseenCount(directory), 0),
   )
   const hasError = createMemo(() => dirs().some((directory) => notification.project.unseenHasError(directory)))
+  const hasStuck = createMemo(() => dirs().some((directory) => watchdog.project.stuck(directory)))
   const hasPermissions = createMemo(() =>
     dirs().some((directory) => {
       return hasProjectPermissions(serverSync().session.data.permission, (item) => {
@@ -45,7 +48,7 @@ export const ProjectIcon = (props: {
       })
     }),
   )
-  const notify = createMemo(() => props.notify && (hasPermissions() || unseenCount() > 0))
+  const notify = createMemo(() => props.notify && (hasPermissions() || hasStuck() || unseenCount() > 0))
   const name = createMemo(() => props.project.name || getFilename(props.project.worktree))
 
   return (
@@ -63,9 +66,10 @@ export const ProjectIcon = (props: {
         <div
           classList={{
             "absolute top-px right-px size-1.5 rounded-full z-10": true,
-            "bg-surface-warning-strong": hasPermissions(),
-            "bg-icon-critical-base": !hasPermissions() && hasError(),
-            "bg-text-interactive-base": !hasPermissions() && !hasError(),
+            "bg-surface-warning-strong": hasPermissions() || hasStuck(),
+            "animate-pulse": !hasPermissions() && hasStuck(),
+            "bg-icon-critical-base": !hasPermissions() && !hasStuck() && hasError(),
+            "bg-text-interactive-base": !hasPermissions() && !hasStuck() && !hasError(),
           }}
         />
       </Show>
@@ -101,6 +105,7 @@ const SessionRow = (props: {
   dense?: boolean
   tint: Accessor<string | undefined>
   isWorking: Accessor<boolean>
+  isStuck: Accessor<boolean>
   hasPermissions: Accessor<boolean>
   hasError: Accessor<boolean>
   unseenCount: Accessor<number>
@@ -122,12 +127,19 @@ const SessionRow = (props: {
         props.clearHoverProjectSoon()
       }}
     >
-      <Show when={props.isWorking() || props.hasPermissions() || props.hasError() || props.unseenCount() > 0}>
+      <Show
+        when={
+          props.isWorking() || props.isStuck() || props.hasPermissions() || props.hasError() || props.unseenCount() > 0
+        }
+      >
         <div
           class="shrink-0 size-6 flex items-center justify-center"
           style={{ color: props.tint() ?? "var(--icon-interactive-base)" }}
         >
           <Switch>
+            <Match when={props.isStuck()}>
+              <div class="size-1.5 rounded-full bg-surface-warning-strong animate-pulse" />
+            </Match>
             <Match when={props.isWorking()}>
               <SidebarSessionActivitySpinner session={props.session} mobile={props.mobile} />
             </Match>
@@ -154,6 +166,7 @@ export const SessionItem = (props: SessionItemProps): JSX.Element => {
   const language = useLanguage()
   const notification = useNotification()
   const permission = usePermission()
+  const watchdog = useSessionWatchdog()
   const serverSDK = useServerSDK()
   const serverSync = useServerSync()
   const [menu, setMenu] = createStore({ open: false, pendingRename: false, renaming: false, title: "" })
@@ -199,6 +212,7 @@ export const SessionItem = (props: SessionItemProps): JSX.Element => {
     if (hasPermissions()) return false
     return serverSync().session.data.session_working(props.session.id)
   })
+  const isStuck = createMemo(() => !!watchdog.session.stuck(props.session.id))
 
   const tint = createMemo(() =>
     messageAgentColor(serverSync().session.data.message[props.session.id], sessionStore.agent),
@@ -237,6 +251,7 @@ export const SessionItem = (props: SessionItemProps): JSX.Element => {
       dense={props.dense}
       tint={tint}
       isWorking={isWorking}
+      isStuck={isStuck}
       hasPermissions={hasPermissions}
       hasError={hasError}
       unseenCount={unseenCount}

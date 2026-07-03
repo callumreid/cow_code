@@ -39,6 +39,7 @@ import { LanguageProvider, type Locale, useLanguage } from "@/context/language"
 import { LayoutProvider } from "@/context/layout"
 import { ModelsProvider } from "@/context/models"
 import { NotificationProvider } from "@/context/notification"
+import { SessionWatchdogProvider } from "@/context/session-watchdog"
 import { PermissionProvider } from "@/context/permission"
 import { usePlatform } from "@/context/platform"
 import { PromptProvider } from "@/context/prompt"
@@ -498,11 +499,13 @@ export function AppInterface(props: {
                 root={(routerProps) => (
                   <TabsProvider>
                     <NotificationProvider>
-                      <ServerShell>
-                        <Show when={useSettings().general.newLayoutDesigns()} fallback={routerProps.children}>
-                          <NewAppLayout>{routerProps.children}</NewAppLayout>
-                        </Show>
-                      </ServerShell>
+                      <SessionWatchdogProvider>
+                        <ServerShell>
+                          <Show when={useSettings().general.newLayoutDesigns()} fallback={routerProps.children}>
+                            <NewAppLayout>{routerProps.children}</NewAppLayout>
+                          </Show>
+                        </ServerShell>
+                      </SessionWatchdogProvider>
                     </NotificationProvider>
                   </TabsProvider>
                 )}

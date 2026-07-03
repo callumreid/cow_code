@@ -7,6 +7,7 @@ export interface NotificationSettings {
   agent: boolean
   permissions: boolean
   errors: boolean
+  stuck: boolean
 }
 
 export interface SoundSettings {
@@ -132,7 +133,8 @@ const defaultSettings: Settings = {
   notifications: {
     agent: true,
     permissions: true,
-    errors: false,
+    errors: true,
+    stuck: true,
   },
   sounds: {
     agentEnabled: true,
@@ -319,6 +321,10 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
         errors: withFallback(() => store.notifications?.errors, defaultSettings.notifications.errors),
         setErrors(value: boolean) {
           setStore("notifications", "errors", value)
+        },
+        stuck: withFallback(() => store.notifications?.stuck, defaultSettings.notifications.stuck),
+        setStuck(value: boolean) {
+          setStore("notifications", "stuck", value)
         },
       },
       sounds: {
