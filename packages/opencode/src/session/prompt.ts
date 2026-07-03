@@ -34,6 +34,7 @@ import { SessionProcessor } from "./processor"
 import { Tool } from "@/tool/tool"
 import { Permission } from "@/permission"
 import { SessionStatus } from "./status"
+import { shouldAttemptTitle } from "./title-retry"
 import { LLM } from "./llm"
 import { Shell } from "@opencode-ai/core/shell"
 import { ShellID } from "@/tool/shell/id"
@@ -196,15 +197,21 @@ const layer = Layer.effect(
       providerID: ProviderV2.ID
       modelID: ModelV2.ID
     }) {
-      if (input.session.parentID) return
-      if (!Session.isDefaultTitle(input.session.title)) return
-
       const real = (m: SessionV1.WithParts) =>
         m.info.role === "user" && !m.parts.every((p) => "synthetic" in p && p.synthetic)
       const idx = input.history.findIndex(real)
       if (idx === -1) return
-      if (input.history.filter(real).length !== 1) return
+      const attempt = input.history.filter(real).length
+      if (
+        !shouldAttemptTitle({
+          isChildSession: input.session.parentID !== undefined,
+          hasDefaultTitle: Session.isDefaultTitle(input.session.title),
+          realUserMessageCount: attempt,
+        })
+      )
+        return
 
+      // ground the title on the first real user message even when later turns retry
       const context = input.history.slice(0, idx + 1)
       const firstUser = context[idx]
       if (!firstUser || firstUser.info.role !== "user") return
@@ -238,6 +245,13 @@ const layer = Layer.effect(
           Stream.filter(LLMEvent.is.textDelta),
           Stream.map((e) => e.text),
           Stream.mkString,
+          Effect.tapCause((cause) =>
+            Effect.logError("failed to generate title", {
+              "session.id": input.session.id,
+              attempt,
+              error: Cause.squash(cause),
+            }),
+          ),
           Effect.orDie,
         )
       const cleaned = text
@@ -247,9 +261,15 @@ const layer = Layer.effect(
         .find((line) => line.length > 0)
       if (!cleaned) return
       const t = cleaned.length > 100 ? cleaned.substring(0, 97) + "..." : cleaned
-      yield* sessions
-        .setTitle({ sessionID: input.session.id, title: t })
-        .pipe(Effect.catchCause((cause) => Effect.logError("failed to generate title", { error: Cause.squash(cause) })))
+      yield* sessions.setTitle({ sessionID: input.session.id, title: t }).pipe(
+        Effect.catchCause((cause) =>
+          Effect.logError("failed to set generated title", {
+            "session.id": input.session.id,
+            attempt,
+            error: Cause.squash(cause),
+          }),
+        ),
+      )
     })
 
     const handleSubtask = Effect.fn("SessionPrompt.handleSubtask")(function* (input: {
