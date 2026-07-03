@@ -90,12 +90,39 @@ export function canReusePendingBlock(current: Pick<Block, "mode" | "raw"> | unde
   return current.raw === next.raw
 }
 
+function stableOffset(previous: Projection) {
+  // Everything except the trailing live/open block is frozen: marked committed those
+  // blocks only after seeing a later block-level token, and appended text cannot
+  // reopen them (interrupt decisions are prefix-of-line based). Reuse is only safe
+  // when the block raws literally partition previous.text — marked normalizes \r\n
+  // to \n inside token raws, which breaks that alignment — and when the frozen
+  // prefix ends at a line boundary so the re-lex starts at a line start.
+  if (previous.blocks.length < 2) return
+  const offset = previous.blocks.slice(0, -1).reduce((sum, block) => sum + block.raw.length, 0)
+  const tail = previous.blocks.at(-1)
+  if (!tail || offset + tail.raw.length !== previous.text.length) return
+  if (previous.text[offset - 1] !== "\n") return
+  return offset
+}
+
+function restream(previous: Projection, text: string): Block[] {
+  const offset = stableOffset(previous)
+  if (offset === undefined) return stream(text, true)
+  const liveText = text.slice(offset)
+  // A reference definition anywhere makes the whole message a single live block.
+  // Frozen blocks can never contain one (refs() sees the full region before any
+  // freeze happens), so scanning the live region is sufficient.
+  if (refs(liveText)) return [{ raw: text, src: heal(text), mode: "live" }]
+  return [...previous.blocks.slice(0, -1), ...stream(liveText, true)]
+}
+
 export function project(previous: Projection | undefined, text: string, live: boolean): Projection {
   if (!live || !previous || !text.startsWith(previous.text)) return { text, blocks: stream(text, live) }
   const tail = previous.blocks.at(-1)
   const suffix = text.slice(previous.text.length)
-  if (!suffix || tail?.mode !== "code" || tail.complete || closesFence(tail.raw, suffix))
-    return { text, blocks: stream(text, live) }
+  if (!suffix) return { text, blocks: stream(text, live) }
+  if (tail?.mode !== "code" || tail.complete || closesFence(tail.raw, suffix))
+    return { text, blocks: restream(previous, text) }
   return {
     text,
     blocks: [
