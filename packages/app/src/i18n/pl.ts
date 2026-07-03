@@ -880,4 +880,11 @@ export const dict = {
   "error.childStore.persistedProjectIconCreateFailed": "Nie udało się utworzyć trwałej ikony projektu",
   "error.childStore.storeCreateFailed": "Nie udało się utworzyć magazynu",
   "terminal.connectionLost.abnormalClose": "WebSocket zamknięty nieprawidłowo: {{code}}",
+  "dialog.remoteAccess.title": "Zdalny dostęp",
+  "dialog.remoteAccess.description": "Dołącz do swoich sesji z telefonu lub innego urządzenia w tej sieci.",
+  "dialog.remoteAccess.toggle": "Zezwalaj na połączenia z tej sieci",
+  "dialog.remoteAccess.off.description": "Lokalny serwer akceptuje połączenia tylko z tego komputera. Włącz, aby otrzymać kod QR do zeskanowania telefonem.",
+  "dialog.remoteAccess.noNetwork": "Nie znaleziono adresu sieciowego. Połącz się z siecią i spróbuj ponownie.",
+  "dialog.remoteAccess.scan": "Zeskanuj telefonem, aby otworzyć ten obszar roboczy",
+  "dialog.remoteAccess.warning": "Każdy w tej sieci z tym linkiem może wykonywać polecenia i czytać pliki w Twoim imieniu. Losowe hasło jest zawsze wymagane, ale włączaj to tylko w zaufanych sieciach — do dostępu z zewnątrz użyj VPN, np. Tailscale. Zdalny dostęp wyłącza się po ponownym uruchomieniu aplikacji.",
 }

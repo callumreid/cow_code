@@ -948,4 +948,11 @@ export const dict = {
   "error.childStore.persistedProjectIconCreateFailed": "ไม่สามารถสร้างไอคอนโปรเจกต์ถาวร",
   "error.childStore.storeCreateFailed": "ไม่สามารถสร้างที่เก็บ",
   "terminal.connectionLost.abnormalClose": "WebSocket ปิดอย่างผิดปกติ: {{code}}",
+  "dialog.remoteAccess.title": "การเข้าถึงระยะไกล",
+  "dialog.remoteAccess.description": "เข้าร่วมเซสชันของคุณจากโทรศัพท์หรืออุปกรณ์อื่นในเครือข่ายนี้",
+  "dialog.remoteAccess.toggle": "อนุญาตการเชื่อมต่อจากเครือข่ายนี้",
+  "dialog.remoteAccess.off.description": "เซิร์ฟเวอร์ในเครื่องรับการเชื่อมต่อจากคอมพิวเตอร์เครื่องนี้เท่านั้น เปิดใช้งานเพื่อรับรหัส QR ที่โทรศัพท์ของคุณสามารถสแกนได้",
+  "dialog.remoteAccess.noNetwork": "ไม่พบที่อยู่เครือข่าย เชื่อมต่อกับเครือข่ายแล้วลองอีกครั้ง",
+  "dialog.remoteAccess.scan": "สแกนด้วยโทรศัพท์เพื่อเปิดพื้นที่ทำงานนี้",
+  "dialog.remoteAccess.warning": "ทุกคนในเครือข่ายนี้ที่มีลิงก์นี้สามารถรันคำสั่งและอ่านไฟล์ในนามของคุณได้ ต้องใช้รหัสผ่านแบบสุ่มเสมอ แต่ควรเปิดใช้งานเฉพาะในเครือข่ายที่เชื่อถือได้เท่านั้น — สำหรับการเข้าถึงจากภายนอก ให้ใช้ VPN เช่น Tailscale การเข้าถึงระยะไกลจะปิดเมื่อรีสตาร์ทแอป",
 }

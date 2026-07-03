@@ -939,4 +939,11 @@ export const dict = {
   "error.childStore.persistedProjectIconCreateFailed": "建立持續性專案圖示失敗",
   "error.childStore.storeCreateFailed": "建立儲存區失敗",
   "terminal.connectionLost.abnormalClose": "WebSocket 異常關閉：{{code}}",
+  "dialog.remoteAccess.title": "遠端存取",
+  "dialog.remoteAccess.description": "從同一網路上的手機或其他裝置加入你的工作階段。",
+  "dialog.remoteAccess.toggle": "允許來自此網路的連線",
+  "dialog.remoteAccess.off.description": "本機伺服器僅接受來自這台電腦的連線。開啟後會產生可供手機掃描的 QR code。",
+  "dialog.remoteAccess.noNetwork": "找不到網路位址。請連線到網路後再試一次。",
+  "dialog.remoteAccess.scan": "用手機掃描以開啟此工作區",
+  "dialog.remoteAccess.warning": "此網路上任何擁有該連結的人都可以以你的身分執行命令和讀取檔案。隨機密碼始終是必要的，但請僅在可信任的網路中開啟 — 如需從外部存取，請使用 Tailscale 等 VPN。應用程式重新啟動後遠端存取將自動關閉。",
 } satisfies Partial<Record<Keys, string>>

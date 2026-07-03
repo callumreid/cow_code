@@ -965,4 +965,11 @@ export const dict = {
   "error.childStore.persistedProjectIconCreateFailed": "Error al crear icono de proyecto persistente",
   "error.childStore.storeCreateFailed": "Error al crear almacén",
   "terminal.connectionLost.abnormalClose": "WebSocket cerrado anormalmente: {{code}}",
+  "dialog.remoteAccess.title": "Acceso remoto",
+  "dialog.remoteAccess.description": "Únete a tus sesiones desde un teléfono u otro dispositivo en esta red.",
+  "dialog.remoteAccess.toggle": "Permitir conexiones desde esta red",
+  "dialog.remoteAccess.off.description": "El servidor local solo acepta conexiones desde este equipo. Actívalo para obtener un código QR que tu teléfono pueda escanear.",
+  "dialog.remoteAccess.noNetwork": "No se encontró ninguna dirección de red. Conéctate a una red e inténtalo de nuevo.",
+  "dialog.remoteAccess.scan": "Escanea con tu teléfono para abrir este espacio de trabajo",
+  "dialog.remoteAccess.warning": "Cualquiera en esta red con este enlace puede ejecutar comandos y leer archivos en tu nombre. La contraseña aleatoria siempre es obligatoria, pero actívalo solo en redes de confianza — para acceder desde fuera, usa una VPN como Tailscale. El acceso remoto se desactiva al reiniciar la app.",
 }

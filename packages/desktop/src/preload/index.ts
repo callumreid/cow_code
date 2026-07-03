@@ -124,6 +124,8 @@ const api: ElectronAPI = {
   setBackgroundColor: (color: string) => ipcRenderer.invoke("set-background-color", color),
   exportDebugLogs: () => ipcRenderer.invoke("export-debug-logs"),
   recordFatalRendererError: (error) => ipcRenderer.invoke("record-fatal-renderer-error", error),
+  getRemoteAccessInfo: () => ipcRenderer.invoke("get-remote-access-info"),
+  setRemoteAccess: (enabled) => ipcRenderer.invoke("set-remote-access", enabled),
 }
 
 contextBridge.exposeInMainWorld("api", api)

@@ -21,6 +21,13 @@ export type ServerReadyData = {
   password: string | null
 }
 
+export type RemoteAccessInfo = {
+  enabled: boolean
+  lanIPs: string[]
+  port: number
+  credentials: { username: string; password: string }
+}
+
 export type WslServersAPI = WslServersPlatform
 export type UpdaterAPI = {
   subscribe: (cb: (state: UpdaterState) => void) => Promise<() => void>
@@ -103,4 +110,6 @@ export type ElectronAPI = {
   setBackgroundColor: (color: string) => Promise<void>
   exportDebugLogs: () => Promise<string>
   recordFatalRendererError: (error: FatalRendererError) => Promise<void>
+  getRemoteAccessInfo: () => Promise<RemoteAccessInfo | null>
+  setRemoteAccess: (enabled: boolean) => Promise<RemoteAccessInfo>
 }

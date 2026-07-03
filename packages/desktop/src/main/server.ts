@@ -13,12 +13,17 @@ type SidecarMessage =
   | { type: "ready" }
   | { type: "stopped" }
   | { type: "error"; error: { message: string; stack?: string } }
+  | { type: "relisten-result"; error?: { message: string; stack?: string } }
 
-export type SidecarListener = { stop: () => Promise<void> }
+export type SidecarListener = {
+  stop: () => Promise<void>
+  relisten: (hostname: string) => Promise<void>
+}
 
 const SIDECAR_SERVICE_NAME = "opencode server"
 const SIDECAR_START_STALL_TIMEOUT = 60_000
 const SIDECAR_STOP_TIMEOUT = 6_000
+const SIDECAR_RELISTEN_TIMEOUT = 15_000
 
 type SpawnLocalServerOptions = {
   userDataPath: string
@@ -176,6 +181,29 @@ export async function spawnLocalServer(
         ])
         return stopping
       },
+      relisten: (hostname: string) =>
+        new Promise<void>((resolve, reject) => {
+          if (exited || stopping) {
+            reject(new Error("Sidecar is not running"))
+            return
+          }
+          const timeout = setTimeout(() => {
+            child.off("message", onResult)
+            reject(new Error(`Sidecar did not rebind within ${SIDECAR_RELISTEN_TIMEOUT}ms`))
+          }, SIDECAR_RELISTEN_TIMEOUT)
+          const onResult = (message: SidecarMessage) => {
+            if (message.type !== "relisten-result") return
+            clearTimeout(timeout)
+            child.off("message", onResult)
+            if (message.error) {
+              reject(Object.assign(new Error(message.error.message), { stack: message.error.stack }))
+              return
+            }
+            resolve()
+          }
+          child.on("message", onResult)
+          child.postMessage({ type: "relisten", hostname })
+        }),
     },
     health: { wait },
   }

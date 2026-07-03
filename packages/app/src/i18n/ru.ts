@@ -961,4 +961,11 @@ export const dict = {
   "error.childStore.persistedProjectIconCreateFailed": "Не удалось создать постоянный значок проекта",
   "error.childStore.storeCreateFailed": "Не удалось создать хранилище",
   "terminal.connectionLost.abnormalClose": "WebSocket закрыт аварийно: {{code}}",
+  "dialog.remoteAccess.title": "Удалённый доступ",
+  "dialog.remoteAccess.description": "Подключайтесь к своим сессиям с телефона или другого устройства в этой сети.",
+  "dialog.remoteAccess.toggle": "Разрешить подключения из этой сети",
+  "dialog.remoteAccess.off.description": "Локальный сервер принимает подключения только с этого компьютера. Включите, чтобы получить QR-код, который можно отсканировать телефоном.",
+  "dialog.remoteAccess.noNetwork": "Сетевой адрес не найден. Подключитесь к сети и попробуйте снова.",
+  "dialog.remoteAccess.scan": "Отсканируйте телефоном, чтобы открыть это рабочее пространство",
+  "dialog.remoteAccess.warning": "Любой в этой сети, у кого есть эта ссылка, может выполнять команды и читать файлы от вашего имени. Случайный пароль требуется всегда, но включайте это только в доверенных сетях — для доступа извне используйте VPN, например Tailscale. Удалённый доступ отключается при перезапуске приложения.",
 }

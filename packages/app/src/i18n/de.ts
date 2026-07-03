@@ -895,4 +895,11 @@ export const dict = {
   "error.childStore.persistedProjectIconCreateFailed": "Dauerhaftes Projekticon konnte nicht erstellt werden",
   "error.childStore.storeCreateFailed": "Speicher konnte nicht erstellt werden",
   "terminal.connectionLost.abnormalClose": "WebSocket abnormal geschlossen: {{code}}",
+  "dialog.remoteAccess.title": "Fernzugriff",
+  "dialog.remoteAccess.description": "Nehmen Sie von einem Telefon oder einem anderen Gerät in diesem Netzwerk an Ihren Sitzungen teil.",
+  "dialog.remoteAccess.toggle": "Verbindungen aus diesem Netzwerk erlauben",
+  "dialog.remoteAccess.off.description": "Der lokale Server akzeptiert nur Verbindungen von diesem Computer. Aktivieren Sie diese Option, um einen QR-Code zu erhalten, den Ihr Telefon scannen kann.",
+  "dialog.remoteAccess.noNetwork": "Keine Netzwerkadresse gefunden. Verbinden Sie sich mit einem Netzwerk und versuchen Sie es erneut.",
+  "dialog.remoteAccess.scan": "Mit dem Telefon scannen, um diesen Arbeitsbereich zu öffnen",
+  "dialog.remoteAccess.warning": "Jeder in diesem Netzwerk mit diesem Link kann Befehle ausführen und Dateien in Ihrem Namen lesen. Das zufällige Passwort ist immer erforderlich; aktivieren Sie dies dennoch nur in vertrauenswürdigen Netzwerken — für Zugriff von außerhalb verwenden Sie ein VPN wie Tailscale. Der Fernzugriff wird beim Neustart der App deaktiviert.",
 } satisfies Partial<Record<Keys, string>>

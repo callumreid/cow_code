@@ -955,4 +955,11 @@ export const dict = {
   "error.childStore.persistedProjectIconCreateFailed": "创建持久化项目图标失败",
   "error.childStore.storeCreateFailed": "创建存储失败",
   "terminal.connectionLost.abnormalClose": "WebSocket 异常关闭：{{code}}",
+  "dialog.remoteAccess.title": "远程访问",
+  "dialog.remoteAccess.description": "从同一网络上的手机或其他设备加入你的会话。",
+  "dialog.remoteAccess.toggle": "允许来自此网络的连接",
+  "dialog.remoteAccess.off.description": "本地服务器仅接受来自这台电脑的连接。开启后会生成可供手机扫描的二维码。",
+  "dialog.remoteAccess.noNetwork": "未找到网络地址。请连接网络后重试。",
+  "dialog.remoteAccess.scan": "用手机扫描以打开此工作区",
+  "dialog.remoteAccess.warning": "此网络上任何拥有该链接的人都可以以你的身份运行命令和读取文件。随机密码始终是必需的，但请仅在可信网络中开启 — 如需从外部访问，请使用 Tailscale 等 VPN。应用重启后远程访问将自动关闭。",
 } satisfies Partial<Record<Keys, string>>

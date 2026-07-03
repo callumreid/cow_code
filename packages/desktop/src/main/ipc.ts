@@ -5,7 +5,7 @@ import { app, BrowserWindow, Notification, clipboard, dialog, ipcMain, shell } f
 import type { IpcMainEvent, IpcMainInvokeEvent } from "electron"
 import type { DesktopMenuAction } from "@opencode-ai/app/desktop-menu"
 
-import type { FatalRendererError, ServerReadyData, TitlebarTheme } from "../preload/types"
+import type { FatalRendererError, RemoteAccessInfo, ServerReadyData, TitlebarTheme } from "../preload/types"
 import { runDesktopMenuAction } from "./desktop-menu-actions"
 import { assertAttachmentBudget, createPickedFileAuthorizations } from "./attachment-picker"
 import { getStore, removeStoreFileIfEmpty } from "./store"
@@ -37,6 +37,8 @@ type Deps = {
   setBackgroundColor: (color: string) => void
   exportDebugLogs: () => Promise<string>
   recordFatalRendererError: (error: FatalRendererError) => Promise<void> | void
+  getRemoteAccessInfo: () => RemoteAccessInfo | null
+  setRemoteAccess: (enabled: boolean) => Promise<RemoteAccessInfo>
 }
 
 export function registerIpcHandlers(deps: Deps) {
@@ -75,6 +77,10 @@ export function registerIpcHandlers(deps: Deps) {
   ipcMain.handle("export-debug-logs", () => deps.exportDebugLogs())
   ipcMain.handle("record-fatal-renderer-error", (_event: IpcMainInvokeEvent, error: FatalRendererError) =>
     deps.recordFatalRendererError(error),
+  )
+  ipcMain.handle("get-remote-access-info", () => deps.getRemoteAccessInfo())
+  ipcMain.handle("set-remote-access", (_event: IpcMainInvokeEvent, enabled: boolean) =>
+    deps.setRemoteAccess(Boolean(enabled)),
   )
   ipcMain.handle("store-get", (_event: IpcMainInvokeEvent, name: string, key: string) => {
     try {

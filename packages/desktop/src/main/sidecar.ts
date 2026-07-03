@@ -19,12 +19,14 @@ type StartCommand = {
 }
 
 type StopCommand = { type: "stop" }
-type SidecarCommand = StartCommand | StopCommand
+type RelistenCommand = { type: "relisten"; hostname: string }
+type SidecarCommand = StartCommand | StopCommand | RelistenCommand
 
 type SidecarMessage =
   | { type: "ready" }
   | { type: "stopped" }
   | { type: "error"; error: { message: string; stack?: string } }
+  | { type: "relisten-result"; error?: { message: string; stack?: string } }
 
 type ParentPort = {
   postMessage(message: SidecarMessage): void
@@ -37,12 +39,17 @@ type Listener = {
 
 const parentPort = getParentPort()
 let listener: Listener | undefined
+let started: StartCommand | undefined
 
 parentPort.on("message", (event) => {
   const command = parseCommand(event.data)
   if (!command) return
   if (command.type === "stop") {
     void stop()
+    return
+  }
+  if (command.type === "relisten") {
+    void relisten(command)
     return
   }
   void start(command)
@@ -63,10 +70,44 @@ async function start(command: StartCommand) {
       password: command.password,
       cors: ["oc://renderer"],
     })
+    started = command
     parentPort.postMessage({ type: "ready" })
   } catch (error) {
     parentPort.postMessage({ type: "error", error: serializeError(error) })
     setImmediate(() => process.exit(1))
+  }
+}
+
+// Rebind the HTTP listener on a different interface (loopback vs LAN) while
+// keeping the engine process — and its in-memory session/PTY state — alive.
+// Same port and password; only the bind address (and mDNS publication) change.
+async function relisten(command: RelistenCommand) {
+  try {
+    if (!started) throw new Error("Sidecar has not started a server yet")
+    const current = started
+    const { Server } = await import("virtual:opencode-server")
+    const bind = (hostname: string) => {
+      const loopback = hostname === "127.0.0.1" || hostname === "localhost"
+      return Server.listen({
+        port: current.port,
+        hostname,
+        username: "opencode",
+        password: current.password,
+        cors: ["oc://renderer"],
+        mdns: !loopback,
+      })
+    }
+    await listener?.stop(true)
+    listener = undefined
+    listener = await bind(command.hostname).catch(async (error: unknown) => {
+      // The old listener is already gone; restore loopback so the desktop app
+      // itself keeps working, then surface the original bind failure.
+      if (command.hostname !== "127.0.0.1") listener = await bind("127.0.0.1").catch(() => undefined)
+      throw error
+    })
+    parentPort.postMessage({ type: "relisten-result" })
+  } catch (error) {
+    parentPort.postMessage({ type: "relisten-result", error: serializeError(error) })
   }
 }
 
@@ -129,8 +170,12 @@ function useEnvProxy() {
 
 function parseCommand(value: unknown): SidecarCommand | undefined {
   if (!value || typeof value !== "object") return
-  const command = value as Partial<StartCommand | StopCommand>
+  const command = value as Partial<StartCommand | StopCommand | RelistenCommand>
   if (command.type === "stop") return { type: "stop" }
+  if (command.type === "relisten") {
+    if (typeof command.hostname !== "string") return
+    return { type: "relisten", hostname: command.hostname }
+  }
   if (command.type !== "start") return
   if (typeof command.hostname !== "string") return
   if (typeof command.port !== "number") return

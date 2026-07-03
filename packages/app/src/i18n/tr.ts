@@ -966,4 +966,11 @@ export const dict = {
   "error.childStore.persistedProjectIconCreateFailed": "Kalıcı proje simgesi oluşturulamadı",
   "error.childStore.storeCreateFailed": "Depo oluşturulamadı",
   "terminal.connectionLost.abnormalClose": "WebSocket anormal şekilde kapandı: {{code}}",
+  "dialog.remoteAccess.title": "Uzaktan erişim",
+  "dialog.remoteAccess.description": "Bu ağdaki bir telefondan veya başka bir cihazdan oturumlarınıza katılın.",
+  "dialog.remoteAccess.toggle": "Bu ağdan gelen bağlantılara izin ver",
+  "dialog.remoteAccess.off.description": "Yerel sunucu yalnızca bu bilgisayardan gelen bağlantıları kabul eder. Telefonunuzun tarayabileceği bir QR kod almak için bunu açın.",
+  "dialog.remoteAccess.noNetwork": "Ağ adresi bulunamadı. Bir ağa bağlanıp tekrar deneyin.",
+  "dialog.remoteAccess.scan": "Bu çalışma alanını açmak için telefonunuzla tarayın",
+  "dialog.remoteAccess.warning": "Bu ağda bu bağlantıya sahip olan herkes sizin adınıza komut çalıştırabilir ve dosyaları okuyabilir. Rastgele parola her zaman gereklidir, ancak bunu yalnızca güvendiğiniz ağlarda açın — dışarıdan erişim için Tailscale gibi bir VPN kullanın. Uzaktan erişim uygulama yeniden başlatıldığında kapanır.",
 } satisfies Partial<Record<Keys, string>>

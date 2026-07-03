@@ -958,4 +958,11 @@ export const dict = {
   "error.childStore.persistedProjectIconCreateFailed": "Nije uspjelo kreiranje trajne ikone projekta",
   "error.childStore.storeCreateFailed": "Nije uspjelo kreiranje skladišta",
   "terminal.connectionLost.abnormalClose": "WebSocket zatvoren nenormalno: {{code}}",
+  "dialog.remoteAccess.title": "Daljinski pristup",
+  "dialog.remoteAccess.description": "Pridružite se svojim sesijama s telefona ili drugog uređaja na ovoj mreži.",
+  "dialog.remoteAccess.toggle": "Dozvoli konekcije s ove mreže",
+  "dialog.remoteAccess.off.description": "Lokalni server prihvata konekcije samo s ovog računara. Uključite ovo da dobijete QR kod koji vaš telefon može skenirati.",
+  "dialog.remoteAccess.noNetwork": "Nije pronađena mrežna adresa. Povežite se na mrežu i pokušajte ponovo.",
+  "dialog.remoteAccess.scan": "Skenirajte telefonom da otvorite ovaj radni prostor",
+  "dialog.remoteAccess.warning": "Svako na ovoj mreži s ovim linkom može izvršavati komande i čitati fajlove u vaše ime. Nasumična lozinka je uvijek obavezna, ali uključite ovo samo na mrežama kojima vjerujete — za pristup izvana koristite VPN poput Tailscalea. Daljinski pristup se isključuje pri ponovnom pokretanju aplikacije.",
 }

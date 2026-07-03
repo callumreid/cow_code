@@ -354,6 +354,15 @@ export const dict = {
   "dialog.server.menu.delete": "Delete",
   "dialog.server.current": "Current Server",
   "dialog.server.status.default": "Default",
+  "dialog.remoteAccess.title": "Remote access",
+  "dialog.remoteAccess.description": "Join your sessions from a phone or another device on this network.",
+  "dialog.remoteAccess.toggle": "Allow connections from this network",
+  "dialog.remoteAccess.off.description":
+    "The local server only accepts connections from this computer. Turn this on to get a QR code your phone can scan.",
+  "dialog.remoteAccess.noNetwork": "No network address found. Connect to a network and try again.",
+  "dialog.remoteAccess.scan": "Scan with your phone to open this workspace",
+  "dialog.remoteAccess.warning":
+    "Anyone on this network with this link can run commands and read files as you. The random password is always required, but only enable this on networks you trust — for access from elsewhere, use a VPN like Tailscale. Remote access turns off when the app restarts.",
   "wsl.server.add": "Add WSL server",
   "wsl.server.addShort": "Add WSL",
   "wsl.server.label": "WSL",

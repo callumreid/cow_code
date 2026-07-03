@@ -19,6 +19,7 @@ import { forwardInitializationFailure } from "./initialization"
 import { exportDebugLogs, initCrashReporter, initLogging, startNetLog, write as writeLog } from "./logging"
 import { parseMarkdown } from "./markdown"
 import { createMenu } from "./menu"
+import { createRemoteAccessController, type RemoteAccessController } from "./remote-access"
 import {
   getDefaultServerUrl,
   preferAppEnv,
@@ -57,6 +58,7 @@ const jsCallStackFeature = "DocumentPolicyIncludeJSCallStacksInCrashReports"
 
 let logger: ReturnType<typeof initLogging>
 let server: SidecarListener | null = null
+let remoteAccess: RemoteAccessController | null = null
 // Set while the sidecar is being stopped on purpose (restart/quit) so the
 // exit handler only surfaces UNEXPECTED deaths to the renderer.
 let sidecarStopping = false
@@ -300,6 +302,12 @@ const main = Effect.gen(function* () {
     setBackgroundColor: (color) => setBackgroundColor(color),
     exportDebugLogs: () => exportDebugLogs(),
     recordFatalRendererError: (error) => writeLog("renderer", "fatal renderer error", { ...error }, "error"),
+    getRemoteAccessInfo: () => remoteAccess?.get() ?? null,
+    setRemoteAccess: (enabled) => {
+      if (!remoteAccess) return Promise.reject(new Error("Local server is not ready"))
+      logger.log("remote access toggled", { enabled })
+      return remoteAccess.set(enabled)
+    },
   })
   registerWslIpcHandlers(wslServers)
   void updater.start()
@@ -361,6 +369,16 @@ const main = Effect.gen(function* () {
       }),
     )
     server = listener
+    remoteAccess = createRemoteAccessController({
+      port,
+      username: "opencode",
+      password,
+      relisten: (host) => {
+        const current = server
+        if (!current) return Promise.reject(new Error("Local server is not running"))
+        return current.relisten(host)
+      },
+    })
     yield* Deferred.succeed(serverReady, {
       url,
       username: "opencode",

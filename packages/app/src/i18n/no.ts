@@ -959,4 +959,11 @@ export const dict = {
   "error.childStore.persistedProjectIconCreateFailed": "Kunne ikke opprette vedvarende prosjektikon",
   "error.childStore.storeCreateFailed": "Kunne ikke opprette lager",
   "terminal.connectionLost.abnormalClose": "WebSocket lukket unormalt: {{code}}",
+  "dialog.remoteAccess.title": "Ekstern tilgang",
+  "dialog.remoteAccess.description": "Bli med i øktene dine fra en telefon eller en annen enhet på dette nettverket.",
+  "dialog.remoteAccess.toggle": "Tillat tilkoblinger fra dette nettverket",
+  "dialog.remoteAccess.off.description": "Den lokale serveren godtar kun tilkoblinger fra denne datamaskinen. Slå på for å få en QR-kode telefonen din kan skanne.",
+  "dialog.remoteAccess.noNetwork": "Fant ingen nettverksadresse. Koble til et nettverk og prøv igjen.",
+  "dialog.remoteAccess.scan": "Skann med telefonen for å åpne dette arbeidsområdet",
+  "dialog.remoteAccess.warning": "Alle på dette nettverket med denne lenken kan kjøre kommandoer og lese filer som deg. Det tilfeldige passordet kreves alltid, men slå bare på dette på nettverk du stoler på — bruk et VPN som Tailscale for tilgang utenfra. Ekstern tilgang slås av når appen starter på nytt.",
 } satisfies Partial<Record<Keys, string>>

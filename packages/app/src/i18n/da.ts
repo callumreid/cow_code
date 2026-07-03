@@ -953,4 +953,11 @@ export const dict = {
   "error.childStore.persistedProjectIconCreateFailed": "Kunne ikke oprette vedvarende projektikon",
   "error.childStore.storeCreateFailed": "Kunne ikke oprette lager",
   "terminal.connectionLost.abnormalClose": "WebSocket lukkede unormalt: {{code}}",
+  "dialog.remoteAccess.title": "Fjernadgang",
+  "dialog.remoteAccess.description": "Deltag i dine sessioner fra en telefon eller en anden enhed på dette netværk.",
+  "dialog.remoteAccess.toggle": "Tillad forbindelser fra dette netværk",
+  "dialog.remoteAccess.off.description": "Den lokale server accepterer kun forbindelser fra denne computer. Slå dette til for at få en QR-kode, din telefon kan scanne.",
+  "dialog.remoteAccess.noNetwork": "Ingen netværksadresse fundet. Opret forbindelse til et netværk, og prøv igen.",
+  "dialog.remoteAccess.scan": "Scan med din telefon for at åbne dette arbejdsområde",
+  "dialog.remoteAccess.warning": "Alle på dette netværk med dette link kan køre kommandoer og læse filer som dig. Den tilfældige adgangskode kræves altid, men slå kun dette til på netværk, du stoler på — brug en VPN som Tailscale til adgang udefra. Fjernadgang slås fra, når appen genstarter.",
 }

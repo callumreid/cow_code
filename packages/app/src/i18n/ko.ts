@@ -870,4 +870,11 @@ export const dict = {
   "error.childStore.persistedProjectIconCreateFailed": "영구 프로젝트 아이콘 생성 실패",
   "error.childStore.storeCreateFailed": "저장소 생성 실패",
   "terminal.connectionLost.abnormalClose": "WebSocket이 비정상적으로 닫힘: {{code}}",
+  "dialog.remoteAccess.title": "원격 접근",
+  "dialog.remoteAccess.description": "같은 네트워크의 휴대폰이나 다른 기기에서 세션에 참여하세요.",
+  "dialog.remoteAccess.toggle": "이 네트워크의 연결 허용",
+  "dialog.remoteAccess.off.description": "로컬 서버는 이 컴퓨터의 연결만 허용합니다. 켜면 휴대폰으로 스캔할 수 있는 QR 코드가 표시됩니다.",
+  "dialog.remoteAccess.noNetwork": "네트워크 주소를 찾을 수 없습니다. 네트워크에 연결한 후 다시 시도하세요.",
+  "dialog.remoteAccess.scan": "휴대폰으로 스캔하여 이 워크스페이스 열기",
+  "dialog.remoteAccess.warning": "이 링크를 가진 이 네트워크의 누구나 사용자 권한으로 명령을 실행하고 파일을 읽을 수 있습니다. 무작위 비밀번호가 항상 필요하지만, 신뢰할 수 있는 네트워크에서만 켜세요. 외부 접근에는 Tailscale 같은 VPN을 사용하세요. 원격 접근은 앱을 다시 시작하면 꺼집니다.",
 }

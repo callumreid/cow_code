@@ -27,6 +27,13 @@ export type FatalRendererErrorLog = {
   os?: DesktopOS
 }
 
+export type RemoteAccessInfo = {
+  enabled: boolean
+  lanIPs: string[]
+  port: number
+  credentials: { username: string; password: string }
+}
+
 type PlatformBase = {
   /** App version */
   version?: string
@@ -123,6 +130,12 @@ type PlatformBase = {
 
   /** Record a fatal renderer error in platform logs (desktop only) */
   recordFatalRendererError?(error: FatalRendererErrorLog): Promise<void>
+
+  /** Read the local server's remote-access state: LAN IPs, port, credentials (desktop only) */
+  getRemoteAccessInfo?(): Promise<RemoteAccessInfo | null>
+
+  /** Expose the local server on the LAN (0.0.0.0) or restrict it to loopback (desktop only) */
+  setRemoteAccess?(enabled: boolean): Promise<RemoteAccessInfo>
 }
 
 export type Platform = PlatformBase &

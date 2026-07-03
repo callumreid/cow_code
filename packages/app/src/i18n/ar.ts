@@ -869,4 +869,11 @@ export const dict = {
   "error.childStore.persistedProjectIconCreateFailed": "فشل إنشاء أيقونة المشروع الدائمة",
   "error.childStore.storeCreateFailed": "فشل إنشاء المخزن",
   "terminal.connectionLost.abnormalClose": "تم إغلاق WebSocket بشكل غير طبيعي: {{code}}",
+  "dialog.remoteAccess.title": "الوصول عن بُعد",
+  "dialog.remoteAccess.description": "انضم إلى جلساتك من هاتف أو جهاز آخر على هذه الشبكة.",
+  "dialog.remoteAccess.toggle": "السماح بالاتصالات من هذه الشبكة",
+  "dialog.remoteAccess.off.description": "الخادم المحلي يقبل الاتصالات من هذا الكمبيوتر فقط. فعّل هذا للحصول على رمز QR يمكن لهاتفك مسحه.",
+  "dialog.remoteAccess.noNetwork": "لم يتم العثور على عنوان شبكة. اتصل بشبكة وحاول مرة أخرى.",
+  "dialog.remoteAccess.scan": "امسح بهاتفك لفتح مساحة العمل هذه",
+  "dialog.remoteAccess.warning": "يمكن لأي شخص على هذه الشبكة لديه هذا الرابط تنفيذ الأوامر وقراءة الملفات باسمك. كلمة المرور العشوائية مطلوبة دائمًا، لكن فعّل هذا فقط على الشبكات الموثوقة — للوصول من الخارج استخدم VPN مثل Tailscale. يتم إيقاف الوصول عن بُعد عند إعادة تشغيل التطبيق.",
 }

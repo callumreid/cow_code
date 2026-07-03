@@ -877,4 +877,11 @@ export const dict = {
   "error.childStore.persistedProjectIconCreateFailed": "永続プロジェクトアイコンの作成に失敗しました",
   "error.childStore.storeCreateFailed": "ストアの作成に失敗しました",
   "terminal.connectionLost.abnormalClose": "WebSocket が異常終了しました: {{code}}",
+  "dialog.remoteAccess.title": "リモートアクセス",
+  "dialog.remoteAccess.description": "同じネットワーク上のスマートフォンや他のデバイスからセッションに参加できます。",
+  "dialog.remoteAccess.toggle": "このネットワークからの接続を許可",
+  "dialog.remoteAccess.off.description": "ローカルサーバーはこのコンピューターからの接続のみを受け付けます。オンにすると、スマートフォンでスキャンできる QR コードが表示されます。",
+  "dialog.remoteAccess.noNetwork": "ネットワークアドレスが見つかりません。ネットワークに接続して再試行してください。",
+  "dialog.remoteAccess.scan": "スマートフォンでスキャンしてこのワークスペースを開く",
+  "dialog.remoteAccess.warning": "このリンクを知っているこのネットワーク上の誰でも、あなたとしてコマンドを実行しファイルを読み取れます。ランダムなパスワードは常に必要ですが、信頼できるネットワークでのみ有効にしてください。外部からのアクセスには Tailscale などの VPN を使用してください。リモートアクセスはアプリの再起動時にオフになります。",
 }

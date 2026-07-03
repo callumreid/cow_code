@@ -1,4 +1,5 @@
 import { Tag } from "@opencode-ai/ui/v2/badge-v2"
+import { ButtonV2 } from "@opencode-ai/ui/v2/button-v2"
 import { Icon as IconV2 } from "@opencode-ai/ui/v2/icon"
 import { IconButtonV2 } from "@opencode-ai/ui/v2/icon-button-v2"
 import { TextInputV2 } from "@opencode-ai/ui/v2/text-input-v2"
@@ -6,9 +7,11 @@ import { useDialog } from "@opencode-ai/ui/context/dialog"
 import fuzzysort from "fuzzysort"
 import { type Component, For, Show, createMemo } from "solid-js"
 import { createStore } from "solid-js/store"
+import { DialogRemoteAccess } from "@/components/dialog-remote-access"
 import { ServerRowMenu } from "@/components/server/server-row-menu"
 import { ServerHealthIndicator } from "@/components/server/server-row"
 import { useLanguage } from "@/context/language"
+import { usePlatform } from "@/context/platform"
 import { ServerConnection, serverName } from "@/context/server"
 import { useServerManagementController } from "../dialog-select-server"
 import { DialogServerV2 } from "./dialog-server-v2"
@@ -19,6 +22,7 @@ import "./settings-v2.css"
 export const SettingsServersV2: Component = () => {
   const dialog = useDialog()
   const language = useLanguage()
+  const platform = usePlatform()
   const controller = useServerManagementController()
   const [store, setStore] = createStore({ filter: "" })
   const wslServers = useFilteredWslServers(() => store.filter)
@@ -54,7 +58,14 @@ export const SettingsServersV2: Component = () => {
       >
         <div class="settings-v2-tab-header-row">
           <h2 class="settings-v2-tab-title">{language.t("status.popover.tab.servers")}</h2>
-          <AddServerMenu onAddServer={openAdd} />
+          <div class="flex items-center gap-2">
+            <Show when={platform.setRemoteAccess}>
+              <ButtonV2 variant="ghost-muted" onClick={() => dialog.push(() => <DialogRemoteAccess />)}>
+                {language.t("dialog.remoteAccess.title")}
+              </ButtonV2>
+            </Show>
+            <AddServerMenu onAddServer={openAdd} />
+          </div>
         </div>
         <Show when={showSearch()}>
           <div class="settings-v2-tab-search">

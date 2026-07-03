@@ -238,6 +238,10 @@ const createPlatform = (windowState: DesktopWindowState): Platform => {
 
     recordFatalRendererError: (error) => window.api.recordFatalRendererError(error),
 
+    getRemoteAccessInfo: () => window.api.getRemoteAccessInfo(),
+
+    setRemoteAccess: (enabled) => window.api.setRemoteAccess(enabled),
+
     restart: async () => {
       await window.api.killSidecar().catch(() => undefined)
       window.api.relaunch()
