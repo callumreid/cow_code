@@ -113,8 +113,17 @@ export const DESKTOP_MENU: DesktopMenu[] = [
         action: "window.new",
         accelerator: { macos: "Cmd+Shift+N", windows: "Ctrl+Shift+N" },
       },
+      {
+        type: "item",
+        label: "Reopen Closed Tab",
+        command: "tab.reopenClosed",
+        accelerator: { macos: "Shift+Cmd+T" },
+      },
       { type: "separator" },
-      { type: "item", label: "Close Window", action: "window.close", role: "close" },
+      { type: "item", label: "Close Tab", command: "tab.close", accelerator: { macos: "Cmd+W" } },
+      // No close role here: its native Cmd+W accelerator would intercept
+      // the Close Tab shortcut before the renderer sees it.
+      { type: "item", label: "Close Window", action: "window.close" },
     ],
   },
   {

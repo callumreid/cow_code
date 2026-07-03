@@ -10,6 +10,7 @@ import { uuid } from "@/utils/uuid"
 import { SessionTabsRemovedDetail } from "@/components/titlebar-session-events"
 import { sessionHref } from "@/utils/session-route"
 import { createTabMemory } from "./tab-memory"
+import { pushClosedTab, takeClosedTab, type ClosedTab } from "./closed-tabs"
 
 export type SessionTab = {
   type: "session"
@@ -63,6 +64,7 @@ export const { use: useTabs, provider: TabsProvider } = createSimpleContext({
       createStore<Tab[]>([]),
     )
     const [recent, setRecent, , recentReady] = persisted(Persist.window("tabs.recent"), createStore<RecentTab>({}))
+    const [closed, setClosed, , closedReady] = persisted(Persist.global("tabs.closed"), createStore<ClosedTab[]>([]))
 
     const params = useParams()
     const navigate = useNavigate()
@@ -104,6 +106,13 @@ export const { use: useTabs, provider: TabsProvider } = createSimpleContext({
         setStore(() => next)
       }
       if (recent.key && !next.some((tab) => tabKey(tab) === recent.key)) setRecentKey(undefined)
+    })
+
+    createEffect(() => {
+      if (!closedReady()) return
+      const servers = new Set(server.list.map(ServerConnection.key))
+      const next = closed.filter((entry) => servers.has(entry.tab.server))
+      if (next.length !== closed.length) setClosed(() => next)
     })
 
     const navigateTab = (tab: Tab) => {
@@ -201,6 +210,32 @@ export const { use: useTabs, provider: TabsProvider } = createSimpleContext({
         removeDraftPersisted(draftID)
       },
       removeTab,
+      // User-initiated close: records the tab so it can be reopened.
+      // Cleanup paths (missing sessions, archive, server removal) go through
+      // removeTab and friends directly and are not recorded.
+      closeTab(index: number) {
+        const tab = store[index]
+        if (!tab) return
+        if (tab.type === "session") setClosed((stack) => pushClosedTab(stack, tab, index))
+        removeTab(index)
+      },
+      reopenClosedTab() {
+        const result = takeClosedTab(closed, store)
+        if (result.stack.length === closed.length) return
+        setClosed(() => result.stack)
+        const entry = result.entry
+        if (!entry) return
+        const index = Math.min(entry.index, store.length)
+        void startTransition(() => {
+          setStore(
+            produce((tabs) => {
+              if (tabs.some((item) => tabKey(item) === tabKey(entry.tab))) return
+              tabs.splice(index, 0, entry.tab)
+            }),
+          )
+          navigateTab(entry.tab)
+        })
+      },
       removeSessionTab(input: Omit<SessionTab, "type">) {
         const index = store.findIndex(
           (tab) => tab.type === "session" && tab.server === input.server && tab.sessionId === input.sessionId,

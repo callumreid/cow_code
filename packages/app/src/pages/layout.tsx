@@ -1021,7 +1021,8 @@ export default function LegacyLayout(props: ParentProps) {
         id: "theme.cycle",
         title: language.t("command.theme.cycle"),
         category: language.t("command.category.theme"),
-        keybind: "mod+shift+t",
+        // mod+shift+t belongs to tab.reopenClosed (matches browser convention)
+        keybind: "mod+alt+shift+t",
         onSelect: () => cycleTheme(1),
       },
     ]
