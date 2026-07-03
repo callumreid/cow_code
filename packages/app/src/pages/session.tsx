@@ -94,6 +94,7 @@ import { formatServerError, isLocalSessionNotFoundError, isSessionNotFoundError 
 import { legacySessionHref, requireServerKey, sessionHref } from "@/utils/session-route"
 import { useUsageExceededDialogs } from "./session/usage-exceeded-dialogs"
 import { createSessionOwnership } from "./session/session-ownership"
+import { SessionRouteErrorBoundary } from "./session/route-boundary"
 import { createSessionLineage } from "./session/session-lineage"
 
 type FollowupItem = FollowupDraft & { id: string }
@@ -152,32 +153,27 @@ export function SessionPage() {
 export function TargetSessionRouteContent() {
   const params = useParams<{ serverKey: string; id: string }>()
   return (
-    <SessionRouteErrorBoundary sessionID={params.id} serverKey={requireServerKey(params.serverKey)} padded>
+    <SessionRouteErrorBoundary
+      sessionID={params.id}
+      fallback={(error) => (
+        <SessionRouteFallback error={error} sessionID={params.id} serverKey={requireServerKey(params.serverKey)} />
+      )}
+    >
       <ResolvedTargetSessionRoute />
     </SessionRouteErrorBoundary>
   )
 }
 
-function SessionRouteErrorBoundary(
-  props: ParentProps<{ sessionID?: string; serverKey?: ServerConnection.Key; padded?: boolean }>,
-) {
+function SessionRouteFallback(props: { error: unknown; sessionID: string; serverKey: ServerConnection.Key }) {
   const settings = useSettings()
   return (
-    <ErrorBoundary
-      fallback={(error) =>
-        settings.general.newLayoutDesigns() ? (
-          <SessionRouteFrame padded={props.padded}>
-            <SessionPanelFrame newLayout raised={!!props.sessionID}>
-              <SessionErrorFallback error={error} sessionID={props.sessionID} serverKey={props.serverKey} />
-            </SessionPanelFrame>
-          </SessionRouteFrame>
-        ) : (
-          <ErrorPage error={error} />
-        )
-      }
-    >
-      {props.children}
-    </ErrorBoundary>
+    <Show when={settings.general.newLayoutDesigns()} fallback={<ErrorPage error={props.error} />}>
+      <SessionRouteFrame padded>
+        <SessionPanelFrame newLayout raised>
+          <SessionErrorFallback error={props.error} sessionID={props.sessionID} serverKey={props.serverKey} />
+        </SessionPanelFrame>
+      </SessionRouteFrame>
+    </Show>
   )
 }
 
@@ -434,6 +430,14 @@ export default function Page() {
   const isDesktop = createMediaQuery("(min-width: 768px)")
   const size = createSizing()
   const desktopReviewOpen = createMemo(() => isDesktop() && view().reviewPanel.opened())
+  const desktopTerminalOpen = createMemo(() => isDesktop() && view().terminal.opened())
+  const desktopStackedReviewAndTerminalOpen = createMemo(
+    () => newSessionDesign() && desktopReviewOpen() && desktopTerminalOpen(),
+  )
+  const desktopBottomTerminalOpen = createMemo(() => !newSessionDesign() && desktopTerminalOpen())
+  const desktopInlineTerminalOnlyOpen = createMemo(
+    () => newSessionDesign() && desktopTerminalOpen() && !desktopReviewOpen(),
+  )
   const desktopFileTreeOpen = createMemo(
     () =>
       isDesktop() &&
@@ -442,10 +446,13 @@ export default function Page() {
         opened: layout.fileTree.opened(),
       }),
   )
-  const desktopSidePanelOpen = createMemo(() => desktopReviewOpen() || desktopFileTreeOpen())
+  const desktopSessionResizeOpen = createMemo(
+    () => desktopReviewOpen() || (newSessionDesign() && desktopTerminalOpen()),
+  )
+  const desktopSidePanelOpen = createMemo(() => desktopSessionResizeOpen() || desktopFileTreeOpen())
   const sessionPanelWidth = createMemo(() => {
     if (!desktopSidePanelOpen()) return "100%"
-    if (desktopReviewOpen()) return `${layout.session.width()}px`
+    if (desktopSessionResizeOpen()) return `${layout.session.width()}px`
     return `calc(100% - ${layout.fileTree.width()}px)`
   })
   const centered = createMemo(() => isDesktop() && !desktopReviewOpen())
@@ -2103,7 +2110,7 @@ export default function Page() {
           classList={{
             "@container relative shrink-0 flex flex-col min-h-0 h-full flex-1 md:flex-none transition-[width]": true,
             "duration-[240ms] ease-[cubic-bezier(0.22,1,0.36,1)] will-change-[width] motion-reduce:transition-none":
-              !size.active() && !ui.reviewSnap,
+              !size.active() && !ui.reviewSnap && !desktopInlineTerminalOnlyOpen(),
           }}
           style={{
             width: sessionPanelWidth(),
@@ -2123,7 +2130,7 @@ export default function Page() {
             </SessionPanelFrame>
           )}
 
-          <Show when={desktopReviewOpen()}>
+          <Show when={desktopSessionResizeOpen()}>
             <div onPointerDown={() => size.start()}>
               <ResizeHandle
                 classList={{
@@ -2142,22 +2149,83 @@ export default function Page() {
           </Show>
         </div>
 
-        <SessionSidePanel
-          canReview={canReview}
-          diffs={reviewDiffs}
-          diffsReady={reviewReady}
-          empty={reviewEmptyText}
-          hasReview={hasReview}
-          reviewCount={reviewCount}
-          reviewPanel={() => (newSessionDesign() ? reviewPanelV2() : reviewPanel())}
-          activeDiff={tree.activeDiff}
-          focusReviewDiff={focusReviewDiff}
-          reviewSnap={ui.reviewSnap}
-          size={size}
-        />
+        <Show
+          when={desktopStackedReviewAndTerminalOpen()}
+          fallback={
+            <>
+              <Show when={!isDesktop() || desktopReviewOpen() || desktopFileTreeOpen()}>
+                <SessionSidePanel
+                  canReview={canReview}
+                  diffs={reviewDiffs}
+                  diffsReady={reviewReady}
+                  empty={reviewEmptyText}
+                  hasReview={hasReview}
+                  reviewCount={reviewCount}
+                  reviewPanel={() => (newSessionDesign() ? reviewPanelV2() : reviewPanel())}
+                  activeDiff={tree.activeDiff}
+                  focusReviewDiff={focusReviewDiff}
+                  reviewSnap={ui.reviewSnap}
+                  size={size}
+                />
+              </Show>
+
+              <Show when={!isDesktop() || (desktopTerminalOpen() && !desktopBottomTerminalOpen())}>
+                <TerminalPanel />
+              </Show>
+            </>
+          }
+        >
+          <div class="min-w-0 h-full flex flex-1 flex-col">
+            <SessionSidePanel
+              canReview={canReview}
+              diffs={reviewDiffs}
+              diffsReady={reviewReady}
+              empty={reviewEmptyText}
+              hasReview={hasReview}
+              reviewCount={reviewCount}
+              reviewPanel={() => (newSessionDesign() ? reviewPanelV2() : reviewPanel())}
+              activeDiff={tree.activeDiff}
+              focusReviewDiff={focusReviewDiff}
+              reviewSnap={ui.reviewSnap}
+              size={size}
+              stacked
+            />
+
+            <div class="relative h-2 shrink-0" onPointerDown={() => size.start()}>
+              <ResizeHandle
+                class="!relative !inset-auto !h-full !w-full !transform-none"
+                direction="vertical"
+                size={layout.terminal.height()}
+                min={100}
+                max={typeof window === "undefined" ? 600 : window.innerHeight * 0.6}
+                onResize={(height) => {
+                  size.touch()
+                  layout.terminal.resize(height)
+                }}
+              />
+            </div>
+
+            <TerminalPanel stacked />
+          </div>
+        </Show>
       </div>
 
-      <TerminalPanel />
+      <Show when={desktopBottomTerminalOpen()}>
+        <div class="relative h-0 shrink-0" onPointerDown={() => size.start()}>
+          <ResizeHandle
+            direction="vertical"
+            size={layout.terminal.height()}
+            min={100}
+            max={typeof window === "undefined" ? 600 : window.innerHeight * 0.6}
+            onResize={(height) => {
+              size.touch()
+              layout.terminal.resize(height)
+            }}
+          />
+        </div>
+
+        <TerminalPanel stacked />
+      </Show>
     </SessionRouteFrame>
   )
 }
