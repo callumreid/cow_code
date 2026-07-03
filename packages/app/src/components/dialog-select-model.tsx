@@ -1,5 +1,5 @@
 import { Popover as Kobalte } from "@kobalte/core/popover"
-import { Component, ComponentProps, createMemo, For, JSX, Show, ValidComponent } from "solid-js"
+import { Component, ComponentProps, createEffect, createMemo, For, JSX, onCleanup, Show, ValidComponent } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useLocal } from "@/context/local"
 import { useDialog } from "@opencode-ai/ui/context/dialog"
@@ -18,6 +18,7 @@ import { ModelTooltip } from "./model-tooltip"
 import { useLanguage } from "@/context/language"
 import { decode64 } from "@/utils/base64"
 import { matchesModelSearch } from "./dialog-select-model-search"
+import { handleDocumentSearchKeydown } from "@/utils/search-keydown"
 
 const isFree = (provider: string, cost: { input: number } | undefined) =>
   provider === "opencode" && (!cost || cost.input === 0)
@@ -337,6 +338,13 @@ export function ModelSelectorPopoverV2(props: {
       .find((item) => matchesModelSearch(search, [item.name, item.id, item.provider.name]))
     setStore({ search: value, active: first ? modelKey(first) : manageKey })
   }
+
+  createEffect(() => {
+    if (!store.open) return
+    const handler = (event: KeyboardEvent) => handleDocumentSearchKeydown(searchRef, event, store.search, setSearch)
+    document.addEventListener("keydown", handler, true)
+    onCleanup(() => document.removeEventListener("keydown", handler, true))
+  })
 
   return (
     <MenuV2 open={store.open} modal={false} placement="top-start" gutter={6} onOpenChange={setOpen}>
