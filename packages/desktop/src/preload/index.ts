@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils } from "electron"
+import type { BrowserPanelEvent } from "@opencode-ai/app/browser-panel"
 import type { ElectronAPI, WslServersEvent } from "./types"
 import type { UpdaterState } from "@opencode-ai/app/updater"
 
@@ -126,6 +127,23 @@ const api: ElectronAPI = {
   recordFatalRendererError: (error) => ipcRenderer.invoke("record-fatal-renderer-error", error),
   getRemoteAccessInfo: () => ipcRenderer.invoke("get-remote-access-info"),
   setRemoteAccess: (enabled) => ipcRenderer.invoke("set-remote-access", enabled),
+  browserPanel: {
+    create: (url) => ipcRenderer.invoke("browser-tab-create", url),
+    list: () => ipcRenderer.invoke("browser-tab-list"),
+    close: (tabID) => ipcRenderer.invoke("browser-tab-close", tabID),
+    navigate: (tabID, url) => ipcRenderer.invoke("browser-tab-navigate", tabID, url),
+    back: (tabID) => ipcRenderer.invoke("browser-tab-back", tabID),
+    forward: (tabID) => ipcRenderer.invoke("browser-tab-forward", tabID),
+    reload: (tabID) => ipcRenderer.invoke("browser-tab-reload", tabID),
+    stop: (tabID) => ipcRenderer.invoke("browser-tab-stop", tabID),
+    setBounds: (tabID, bounds) => ipcRenderer.invoke("browser-tab-set-bounds", tabID, bounds),
+    hide: () => ipcRenderer.invoke("browser-panel-hide"),
+    subscribe: (cb) => {
+      const handler = (_: unknown, event: BrowserPanelEvent) => cb(event)
+      ipcRenderer.on("browser-panel-event", handler)
+      return () => ipcRenderer.removeListener("browser-panel-event", handler)
+    },
+  },
 }
 
 contextBridge.exposeInMainWorld("api", api)

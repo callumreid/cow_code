@@ -769,6 +769,9 @@ export const dict = {
   "settings.general.sounds.permissions.description": "Reproducir sonido cuando se requiera un permiso",
   "settings.general.sounds.errors.title": "Errores",
   "settings.general.sounds.errors.description": "Reproducir sonido cuando ocurra un error",
+  "settings.general.sounds.moo.title": "Mugido al completar",
+  "settings.general.sounds.moo.description":
+    "Reproduce un suave mugido cuando un turno termina mientras la ventana no está enfocada",
 
   "settings.shortcuts.title": "Atajos de teclado",
   "settings.shortcuts.reset.button": "Restablecer a valores predeterminados",
@@ -972,4 +975,16 @@ export const dict = {
   "dialog.remoteAccess.noNetwork": "No se encontró ninguna dirección de red. Conéctate a una red e inténtalo de nuevo.",
   "dialog.remoteAccess.scan": "Escanea con tu teléfono para abrir este espacio de trabajo",
   "dialog.remoteAccess.warning": "Cualquiera en esta red con este enlace puede ejecutar comandos y leer archivos en tu nombre. La contraseña aleatoria siempre es obligatoria, pero actívalo solo en redes de confianza — para acceder desde fuera, usa una VPN como Tailscale. El acceso remoto se desactiva al reiniciar la app.",
+  "command.browser.toggle": "Alternar navegador",
+  "command.browser.new": "Nueva pestaña del navegador",
+  "command.browser.new.description": "Abrir una nueva pestaña en el panel del navegador",
+  "browser.title": "Navegador",
+  "browser.tab.untitled": "Nueva pestaña",
+  "browser.tab.close": "Cerrar pestaña",
+  "browser.urlbar.placeholder": "Introduce una URL",
+  "browser.action.back": "Atrás",
+  "browser.action.forward": "Adelante",
+  "browser.action.reload": "Recargar",
+  "browser.action.stop": "Detener carga",
+  "browser.empty": "Introduce una URL para navegar",
 }

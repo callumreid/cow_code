@@ -28,6 +28,7 @@ const DEFAULT_SIDEBAR_WIDTH = 344
 const DEFAULT_FILE_TREE_WIDTH = 200
 const DEFAULT_SESSION_WIDTH = 600
 const DEFAULT_TERMINAL_HEIGHT = 280
+const DEFAULT_BROWSER_HEIGHT = 400
 const DEFAULT_REVIEW_PANEL_OPENED = false
 export type AvatarColorKey = (typeof AVATAR_COLOR_KEYS)[number]
 
@@ -278,6 +279,10 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
         },
         terminal: {
           height: DEFAULT_TERMINAL_HEIGHT,
+          opened: false,
+        },
+        browser: {
+          height: DEFAULT_BROWSER_HEIGHT,
           opened: false,
         },
         review: {
@@ -662,6 +667,39 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
         height: createMemo(() => store.terminal.height),
         resize(height: number) {
           setStore("terminal", "height", height)
+        },
+      },
+      // Persisted layouts may predate the browser key, hence the guards.
+      browser: {
+        height: createMemo(() => store.browser?.height ?? DEFAULT_BROWSER_HEIGHT),
+        opened: createMemo(() => store.browser?.opened ?? false),
+        resize(height: number) {
+          if (!store.browser) {
+            setStore("browser", { height, opened: true })
+            return
+          }
+          setStore("browser", "height", height)
+        },
+        open() {
+          if (!store.browser) {
+            setStore("browser", { height: DEFAULT_BROWSER_HEIGHT, opened: true })
+            return
+          }
+          setStore("browser", "opened", true)
+        },
+        close() {
+          if (!store.browser) {
+            setStore("browser", { height: DEFAULT_BROWSER_HEIGHT, opened: false })
+            return
+          }
+          setStore("browser", "opened", false)
+        },
+        toggle() {
+          if (!store.browser) {
+            setStore("browser", { height: DEFAULT_BROWSER_HEIGHT, opened: true })
+            return
+          }
+          setStore("browser", "opened", (x) => !x)
         },
       },
       review: {

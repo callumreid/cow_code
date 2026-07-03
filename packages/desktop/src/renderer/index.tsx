@@ -242,6 +242,8 @@ const createPlatform = (windowState: DesktopWindowState): Platform => {
 
     setRemoteAccess: (enabled) => window.api.setRemoteAccess(enabled),
 
+    browserPanel: window.api.browserPanel,
+
     restart: async () => {
       await window.api.killSidecar().catch(() => undefined)
       window.api.relaunch()

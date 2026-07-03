@@ -1,7 +1,8 @@
-# coval-desktop-parity fork
+# cow_code 🐄
 
 Fork of [sst/opencode](https://github.com/sst/opencode) focused on bringing the desktop app
-to parity with the Claude / Codex desktop apps. Branch: `coval-desktop-parity` (off `dev`).
+to parity with the Claude / Codex desktop apps. Repo: `callumreid/cow_code`,
+branch `coval-desktop-parity` (off `dev`).
 
 ## What changed and why
 

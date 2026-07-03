@@ -83,6 +83,8 @@ import { SessionReviewEmptyNoGitV2 } from "@opencode-ai/session-ui/v2/session-re
 import { ReviewPanelV2 } from "@/pages/session/v2/review-panel-v2"
 import { createReviewPanelV2State } from "@/pages/session/v2/review-panel-v2-state"
 import { TerminalPanel } from "@/pages/session/terminal-panel"
+import { BrowserPanel } from "@/components/browser-panel"
+import { BrowserProvider } from "@/context/browser"
 import { useComposerCommands } from "@/pages/session/use-composer-commands"
 import { useSessionCommands } from "@/pages/session/use-session-commands"
 import { useSessionHashScroll } from "@/pages/session/use-session-hash-scroll"
@@ -306,11 +308,13 @@ function MarkSessionNotificationsViewed(props: { sessionID?: () => string | unde
 function SessionProviders(props: ParentProps) {
   return (
     <TerminalProvider>
-      <FileProvider>
-        <PromptProvider>
-          <CommentsProvider>{props.children}</CommentsProvider>
-        </PromptProvider>
-      </FileProvider>
+      <BrowserProvider>
+        <FileProvider>
+          <PromptProvider>
+            <CommentsProvider>{props.children}</CommentsProvider>
+          </PromptProvider>
+        </FileProvider>
+      </BrowserProvider>
     </TerminalProvider>
   )
 }
@@ -2158,6 +2162,7 @@ export default function Page() {
         />
       </div>
 
+      <BrowserPanel />
       <TerminalPanel />
     </SessionRouteFrame>
   )

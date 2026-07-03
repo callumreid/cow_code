@@ -1,3 +1,4 @@
+import type { BrowserPanelBounds, BrowserPanelEvent, BrowserTabState } from "@opencode-ai/app/browser-panel"
 import type { DesktopMenuAction } from "@opencode-ai/app/desktop-menu"
 import type { WslServersPlatform } from "@opencode-ai/app/wsl/types"
 import type { UpdaterState } from "@opencode-ai/app/updater"
@@ -26,6 +27,20 @@ export type RemoteAccessInfo = {
   lanIPs: string[]
   port: number
   credentials: { username: string; password: string }
+}
+
+export type BrowserPanelAPI = {
+  create: (url?: string) => Promise<BrowserTabState | undefined>
+  list: () => Promise<BrowserTabState[]>
+  close: (tabID: string) => Promise<void>
+  navigate: (tabID: string, url: string) => Promise<boolean>
+  back: (tabID: string) => Promise<void>
+  forward: (tabID: string) => Promise<void>
+  reload: (tabID: string) => Promise<void>
+  stop: (tabID: string) => Promise<void>
+  setBounds: (tabID: string, bounds: BrowserPanelBounds) => Promise<void>
+  hide: () => Promise<void>
+  subscribe: (cb: (event: BrowserPanelEvent) => void) => () => void
 }
 
 export type WslServersAPI = WslServersPlatform
@@ -112,4 +127,5 @@ export type ElectronAPI = {
   recordFatalRendererError: (error: FatalRendererError) => Promise<void>
   getRemoteAccessInfo: () => Promise<RemoteAccessInfo | null>
   setRemoteAccess: (enabled: boolean) => Promise<RemoteAccessInfo>
+  browserPanel: BrowserPanelAPI
 }

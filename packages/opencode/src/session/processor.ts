@@ -63,6 +63,12 @@ type ToolCall = {
   messageID: SessionV1.ToolPart["messageID"]
   sessionID: SessionV1.ToolPart["sessionID"]
   done: Deferred.Deferred<void>
+  // Last known part state, write-through cached so the tool-input-delta hot
+  // path (one event per streamed argument chunk) skips a DB SELECT per delta.
+  // Every processor write path refreshes it; state transitions and cleanup
+  // still read the DB via readToolCall, so external part edits are observed
+  // exactly where they were before.
+  part: SessionV1.ToolPart
 }
 
 interface ProcessorContext extends Input {
@@ -139,7 +145,8 @@ const layer = Layer.effect(
           delete ctx.toolcalls[toolCallID]
           return undefined
         }
-        return { call, part }
+        ctx.toolcalls[toolCallID] = { ...call, part }
+        return { call: ctx.toolcalls[toolCallID], part }
       })
 
       const updateToolCall = Effect.fn("SessionProcessor.updateToolCall")(function* (
@@ -148,12 +155,18 @@ const layer = Layer.effect(
       ) {
         const match = yield* readToolCall(toolCallID)
         if (!match) return undefined
-        const part = yield* session.updatePart(update(match.part))
+        const updated = update(match.part)
+        // Guarded updaters (e.g. a throttled metadata flush landing after
+        // completion) return the part unchanged; skip the redundant durable
+        // republish in that case.
+        if (updated === match.part) return match.part
+        const part = yield* session.updatePart(updated)
         ctx.toolcalls[toolCallID] = {
           ...match.call,
           partID: part.id,
           messageID: part.messageID,
           sessionID: part.sessionID,
+          part,
         }
         return part
       })
@@ -217,6 +230,15 @@ const layer = Layer.effect(
         name: string
         providerExecuted?: boolean
       }) {
+        // Hot path: tool-input-delta fires once per streamed argument chunk
+        // and only needs to know the call is tracked. Answer from the
+        // write-through cache instead of a per-delta SELECT. The DB read
+        // below is kept for the providerExecuted upgrade so that transition
+        // still works off authoritative state.
+        const tracked = ctx.toolcalls[input.id]
+        if (tracked && (!input.providerExecuted || tracked.part.metadata?.providerExecuted)) {
+          return { call: tracked, part: tracked.part }
+        }
         const existing = yield* readToolCall(input.id)
         if (existing) {
           if (!input.providerExecuted || existing.part.metadata?.providerExecuted) return existing
@@ -229,6 +251,7 @@ const layer = Layer.effect(
             partID: part.id,
             messageID: part.messageID,
             sessionID: part.sessionID,
+            part,
           }
           return { call: ctx.toolcalls[input.id], part }
         }
@@ -247,6 +270,7 @@ const layer = Layer.effect(
           partID: part.id,
           messageID: part.messageID,
           sessionID: part.sessionID,
+          part,
         }
         return { call: ctx.toolcalls[input.id], part }
       })

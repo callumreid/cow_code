@@ -106,7 +106,7 @@ describe("session.created event", () => {
     }),
   )
 
-  it.instance("emits legacy global sync payload", () =>
+  it.instance("emits legacy global sync payload when a sync subscriber is attached", () =>
     Effect.gen(function* () {
       const session = yield* SessionNs.Service
       const received = yield* Deferred.make<{ syncEvent: EventV2.SerializedEvent }>()
@@ -115,7 +115,13 @@ describe("session.created event", () => {
           Deferred.doneUnsafe(received, Effect.succeed({ syncEvent: event.payload.syncEvent }))
       }
       GlobalBus.on("event", listener)
-      yield* Effect.addFinalizer(() => Effect.sync(() => GlobalBus.off("event", listener)))
+      const release = GlobalBus.retainSyncSubscriber()
+      yield* Effect.addFinalizer(() =>
+        Effect.sync(() => {
+          GlobalBus.off("event", listener)
+          release()
+        }),
+      )
 
       const info = yield* session.create({})
       const event = yield* awaitDeferred(received, "timed out waiting for legacy global sync event")
@@ -128,6 +134,44 @@ describe("session.created event", () => {
       })
 
       yield* session.remove(info.id)
+    }),
+  )
+
+  it.instance("skips the sync payload when no sync subscriber is attached", () =>
+    Effect.gen(function* () {
+      const session = yield* SessionNs.Service
+      const durable = yield* Deferred.make<void>()
+      const payloads: string[] = []
+      const listener = (event: { payload: { type?: string } }) => {
+        if (event.payload.type) payloads.push(event.payload.type)
+        if (event.payload.type === SessionNs.Event.Created.type) Deferred.doneUnsafe(durable, Effect.void)
+      }
+      GlobalBus.on("event", listener)
+      yield* Effect.addFinalizer(() => Effect.sync(() => GlobalBus.off("event", listener)))
+
+      expect(GlobalBus.syncSubscribers).toBe(0)
+      const info = yield* session.create({})
+      yield* awaitDeferred(durable, "timed out waiting for session.created payload")
+      // The sync mirror is emitted synchronously right after the regular
+      // payload, so once session.created arrived its absence is meaningful.
+      expect(payloads).toContain(SessionNs.Event.Created.type)
+      expect(payloads).not.toContain("sync")
+
+      yield* session.remove(info.id)
+    }),
+  )
+
+  it.instance("sync subscriber release is idempotent", () =>
+    Effect.gen(function* () {
+      const release = GlobalBus.retainSyncSubscriber()
+      expect(GlobalBus.syncSubscribers).toBe(1)
+      const second = GlobalBus.retainSyncSubscriber()
+      expect(GlobalBus.syncSubscribers).toBe(2)
+      release()
+      release()
+      expect(GlobalBus.syncSubscribers).toBe(1)
+      second()
+      expect(GlobalBus.syncSubscribers).toBe(0)
     }),
   )
 })

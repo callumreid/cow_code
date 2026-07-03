@@ -1,6 +1,7 @@
 import { createSimpleContext } from "@opencode-ai/ui/context"
 import type { AsyncStorage, SyncStorage } from "@solid-primitives/storage"
 import type { Accessor } from "solid-js"
+import type { BrowserPanelBounds, BrowserPanelEvent, BrowserTabState } from "../browser-panel"
 import type { DesktopMenuAction } from "../desktop-menu"
 import { ServerConnection } from "./server"
 import type { WslServersPlatform } from "../wsl/types"
@@ -32,6 +33,21 @@ export type RemoteAccessInfo = {
   lanIPs: string[]
   port: number
   credentials: { username: string; password: string }
+}
+
+/** Native in-app browser views hosted by the desktop main process (desktop only). */
+export type BrowserPanelPlatform = {
+  create(url?: string): Promise<BrowserTabState | undefined>
+  list(): Promise<BrowserTabState[]>
+  close(tabID: string): Promise<void>
+  navigate(tabID: string, url: string): Promise<boolean>
+  back(tabID: string): Promise<void>
+  forward(tabID: string): Promise<void>
+  reload(tabID: string): Promise<void>
+  stop(tabID: string): Promise<void>
+  setBounds(tabID: string, bounds: BrowserPanelBounds): Promise<void>
+  hide(): Promise<void>
+  subscribe(cb: (event: BrowserPanelEvent) => void): () => void
 }
 
 type PlatformBase = {
@@ -136,6 +152,9 @@ type PlatformBase = {
 
   /** Expose the local server on the LAN (0.0.0.0) or restrict it to loopback (desktop only) */
   setRemoteAccess?(enabled: boolean): Promise<RemoteAccessInfo>
+
+  /** In-app browser panel backed by native WebContentsViews (desktop only) */
+  browserPanel?: BrowserPanelPlatform
 }
 
 export type Platform = PlatformBase &

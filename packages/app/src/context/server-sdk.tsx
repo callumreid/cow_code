@@ -180,6 +180,10 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
         try {
           const events = await eventSdk.global.event({
             signal: attempt.signal,
+            // This client discards "sync" payloads (see the stream loop below);
+            // opting out lets the engine skip serializing them for this
+            // connection and, with no sync subscriber left, skip emitting them.
+            headers: { "x-opencode-sse-sync": "off" },
             onSseError: (error) => {
               if (isStreamClosed(error, attempt?.signal)) return
               if (streamErrorLogged) return

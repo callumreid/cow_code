@@ -43,6 +43,11 @@ const layer = Layer.effect(
           payload: { id: event.id, type: event.type, properties: event.data },
         })
         if (event.durable === undefined) return
+        // The sync mirror of a durable event only matters to sync-capable
+        // subscribers (workspace-sync SSE clients). Skip serializing it when
+        // none are attached — durability/replay is unaffected (the event is
+        // already journaled; /sync/history serves reconnecting clients).
+        if (GlobalBus.syncSubscribers === 0) return
         GlobalBus.emit("event", {
           directory: event.location?.directory ?? ctx?.directory,
           project: ctx?.project.id,

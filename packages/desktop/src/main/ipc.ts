@@ -6,6 +6,7 @@ import type { IpcMainEvent, IpcMainInvokeEvent } from "electron"
 import type { DesktopMenuAction } from "@opencode-ai/app/desktop-menu"
 
 import type { FatalRendererError, RemoteAccessInfo, ServerReadyData, TitlebarTheme } from "../preload/types"
+import { BrowserViews } from "./browser-views"
 import { runDesktopMenuAction } from "./desktop-menu-actions"
 import { assertAttachmentBudget, createPickedFileAuthorizations } from "./attachment-picker"
 import { getStore, removeStoreFileIfEmpty } from "./store"
@@ -259,6 +260,38 @@ export function registerIpcHandlers(deps: Deps) {
     if (!win) return
     setTitlebar(win, theme)
   })
+  // In-app browser panel: every handler resolves the calling window from the
+  // sender so a renderer can only ever drive its own window's views.
+  ipcMain.handle("browser-tab-create", (event: IpcMainInvokeEvent, url?: string) =>
+    BrowserViews.create(BrowserWindow.fromWebContents(event.sender), url),
+  )
+  ipcMain.handle("browser-tab-list", (event: IpcMainInvokeEvent) =>
+    BrowserViews.list(BrowserWindow.fromWebContents(event.sender)),
+  )
+  ipcMain.handle("browser-tab-close", (event: IpcMainInvokeEvent, tabID: string) =>
+    BrowserViews.close(BrowserWindow.fromWebContents(event.sender), tabID),
+  )
+  ipcMain.handle("browser-tab-navigate", (event: IpcMainInvokeEvent, tabID: string, url: string) =>
+    BrowserViews.navigate(BrowserWindow.fromWebContents(event.sender), tabID, url),
+  )
+  ipcMain.handle("browser-tab-back", (event: IpcMainInvokeEvent, tabID: string) =>
+    BrowserViews.back(BrowserWindow.fromWebContents(event.sender), tabID),
+  )
+  ipcMain.handle("browser-tab-forward", (event: IpcMainInvokeEvent, tabID: string) =>
+    BrowserViews.forward(BrowserWindow.fromWebContents(event.sender), tabID),
+  )
+  ipcMain.handle("browser-tab-reload", (event: IpcMainInvokeEvent, tabID: string) =>
+    BrowserViews.reload(BrowserWindow.fromWebContents(event.sender), tabID),
+  )
+  ipcMain.handle("browser-tab-stop", (event: IpcMainInvokeEvent, tabID: string) =>
+    BrowserViews.stop(BrowserWindow.fromWebContents(event.sender), tabID),
+  )
+  ipcMain.handle("browser-tab-set-bounds", (event: IpcMainInvokeEvent, tabID: string, bounds: unknown) =>
+    BrowserViews.setBounds(BrowserWindow.fromWebContents(event.sender), tabID, bounds),
+  )
+  ipcMain.handle("browser-panel-hide", (event: IpcMainInvokeEvent) =>
+    BrowserViews.hide(BrowserWindow.fromWebContents(event.sender)),
+  )
   ipcMain.handle("run-desktop-menu-action", (event: IpcMainInvokeEvent, action: DesktopMenuAction) => {
     runDesktopMenuAction(BrowserWindow.fromWebContents(event.sender), action, {
       checkForUpdates: () => void deps.showUpdater(),

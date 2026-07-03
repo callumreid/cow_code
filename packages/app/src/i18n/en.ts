@@ -56,6 +56,9 @@ export const dict = {
   "command.review.toggle": "Toggle review",
   "command.terminal.new": "New terminal",
   "command.terminal.new.description": "Create a new terminal tab",
+  "command.browser.toggle": "Toggle browser",
+  "command.browser.new": "New browser tab",
+  "command.browser.new.description": "Open a new tab in the browser panel",
   "command.steps.toggle": "Toggle steps",
   "command.steps.toggle.description": "Show or hide steps for the current message",
   "command.message.previous": "Previous message",
@@ -777,6 +780,16 @@ export const dict = {
   "terminal.connectionLost.description":
     "The terminal connection was interrupted. This can happen when the server restarts.",
 
+  "browser.title": "Browser",
+  "browser.tab.untitled": "New tab",
+  "browser.tab.close": "Close tab",
+  "browser.urlbar.placeholder": "Enter a URL",
+  "browser.action.back": "Back",
+  "browser.action.forward": "Forward",
+  "browser.action.reload": "Reload",
+  "browser.action.stop": "Stop loading",
+  "browser.empty": "Enter a URL to browse",
+
   "common.closeTab": "Close tab",
   "common.dismiss": "Dismiss",
   "common.moreCountSuffix": " (+{{count}} more)",
@@ -1004,6 +1017,8 @@ export const dict = {
   "settings.general.sounds.permissions.description": "Play sound when a permission is required",
   "settings.general.sounds.errors.title": "Errors",
   "settings.general.sounds.errors.description": "Play sound when an error occurs",
+  "settings.general.sounds.moo.title": "Moo on completion",
+  "settings.general.sounds.moo.description": "Play a gentle moo when a turn completes while the window is unfocused",
 
   "settings.shortcuts.title": "Keyboard shortcuts",
   "settings.shortcuts.reset.button": "Reset to defaults",

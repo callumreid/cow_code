@@ -27,6 +27,7 @@ import {
   useSettings,
 } from "@/context/settings"
 import { decode64 } from "@/utils/base64"
+import { playMoo } from "@/utils/moo"
 import { playSoundById, SOUND_OPTIONS } from "@/utils/sound"
 import { Link } from "./link"
 import { SettingsList } from "./settings-list"
@@ -658,6 +659,21 @@ export const SettingsGeneral: Component = () => {
               (id) => settings.sounds.setErrors(id),
             )}
           />
+        </SettingsRow>
+
+        <SettingsRow
+          title={language.t("settings.general.sounds.moo.title")}
+          description={language.t("settings.general.sounds.moo.description")}
+        >
+          <div data-action="settings-sounds-moo">
+            <Switch
+              checked={settings.sounds.mooEnabled()}
+              onChange={(checked) => {
+                settings.sounds.setMooEnabled(checked)
+                if (checked) playMoo()
+              }}
+            />
+          </div>
         </SettingsRow>
       </SettingsList>
     </div>

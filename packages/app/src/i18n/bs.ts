@@ -763,6 +763,9 @@ export const dict = {
   "settings.general.sounds.permissions.description": "Pusti zvuk kada je potrebna dozvola",
   "settings.general.sounds.errors.title": "Greške",
   "settings.general.sounds.errors.description": "Pusti zvuk kada dođe do greške",
+  "settings.general.sounds.moo.title": "Mukanje po završetku",
+  "settings.general.sounds.moo.description":
+    "Reproducira nježno mukanje kada se potez završi dok prozor nije fokusiran",
 
   "settings.shortcuts.title": "Prečice na tastaturi",
   "settings.shortcuts.reset.button": "Vrati na podrazumijevano",
@@ -965,4 +968,16 @@ export const dict = {
   "dialog.remoteAccess.noNetwork": "Nije pronađena mrežna adresa. Povežite se na mrežu i pokušajte ponovo.",
   "dialog.remoteAccess.scan": "Skenirajte telefonom da otvorite ovaj radni prostor",
   "dialog.remoteAccess.warning": "Svako na ovoj mreži s ovim linkom može izvršavati komande i čitati fajlove u vaše ime. Nasumična lozinka je uvijek obavezna, ali uključite ovo samo na mrežama kojima vjerujete — za pristup izvana koristite VPN poput Tailscalea. Daljinski pristup se isključuje pri ponovnom pokretanju aplikacije.",
+  "command.browser.toggle": "Uključi/isključi preglednik",
+  "command.browser.new": "Nova kartica preglednika",
+  "command.browser.new.description": "Otvori novu karticu u panelu preglednika",
+  "browser.title": "Preglednik",
+  "browser.tab.untitled": "Nova kartica",
+  "browser.tab.close": "Zatvori karticu",
+  "browser.urlbar.placeholder": "Unesite URL",
+  "browser.action.back": "Nazad",
+  "browser.action.forward": "Naprijed",
+  "browser.action.reload": "Ponovo učitaj",
+  "browser.action.stop": "Zaustavi učitavanje",
+  "browser.empty": "Unesite URL za pregledanje",
 }

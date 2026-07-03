@@ -209,6 +209,51 @@ const providerErrorLLM = Layer.succeed(
 const providerErrorEnv = LayerNode.compile(root, [...replacements, [LLM.node, providerErrorLLM]])
 const itProviderError = testEffect(providerErrorEnv)
 
+// Streams a tool call whose arguments arrive as many tool-input-delta chunks.
+// Pins the ensureToolCall in-memory hot path: deltas must neither duplicate
+// the tracked part nor disturb the final completed state.
+const toolDeltaEvents = (providerExecuted: boolean) => {
+  const argumentText = JSON.stringify({ query: "weather" })
+  const chunks = argumentText.split("").map((char) =>
+    LLMEvent.toolInputDelta({ id: "call-delta", name: "lookup", text: char }),
+  )
+  return [
+    LLMEvent.stepStart({ index: 0 }),
+    LLMEvent.toolInputStart({ id: "call-delta", name: "lookup" }),
+    ...chunks,
+    ...chunks,
+    LLMEvent.toolInputEnd({ id: "call-delta", name: "lookup" }),
+    LLMEvent.toolCall({
+      id: "call-delta",
+      name: "lookup",
+      input: { query: "weather" },
+      ...(providerExecuted ? { providerExecuted: true } : {}),
+    }),
+    LLMEvent.toolResult({
+      id: "call-delta",
+      name: "lookup",
+      result: {
+        type: "json",
+        value: { output: "result:weather", title: "Weather lookup", metadata: { source: "test" } },
+      },
+      ...(providerExecuted ? { providerExecuted: true } : {}),
+    }),
+    LLMEvent.stepFinish({ index: 0, reason: "stop" }),
+    LLMEvent.finish({ reason: "stop" }),
+  ]
+}
+const toolDeltaLLM = (providerExecuted: boolean) =>
+  Layer.succeed(
+    LLM.Service,
+    LLM.Service.of({
+      stream: () => Stream.fromIterable(toolDeltaEvents(providerExecuted)),
+    }),
+  )
+const toolDeltaEnv = LayerNode.compile(root, [...replacements, [LLM.node, toolDeltaLLM(false)]])
+const itToolDelta = testEffect(toolDeltaEnv)
+const toolDeltaProviderEnv = LayerNode.compile(root, [...replacements, [LLM.node, toolDeltaLLM(true)]])
+const itToolDeltaProvider = testEffect(toolDeltaProviderEnv)
+
 const fragmentFailureLLM = Layer.succeed(
   LLM.Service,
   LLM.Service.of({
@@ -1008,6 +1053,103 @@ itProviderError.live("session.processor effect tests fail provider-executed erro
         expect(seen).toContain(MessageV2.Event.PartUpdated.type)
         expect(seen).toContain(MessageV2.Event.Updated.type)
         expect(seen.filter((type) => type.startsWith("session.next."))).toEqual([])
+      }),
+    { config: cfg },
+  ),
+)
+
+itToolDelta.live("session.processor effect tests stream tool-input deltas without duplicating the call", () =>
+  provideTmpdirInstance(
+    (dir) =>
+      Effect.gen(function* () {
+        const { processors, session, provider } = yield* boot()
+
+        const chat = yield* session.create({})
+        const parent = yield* user(chat.id, "tool deltas")
+        const msg = yield* assistant(chat.id, parent.id, path.resolve(dir))
+        const mdl = yield* provider.getModel(ref.providerID, ref.modelID)
+        const handle = yield* processors.create({ assistantMessage: msg, sessionID: chat.id, model: mdl })
+
+        const value = yield* handle.process({
+          user: {
+            id: parent.id,
+            sessionID: chat.id,
+            role: "user",
+            time: parent.time,
+            agent: parent.agent,
+            model: { providerID: ref.providerID, modelID: ref.modelID },
+          } satisfies SessionV1.User,
+          sessionID: chat.id,
+          model: mdl,
+          agent: agent(),
+          system: [],
+          messages: [{ role: "user", content: "tool deltas" }],
+          tools: {},
+        })
+
+        const parts = yield* MessageV2.parts(msg.id)
+        const calls = parts.filter((part): part is SessionV1.ToolPart => part.type === "tool")
+
+        expect(value).toBe("continue")
+        // The delta flood must track exactly one call — no duplicate parts.
+        expect(calls).toHaveLength(1)
+        const call = calls[0]
+        expect(call.callID).toBe("call-delta")
+        expect(call.tool).toBe("lookup")
+        expect(call.state.status).toBe("completed")
+        if (call.state.status !== "completed") return
+        expect(call.state.input).toEqual({ query: "weather" })
+        expect(call.state.output).toBe("result:weather")
+        expect(call.state.title).toBe("Weather lookup")
+        expect(call.state.metadata).toEqual({ source: "test" })
+      }),
+    { config: cfg },
+  ),
+)
+
+itToolDeltaProvider.live("session.processor effect tests persist providerExecuted upgrade after input deltas", () =>
+  provideTmpdirInstance(
+    (dir) =>
+      Effect.gen(function* () {
+        const { processors, session, provider } = yield* boot()
+
+        const chat = yield* session.create({})
+        const parent = yield* user(chat.id, "provider tool deltas")
+        const msg = yield* assistant(chat.id, parent.id, path.resolve(dir))
+        const mdl = yield* provider.getModel(ref.providerID, ref.modelID)
+        const handle = yield* processors.create({ assistantMessage: msg, sessionID: chat.id, model: mdl })
+
+        const value = yield* handle.process({
+          user: {
+            id: parent.id,
+            sessionID: chat.id,
+            role: "user",
+            time: parent.time,
+            agent: parent.agent,
+            model: { providerID: ref.providerID, modelID: ref.modelID },
+          } satisfies SessionV1.User,
+          sessionID: chat.id,
+          model: mdl,
+          agent: agent(),
+          system: [],
+          messages: [{ role: "user", content: "provider tool deltas" }],
+          tools: {},
+        })
+
+        const parts = yield* MessageV2.parts(msg.id)
+        const calls = parts.filter((part): part is SessionV1.ToolPart => part.type === "tool")
+
+        expect(value).toBe("continue")
+        expect(calls).toHaveLength(1)
+        const call = calls[0]
+        // The tool-input-start arrived without the flag; the tool-call event
+        // upgraded it. The upgrade path still reads/writes the DB, so the
+        // persisted part must carry the flag.
+        expect(call.metadata?.providerExecuted).toBe(true)
+        expect(call.state.status).toBe("completed")
+        if (call.state.status !== "completed") return
+        expect(call.state.input).toEqual({ query: "weather" })
+        expect(call.state.output).toBe("result:weather")
       }),
     { config: cfg },
   ),

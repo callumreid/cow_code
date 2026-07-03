@@ -14,6 +14,7 @@ import type { TaskPromptOps } from "@/tool/task"
 import { type Tool as AITool, tool, jsonSchema, type ToolExecutionOptions, asSchema } from "ai"
 import { Effect } from "effect"
 import { MessageV2 } from "./message-v2"
+import { MetadataThrottle } from "./metadata-throttle"
 import { Session } from "./session"
 import { SessionProcessor } from "./processor"
 import { PartID } from "./schema"
@@ -61,20 +62,27 @@ export const resolve = Effect.fn("SessionTools.resolve")(function* (input: {
     extra: { model: input.model, bypassAgentCheck: input.bypassAgentCheck, promptOps: input.promptOps },
     agent: input.agent.name,
     messages: input.messages,
-    metadata: (val) =>
-      input.processor.updateToolCall(options.toolCallId, (match) => {
-        if (!["running", "pending"].includes(match.state.status)) return match
-        return {
-          ...match,
-          state: {
-            title: val.title,
-            metadata: val.metadata,
-            status: "running",
-            input: args,
-            time: { start: Date.now() },
-          },
-        }
-      }),
+    // Streaming tools (shell) report metadata per output chunk; throttle the
+    // durable part writes to ~10Hz. MetadataThrottle guarantees the trailing
+    // flush, and a flush racing past tool completion is a no-op (the status
+    // guard below returns the part unchanged, which updateToolCall skips).
+    metadata: MetadataThrottle.make({
+      fork: run.fork,
+      apply: (val: { title?: string; metadata?: Record<string, any> }) =>
+        input.processor.updateToolCall(options.toolCallId, (match) => {
+          if (!["running", "pending"].includes(match.state.status)) return match
+          return {
+            ...match,
+            state: {
+              title: val.title,
+              metadata: val.metadata,
+              status: "running",
+              input: args,
+              time: { start: Date.now() },
+            },
+          }
+        }),
+    }),
     ask: (req) =>
       permission
         .ask({

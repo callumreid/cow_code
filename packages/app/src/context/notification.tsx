@@ -22,6 +22,7 @@ import { decode64 } from "@/utils/base64"
 import { EventSessionError } from "@opencode-ai/sdk/v2"
 import { Persist, persisted } from "@/utils/persist"
 import { playSoundById } from "@/utils/sound"
+import { playMoo, shouldMoo } from "@/utils/moo"
 import { useGlobal } from "./global"
 import { ServerConnection, useServer } from "./server"
 import { type DraftTab, useTabs } from "./tabs"
@@ -368,6 +369,18 @@ function createServerNotificationState(input: {
 
       if (settings.sounds.agentEnabled()) {
         void playSoundById(settings.sounds.agent())
+      }
+
+      // Easter egg: same window-not-in-view condition as the OS notification.
+      const inDocument = typeof document !== "undefined"
+      if (
+        shouldMoo({
+          enabled: settings.sounds.mooEnabled(),
+          visible: inDocument && document.visibilityState === "visible",
+          focused: inDocument && document.hasFocus(),
+        })
+      ) {
+        playMoo()
       }
 
       append({

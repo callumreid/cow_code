@@ -17,6 +17,7 @@ export interface SoundSettings {
   permissions: string
   errorsEnabled: boolean
   errors: string
+  mooEnabled: boolean
 }
 
 export interface Settings {
@@ -143,6 +144,7 @@ const defaultSettings: Settings = {
     permissions: "staplebops-02",
     errorsEnabled: true,
     errors: "nope-03",
+    mooEnabled: false,
   },
 }
 
@@ -354,6 +356,10 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
         errors: withFallback(() => store.sounds?.errors, defaultSettings.sounds.errors),
         setErrors(value: string) {
           setStore("sounds", "errors", value)
+        },
+        mooEnabled: withFallback(() => store.sounds?.mooEnabled, defaultSettings.sounds.mooEnabled),
+        setMooEnabled(value: boolean) {
+          setStore("sounds", "mooEnabled", value)
         },
       },
     }

@@ -30,14 +30,31 @@ function parseBody(body: string) {
   }
 }
 
-function eventResponse() {
+// Clients that discard "sync" payloads (the desktop app, the TUI) opt out via
+// this header so the server neither serializes sync payloads onto their
+// stream nor — when no sync-capable subscriber remains — builds them at all.
+// Absent header = sync-capable, which keeps older workspace-sync clients working.
+const SSE_SYNC_HEADER = "x-opencode-sse-sync"
+
+function eventResponse(request: HttpServerRequest.HttpServerRequest) {
   return Effect.gen(function* () {
+    const syncCapable = request.headers[SSE_SYNC_HEADER] !== "off"
     yield* Effect.logInfo("global event connected")
     const events = Stream.callback<GlobalBusEvent>((queue) => {
-      const handler = (event: GlobalBusEvent) => Queue.offerUnsafe(queue, event)
+      const handler = (event: GlobalBusEvent) => {
+        if (!syncCapable && event.payload?.type === "sync") return
+        Queue.offerUnsafe(queue, event)
+      }
       return Effect.acquireRelease(
-        Effect.sync(() => GlobalBus.on("event", handler)),
-        () => Effect.sync(() => GlobalBus.off("event", handler)),
+        Effect.sync(() => {
+          GlobalBus.on("event", handler)
+          return syncCapable ? GlobalBus.retainSyncSubscriber() : undefined
+        }),
+        (release) =>
+          Effect.sync(() => {
+            GlobalBus.off("event", handler)
+            release?.()
+          }),
       )
     })
     const heartbeat = Stream.tick("10 seconds").pipe(
@@ -75,8 +92,10 @@ export const globalHandlers = HttpApiBuilder.group(RootHttpApi, "global", (handl
       return { healthy: true as const, version: InstallationVersion }
     })
 
-    const event = Effect.fn("GlobalHttpApi.event")(function* () {
-      return yield* eventResponse()
+    const event = Effect.fn("GlobalHttpApi.event")(function* (ctx: {
+      request: HttpServerRequest.HttpServerRequest
+    }) {
+      return yield* eventResponse(ctx.request)
     })
 
     const configGet = Effect.fn("GlobalHttpApi.configGet")(function* () {

@@ -24,6 +24,7 @@ import {
   terminalInput,
   useSettings,
 } from "@/context/settings"
+import { playMoo } from "@/utils/moo"
 import { playSoundById, SOUND_OPTIONS } from "@/utils/sound"
 import { Link } from "../link"
 import { SettingsListV2 } from "./parts/list"
@@ -644,6 +645,21 @@ export const SettingsGeneralV2: Component<{
             placement="bottom-end"
             gutter={6}
           />
+        </SettingsRowV2>
+
+        <SettingsRowV2
+          title={language.t("settings.general.sounds.moo.title")}
+          description={language.t("settings.general.sounds.moo.description")}
+        >
+          <div data-action="settings-sounds-moo">
+            <Switch
+              checked={settings.sounds.mooEnabled()}
+              onChange={(checked) => {
+                settings.sounds.setMooEnabled(checked)
+                if (checked) playMoo()
+              }}
+            />
+          </div>
         </SettingsRowV2>
       </SettingsListV2>
     </div>

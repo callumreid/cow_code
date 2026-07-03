@@ -14,8 +14,18 @@ import type { Connection } from "effect/unstable/sql/SqlConnection"
 import { classifySqliteError, SqlError } from "effect/unstable/sql/SqlError"
 import * as Statement from "effect/unstable/sql/Statement"
 import { Sqlite } from "./sqlite"
+import { StatementCache } from "./statement-cache"
 
 const ATTR_DB_SYSTEM_NAME = "db.system.name"
+
+// Mirrors the implicit statement caching of the Bun driver's `native.query`:
+// keyed by the exact SQL string, bounded, cleared when the client closes.
+const MAX_CACHED_STATEMENTS = 128
+
+// Schema-changing statements bypass the cache (they run once) and clear it:
+// node:sqlite keeps a cached `SELECT *` pinned to the column set it was
+// prepared with, and statements referencing dropped/renamed tables error.
+const DDL_QUERY = /^\s*(create|alter|drop)\b/i
 
 const TypeId = "~@opencode-ai/core/database/SqliteNode" as const
 type TypeId = typeof TypeId
@@ -53,10 +63,25 @@ const make = (options: Config) =>
       ? Statement.defaultTransforms(options.transformResultNames).array
       : undefined
 
+    const statements = StatementCache.make({
+      capacity: MAX_CACHED_STATEMENTS,
+      prepare: (query) => native.prepare(query),
+    })
+    yield* Effect.addFinalizer(() => Effect.sync(() => statements.clear()))
+
+    const prepare = (query: string) => {
+      if (!DDL_QUERY.test(query)) return statements.get(query)
+      statements.clear()
+      return native.prepare(query)
+    }
+
     const run = (query: string, params: ReadonlyArray<unknown> = []) =>
       Effect.withFiber<Array<Record<string, unknown>>, SqlError>((fiber) => {
-        const statement = native.prepare(query)
+        const statement = prepare(query)
         statement.setReadBigInts(Context.get(fiber.context, Client.SafeIntegers))
+        // Cached statements are shared with runValues, which flips this on;
+        // reset explicitly so object rows keep coming back as objects.
+        statement.setReturnArrays(false)
         try {
           return Effect.succeed(statement.all(...(params as SQLInputValue[])) as Array<Record<string, unknown>>)
         } catch (cause) {
@@ -70,7 +95,7 @@ const make = (options: Config) =>
 
     const runValues = (query: string, params: ReadonlyArray<unknown> = []) =>
       Effect.withFiber<ReadonlyArray<ReadonlyArray<unknown>>, SqlError>((fiber) => {
-        const statement = native.prepare(query)
+        const statement = prepare(query)
         statement.setReadBigInts(Context.get(fiber.context, Client.SafeIntegers))
         statement.setReturnArrays(true)
         try {

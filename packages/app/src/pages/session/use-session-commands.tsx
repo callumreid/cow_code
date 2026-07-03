@@ -11,6 +11,7 @@ import { usePrompt } from "@/context/prompt"
 import { useSDK } from "@/context/sdk"
 import { useSettings } from "@/context/settings"
 import { useSync } from "@/context/sync"
+import { useBrowser } from "@/context/browser"
 import { useTerminal } from "@/context/terminal"
 import { showToast } from "@/utils/toast"
 import { findLast } from "@opencode-ai/core/util/array"
@@ -47,6 +48,7 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
   const sdk = useSDK()
   const settings = useSettings()
   const sync = useSync()
+  const browser = useBrowser()
   const terminal = useTerminal()
   const sessionTabs = useTabs()
   const layout = useLayout()
@@ -267,6 +269,11 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
   const openTerminal = () => {
     if (terminal.all().length > 0) terminal.new()
     view().terminal.open()
+  }
+
+  const openBrowserTab = () => {
+    if (browser.tabs().length > 0) void browser.new()
+    layout.browser.open()
   }
 
   const chooseMcp = () => {
@@ -493,6 +500,17 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
       slash: "terminal",
       onSelect: () => view().terminal.toggle(),
     }),
+    ...(browser.supported
+      ? [
+          viewCommand({
+            id: "browser.toggle",
+            title: language.t("command.browser.toggle"),
+            keybind: "mod+shift+b",
+            slash: "browser",
+            onSelect: () => layout.browser.toggle(),
+          }),
+        ]
+      : []),
     viewCommand({
       id: "review.toggle",
       title: language.t("command.review.toggle"),
@@ -526,6 +544,19 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
       onSelect: openTerminal,
     }),
   ]
+
+  const browserCmds = () =>
+    browser.supported
+      ? [
+          viewCommand({
+            id: "browser.new",
+            title: language.t("command.browser.new"),
+            description: language.t("command.browser.new.description"),
+            keybind: "ctrl+alt+b",
+            onSelect: openBrowserTab,
+          }),
+        ]
+      : []
 
   const messageCmds = () => [
     sessionCommand({
@@ -576,6 +607,7 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
     ...contextCmds(),
     ...viewCmds(),
     ...terminalCmds(),
+    ...browserCmds(),
     ...messageCmds(),
     ...mcpCmds(),
     ...permissionsCmds(),

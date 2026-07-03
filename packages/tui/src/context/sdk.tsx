@@ -91,6 +91,9 @@ export const { use: useSDK, provider: SDKProvider } = createSimpleContext({
           const events = await sdk.global.event({
             signal: ctrl.signal,
             sseMaxRetryAttempts: 0,
+            // The TUI discards "sync" payloads (context/event.ts); opt out so
+            // the engine skips serializing them for this connection.
+            headers: { "x-opencode-sse-sync": "off" },
           })
 
           if (Flag.OPENCODE_EXPERIMENTAL_WORKSPACES) {
