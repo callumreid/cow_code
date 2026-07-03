@@ -18,6 +18,7 @@ import {
   homeProjectDirectories,
   homeSessionServerStatus,
   latestRootSession,
+  sortSessions,
   toggleHomeProjectSelection,
 } from "./helpers"
 import { pathKey } from "@/utils/path-key"
@@ -317,5 +318,76 @@ describe("layout workspace helpers", () => {
     expect(errorMessage({ data: { message: "boom" } }, "fallback")).toBe("boom")
     expect(errorMessage(new Error("broken"), "fallback")).toBe("broken")
     expect(errorMessage("unknown", "fallback")).toBe("fallback")
+  })
+})
+
+describe("session sorting", () => {
+  const now = 120_000
+
+  test("pinned sessions sort above the streaming-recent bucket", () => {
+    const pinned = session({
+      id: "pinned",
+      directory: "/w",
+      time: { created: 1, updated: 1, archived: undefined, pinned: 50 },
+    })
+    const streaming = session({
+      id: "streaming",
+      directory: "/w",
+      time: { created: 1, updated: now - 1_000, archived: undefined },
+    })
+    const stale = session({
+      id: "stale",
+      directory: "/w",
+      time: { created: 1, updated: 10, archived: undefined },
+    })
+
+    expect([stale, streaming, pinned].sort(sortSessions(now)).map((s) => s.id)).toEqual([
+      "pinned",
+      "streaming",
+      "stale",
+    ])
+  })
+
+  test("pinned sessions order by pin time desc and stay put while streaming", () => {
+    const pinnedEarlierButStreaming = session({
+      id: "pinned-streaming",
+      directory: "/w",
+      time: { created: 1, updated: now - 500, archived: undefined, pinned: 10 },
+    })
+    const pinnedLater = session({
+      id: "pinned-later",
+      directory: "/w",
+      time: { created: 1, updated: 5, archived: undefined, pinned: 20 },
+    })
+
+    expect([pinnedEarlierButStreaming, pinnedLater].sort(sortSessions(now)).map((s) => s.id)).toEqual([
+      "pinned-later",
+      "pinned-streaming",
+    ])
+  })
+
+  test("unpinned sessions keep the recent-then-updated ordering", () => {
+    const recentA = session({
+      id: "a",
+      directory: "/w",
+      time: { created: 1, updated: now - 2_000, archived: undefined },
+    })
+    const recentB = session({
+      id: "b",
+      directory: "/w",
+      time: { created: 1, updated: now - 1_000, archived: undefined },
+    })
+    const older = session({
+      id: "z",
+      directory: "/w",
+      time: { created: 1, updated: 10, archived: undefined },
+    })
+    const oldest = session({
+      id: "y",
+      directory: "/w",
+      time: { created: 1, updated: 5, archived: undefined },
+    })
+
+    expect([oldest, older, recentB, recentA].sort(sortSessions(now)).map((s) => s.id)).toEqual(["a", "b", "z", "y"])
   })
 })

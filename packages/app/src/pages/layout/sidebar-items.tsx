@@ -1,13 +1,16 @@
 import type { Session } from "@opencode-ai/sdk/v2/client"
 import { Avatar } from "@opencode-ai/ui/avatar"
-import { Icon } from "@opencode-ai/ui/icon"
+import { DropdownMenu } from "@opencode-ai/ui/dropdown-menu"
 import { Icon as IconV2 } from "@opencode-ai/ui/v2/icon"
 import { IconButton } from "@opencode-ai/ui/icon-button"
+import { InlineInput } from "@opencode-ai/ui/inline-input"
 import { Spinner } from "@opencode-ai/ui/spinner"
 import { Tooltip } from "@opencode-ai/ui/tooltip"
 import { getFilename } from "@opencode-ai/core/util/path"
 import { A, useParams } from "@solidjs/router"
 import { type Accessor, createMemo, For, type JSX, Match, Show, Switch } from "solid-js"
+import { createStore } from "solid-js/store"
+import { useServerSDK } from "@/context/server-sdk"
 import { useServerSync } from "@/context/server-sync"
 import { useLanguage } from "@/context/language"
 import { getAvatarColors, type LocalProject, useLayout } from "@/context/layout"
@@ -15,8 +18,9 @@ import { useNotification } from "@/context/notification"
 import { usePermission } from "@/context/permission"
 import { messageAgentColor } from "@/utils/agent"
 import { sessionTitle } from "@/utils/session-title"
+import { showToast } from "@/utils/toast"
 import { sessionPermissionRequest } from "../session/composer/session-request-tree"
-import { childSessionOnPath, getProjectAvatarSource, hasProjectPermissions } from "./helpers"
+import { childSessionOnPath, errorMessage, getProjectAvatarSource, hasProjectPermissions } from "./helpers"
 
 export const ProjectIcon = (props: {
   project: LocalProject
@@ -149,7 +153,34 @@ export const SessionItem = (props: SessionItemProps): JSX.Element => {
   const language = useLanguage()
   const notification = useNotification()
   const permission = usePermission()
+  const serverSDK = useServerSDK()
   const serverSync = useServerSync()
+  const [menu, setMenu] = createStore({ open: false, pendingRename: false, renaming: false, title: "" })
+
+  const reportError = (error: unknown) =>
+    showToast({
+      title: language.t("common.requestFailed"),
+      description: errorMessage(error, language.t("common.requestFailed")),
+    })
+
+  const saveRename = () => {
+    const next = menu.title.trim()
+    setMenu("renaming", false)
+    if (!next || next === props.session.title) return
+    serverSDK()
+      .client.session.update({ directory: props.session.directory, sessionID: props.session.id, title: next })
+      .catch(reportError)
+  }
+
+  const togglePinned = () => {
+    serverSDK()
+      .client.session.update({
+        directory: props.session.directory,
+        sessionID: props.session.id,
+        time: { pinned: props.session.time.pinned ? 0 : Date.now() },
+      })
+      .catch(reportError)
+  }
   const unseenCount = createMemo(() => notification.session.unseenCount(props.session.id))
   const hasError = createMemo(() => notification.session.unseenHasError(props.session.id))
   const [sessionStore] = serverSync().child(props.session.directory)
@@ -221,23 +252,59 @@ export const SessionItem = (props: SessionItemProps): JSX.Element => {
         data-session-id={props.session.id}
         class="group/session relative w-full min-w-0 rounded-md cursor-default pr-3 transition-colors hover:bg-surface-raised-base-hover [&:has(:focus-visible)]:bg-surface-raised-base-hover has-[[data-expanded]]:bg-surface-raised-base-hover has-[.active]:bg-surface-base-active"
         style={{ "padding-left": `${8 + (props.level ?? 0) * 16}px` }}
+        onContextMenu={(event) => {
+          if (props.level) return
+          event.preventDefault()
+          setMenu("open", true)
+        }}
       >
         <div class="flex min-w-0 items-center gap-1">
           <div class="min-w-0 flex-1">
             <Show
-              when={!tooltip()}
+              when={!menu.renaming}
               fallback={
-                <Tooltip
-                  placement={props.mobile ? "bottom" : "right"}
-                  value={sessionTitle(props.session.title)}
-                  gutter={10}
-                  class="min-w-0 w-full"
-                >
-                  {item}
-                </Tooltip>
+                <InlineInput
+                  ref={(el) =>
+                    requestAnimationFrame(() => {
+                      if (!el.isConnected) return
+                      el.focus()
+                      el.select()
+                    })
+                  }
+                  value={menu.title}
+                  class={`w-full text-14-regular text-text-strong ${props.dense ? "my-0.5" : "my-1"}`}
+                  onInput={(event) => setMenu("title", event.currentTarget.value)}
+                  onKeyDown={(event) => {
+                    event.stopPropagation()
+                    if (event.key === "Enter") {
+                      event.preventDefault()
+                      saveRename()
+                    }
+                    if (event.key !== "Escape") return
+                    event.preventDefault()
+                    setMenu("renaming", false)
+                  }}
+                  onBlur={() => setMenu("renaming", false)}
+                  onPointerDown={(event) => event.stopPropagation()}
+                  onClick={(event) => event.stopPropagation()}
+                />
               }
             >
-              {item}
+              <Show
+                when={!tooltip()}
+                fallback={
+                  <Tooltip
+                    placement={props.mobile ? "bottom" : "right"}
+                    value={sessionTitle(props.session.title)}
+                    gutter={10}
+                    class="min-w-0 w-full"
+                  >
+                    {item}
+                  </Tooltip>
+                }
+              >
+                {item}
+              </Show>
             </Show>
           </div>
 
@@ -245,25 +312,45 @@ export const SessionItem = (props: SessionItemProps): JSX.Element => {
             <div
               class="shrink-0 overflow-hidden transition-[width,opacity]"
               classList={{
-                "w-6 opacity-100 pointer-events-auto": !!props.mobile,
-                "w-0 opacity-0 pointer-events-none": !props.mobile,
+                "w-6 opacity-100 pointer-events-auto": !!props.mobile || menu.open,
+                "w-0 opacity-0 pointer-events-none": !props.mobile && !menu.open,
                 "group-hover/session:w-6 group-hover/session:opacity-100 group-hover/session:pointer-events-auto": true,
                 "group-focus-within/session:w-6 group-focus-within/session:opacity-100 group-focus-within/session:pointer-events-auto": true,
               }}
             >
-              <Tooltip value={language.t("common.archive")} placement="top">
-                <IconButton
-                  icon="archive"
-                  variant="ghost"
-                  class="size-6 rounded-md"
-                  aria-label={language.t("common.archive")}
-                  onClick={(event) => {
-                    event.preventDefault()
-                    event.stopPropagation()
-                    void props.archiveSession(props.session)
-                  }}
-                />
-              </Tooltip>
+              <DropdownMenu modal={false} open={menu.open} onOpenChange={(open) => setMenu("open", open)}>
+                <Tooltip value={language.t("common.moreOptions")} placement="top">
+                  <DropdownMenu.Trigger
+                    as={IconButton}
+                    icon="dot-grid"
+                    variant="ghost"
+                    class="size-6 rounded-md"
+                    data-action="session-menu"
+                    aria-label={language.t("common.moreOptions")}
+                  />
+                </Tooltip>
+                <DropdownMenu.Portal>
+                  <DropdownMenu.Content
+                    onCloseAutoFocus={(event) => {
+                      if (!menu.pendingRename) return
+                      event.preventDefault()
+                      setMenu({ pendingRename: false, renaming: true, title: props.session.title })
+                    }}
+                  >
+                    <DropdownMenu.Item onSelect={() => setMenu({ pendingRename: true, open: false })}>
+                      <DropdownMenu.ItemLabel>{language.t("common.rename")}</DropdownMenu.ItemLabel>
+                    </DropdownMenu.Item>
+                    <DropdownMenu.Item onSelect={togglePinned}>
+                      <DropdownMenu.ItemLabel>
+                        {props.session.time.pinned ? language.t("common.unpin") : language.t("common.pin")}
+                      </DropdownMenu.ItemLabel>
+                    </DropdownMenu.Item>
+                    <DropdownMenu.Item onSelect={() => void props.archiveSession(props.session)}>
+                      <DropdownMenu.ItemLabel>{language.t("common.archive")}</DropdownMenu.ItemLabel>
+                    </DropdownMenu.Item>
+                  </DropdownMenu.Content>
+                </DropdownMenu.Portal>
+              </DropdownMenu>
             </div>
           </Show>
         </div>

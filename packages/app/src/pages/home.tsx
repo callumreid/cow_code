@@ -25,6 +25,7 @@ import { ProjectAvatar } from "@opencode-ai/ui/v2/project-avatar-v2"
 import { ButtonV2 } from "@opencode-ai/ui/v2/button-v2"
 import { Icon as IconV2 } from "@opencode-ai/ui/v2/icon"
 import { IconButtonV2 } from "@opencode-ai/ui/v2/icon-button-v2"
+import { InlineInput } from "@opencode-ai/ui/inline-input"
 import { MenuV2 } from "@opencode-ai/ui/v2/menu-v2"
 import { TooltipV2 } from "@opencode-ai/ui/v2/tooltip-v2"
 import { getProjectAvatarVariant, useLayout, type HomeProjectSelection, type LocalProject } from "@/context/layout"
@@ -88,7 +89,7 @@ type HomeSessionRecord = {
 }
 
 type HomeSessionGroup = {
-  id: "today" | "yesterday" | "older"
+  id: "pinned" | "today" | "yesterday" | "older"
   title: string
   sessions: HomeSessionRecord[]
 }
@@ -117,7 +118,11 @@ function buildHomeSessionRecords(input: {
         .map((session) => [`${pathKey(session.directory)}:${session.id}`, session] as const),
     ).values(),
   ]
-    .sort((a, b) => (b.time.updated ?? b.time.created) - (a.time.updated ?? a.time.created))
+    .sort(
+      (a, b) =>
+        (b.time.pinned ?? 0) - (a.time.pinned ?? 0) ||
+        (b.time.updated ?? b.time.created) - (a.time.updated ?? a.time.created),
+    )
     .flatMap((session) => {
       const project = projectForSession(session, input.projects(), input.projectByID())
       if (!project) return []
@@ -498,6 +503,36 @@ export function NewHome() {
     })
   }
 
+  async function renameSession(session: Session, title: string) {
+    const ctx = focusedServerCtx()
+    if (!ctx) return
+    await ctx.sdk.client.session
+      .update({ directory: session.directory, sessionID: session.id, title })
+      .catch((error) =>
+        showToast({
+          title: language.t("common.requestFailed"),
+          description: errorMessage(error, language.t("common.requestFailed")),
+        }),
+      )
+  }
+
+  async function togglePinSession(session: Session) {
+    const ctx = focusedServerCtx()
+    if (!ctx) return
+    await ctx.sdk.client.session
+      .update({
+        directory: session.directory,
+        sessionID: session.id,
+        time: { pinned: session.time.pinned ? 0 : Date.now() },
+      })
+      .catch((error) =>
+        showToast({
+          title: language.t("common.requestFailed"),
+          description: errorMessage(error, language.t("common.requestFailed")),
+        }),
+      )
+  }
+
   function chooseProject(conn: ServerConnection.Any) {
     if (global.servers.health[ServerConnection.key(conn)]?.healthy === false) return
 
@@ -613,6 +648,8 @@ export function NewHome() {
                                 server={selection().server}
                                 openSession={openSession}
                                 archiveSession={archiveSession}
+                                renameSession={renameSession}
+                                togglePinSession={togglePinSession}
                               />
                             )}
                           </For>
@@ -1292,41 +1329,131 @@ function HomeSessionRow(props: {
   server: ServerConnection.Key
   openSession: (session: Session) => void
   archiveSession: (session: Session) => Promise<void>
+  renameSession: (session: Session, title: string) => Promise<void>
+  togglePinSession: (session: Session) => Promise<void>
 }) {
   const language = useLanguage()
   const title = createMemo(() => sessionTitle(props.record.session.title) || props.record.session.id)
   const showProjectName = () => props.showProjectName && props.record.projectName
+  const [state, setState] = createStore({ menuOpen: false, pendingRename: false, renaming: false, title: "" })
+
+  const saveRename = () => {
+    const next = state.title.trim()
+    setState("renaming", false)
+    if (!next || next === props.record.session.title) return
+    void props.renameSession(props.record.session, next)
+  }
 
   return (
     <div
       class="group/session relative flex h-10 min-w-0 items-center rounded-[6px]"
       classList={{ group: !!showProjectName() }}
+      onContextMenu={(event) => {
+        event.preventDefault()
+        setState("menuOpen", true)
+      }}
     >
-      <button
-        type="button"
-        data-component="home-session-row"
-        class={`${HOME_ROW} h-10 min-w-0 flex-1 gap-2 py-3 pl-3 pr-10`}
-        onClick={() => props.openSession(props.record.session)}
+      <Show
+        when={!state.renaming}
+        fallback={
+          <div class="flex h-10 min-w-0 flex-1 items-center gap-2 py-1 pl-3 pr-10">
+            <HomeSessionLeading
+              project={props.record.project}
+              session={props.record.session}
+              server={props.server}
+              revealProjectOnHover={false}
+            />
+            <InlineInput
+              ref={(el) =>
+                requestAnimationFrame(() => {
+                  if (!el.isConnected) return
+                  el.focus()
+                  el.select()
+                })
+              }
+              value={state.title}
+              class="min-w-0 flex-1 text-v2-text-text-base [font-weight:530]"
+              onInput={(event) => setState("title", event.currentTarget.value)}
+              onKeyDown={(event) => {
+                event.stopPropagation()
+                if (event.key === "Enter") {
+                  event.preventDefault()
+                  saveRename()
+                }
+                if (event.key !== "Escape") return
+                event.preventDefault()
+                setState("renaming", false)
+              }}
+              onBlur={() => setState("renaming", false)}
+            />
+          </div>
+        }
       >
-        <HomeSessionLeading
-          project={props.record.project}
-          session={props.record.session}
-          server={props.server}
-          revealProjectOnHover={!!showProjectName()}
-        />
-        <span
-          class={`min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-v2-text-text-base [font-weight:530] ${showProjectName() ? "max-w-[min(70%,480px)] flex-[0_1_auto]" : "flex-[1_1_auto]"}`}
+        <button
+          type="button"
+          data-component="home-session-row"
+          class={`${HOME_ROW} h-10 min-w-0 flex-1 gap-2 py-3 pl-3 pr-10`}
+          onClick={() => props.openSession(props.record.session)}
         >
-          {title()}
-        </span>
-        <Show when={showProjectName()}>
-          <span class="min-w-0 flex-[1_1_auto] overflow-hidden text-ellipsis whitespace-nowrap text-v2-text-text-muted [font-weight:440]">
-            {props.record.projectName}
+          <HomeSessionLeading
+            project={props.record.project}
+            session={props.record.session}
+            server={props.server}
+            revealProjectOnHover={!!showProjectName()}
+          />
+          <span
+            class={`min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-v2-text-text-base [font-weight:530] ${showProjectName() ? "max-w-[min(70%,480px)] flex-[0_1_auto]" : "flex-[1_1_auto]"}`}
+          >
+            {title()}
           </span>
-        </Show>
-      </button>
-      <Show when={SHOW_HOME_SESSION_ARCHIVE}>
-        <div class="hover-reveal absolute right-1.5 top-1/2 flex -translate-y-1/2 items-center gap-1 group-hover/session:opacity-100 focus-within:opacity-100">
+          <Show when={showProjectName()}>
+            <span class="min-w-0 flex-[1_1_auto] overflow-hidden text-ellipsis whitespace-nowrap text-v2-text-text-muted [font-weight:440]">
+              {props.record.projectName}
+            </span>
+          </Show>
+        </button>
+      </Show>
+      <div
+        class="hover-reveal absolute right-1.5 top-1/2 flex -translate-y-1/2 items-center gap-1 group-hover/session:opacity-100 focus-within:opacity-100 data-[menu=true]:opacity-100"
+        data-menu={state.menuOpen}
+      >
+        <MenuV2
+          gutter={6}
+          modal={false}
+          placement="bottom-end"
+          open={state.menuOpen}
+          onOpenChange={(open) => setState("menuOpen", open)}
+        >
+          <MenuV2.Trigger
+            as={IconButtonV2}
+            data-action="home-session-menu"
+            variant="ghost-muted"
+            size="small"
+            icon={<IconV2 name="outline-dots" />}
+            aria-label={language.t("common.moreOptions")}
+          />
+          <MenuV2.Portal>
+            <MenuV2.Content
+              onCloseAutoFocus={(event: Event) => {
+                if (!state.pendingRename) return
+                event.preventDefault()
+                setState({ pendingRename: false, renaming: true, title: props.record.session.title })
+              }}
+            >
+              <MenuV2.Item onSelect={() => setState({ pendingRename: true, menuOpen: false })}>
+                {language.t("common.rename")}
+              </MenuV2.Item>
+              <MenuV2.Item onSelect={() => void props.togglePinSession(props.record.session)}>
+                {props.record.session.time.pinned ? language.t("common.unpin") : language.t("common.pin")}
+              </MenuV2.Item>
+              <MenuV2.Separator />
+              <MenuV2.Item onSelect={() => void props.archiveSession(props.record.session)}>
+                {language.t("common.archive")}
+              </MenuV2.Item>
+            </MenuV2.Content>
+          </MenuV2.Portal>
+        </MenuV2>
+        <Show when={SHOW_HOME_SESSION_ARCHIVE}>
           <TooltipV2 class="flex shrink-0 items-center" placement="bottom" value={language.t("common.archive")}>
             <IconButtonV2
               data-action="home-session-archive"
@@ -1341,8 +1468,8 @@ function HomeSessionRow(props: {
               }}
             />
           </TooltipV2>
-        </div>
-      </Show>
+        </Show>
+      </div>
     </div>
   )
 }
@@ -1384,13 +1511,15 @@ function HomeSessionSkeleton(props: { label: string }) {
 function groupSessions(records: HomeSessionRecord[], language: ReturnType<typeof useLanguage>): HomeSessionGroup[] {
   const now = DateTime.local()
   const yesterday = now.minus({ days: 1 })
-  const todaySessions = records.filter((record) =>
+  const pinnedSessions = records.filter((record) => record.session.time.pinned)
+  const rest = records.filter((record) => !record.session.time.pinned)
+  const todaySessions = rest.filter((record) =>
     DateTime.fromMillis(record.session.time.updated ?? record.session.time.created).hasSame(now, "day"),
   )
-  const yesterdaySessions = records.filter((record) =>
+  const yesterdaySessions = rest.filter((record) =>
     DateTime.fromMillis(record.session.time.updated ?? record.session.time.created).hasSame(yesterday, "day"),
   )
-  const olderSessions = records.filter((record) => {
+  const olderSessions = rest.filter((record) => {
     const time = DateTime.fromMillis(record.session.time.updated ?? record.session.time.created)
     return !time.hasSame(now, "day") && !time.hasSame(yesterday, "day")
   })
@@ -1400,6 +1529,7 @@ function groupSessions(records: HomeSessionRecord[], language: ReturnType<typeof
       : language.t("home.sessions.group.older")
 
   return [
+    { id: "pinned" as const, title: language.t("home.sessions.group.pinned"), sessions: pinnedSessions },
     { id: "today" as const, title: language.t("home.sessions.group.today"), sessions: todaySessions },
     { id: "yesterday" as const, title: language.t("home.sessions.group.yesterday"), sessions: yesterdaySessions },
     { id: "older" as const, title: olderTitle, sessions: olderSessions },

@@ -845,6 +845,31 @@ describe("session HttpApi", () => {
   )
 
   it.instance(
+    "pins and unpins a session through update",
+    () =>
+      Effect.gen(function* () {
+        const test = yield* TestInstance
+        const headers = { "x-opencode-directory": test.directory, "content-type": "application/json" }
+        const session = yield* createSession({ title: "pinned" })
+
+        const pinned = yield* requestJson<Session.Info>(pathFor(SessionPaths.update, { sessionID: session.id }), {
+          method: "PATCH",
+          headers,
+          body: JSON.stringify({ time: { pinned: 42 } }),
+        })
+        expect(pinned.time.pinned).toBe(42)
+
+        const unpinned = yield* requestJson<Session.Info>(pathFor(SessionPaths.update, { sessionID: session.id }), {
+          method: "PATCH",
+          headers,
+          body: JSON.stringify({ time: { pinned: 0 } }),
+        })
+        expect(unpinned.time.pinned).toBeUndefined()
+      }),
+    { git: true, config: { formatter: false, lsp: false } },
+  )
+
+  it.instance(
     "uses project-scoped path and directory precedence",
     () =>
       Effect.gen(function* () {

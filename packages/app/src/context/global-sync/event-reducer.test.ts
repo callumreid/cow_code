@@ -4,7 +4,7 @@ import { createStore } from "solid-js/store"
 import type { State } from "./types"
 import { applyDirectoryEvent, applyGlobalEvent, cleanupDroppedSessionCaches } from "./event-reducer"
 
-const rootSession = (input: { id: string; parentID?: string; archived?: number }) =>
+const rootSession = (input: { id: string; parentID?: string; archived?: number; pinned?: number }) =>
   ({
     id: input.id,
     parentID: input.parentID,
@@ -12,6 +12,7 @@ const rootSession = (input: { id: string; parentID?: string; archived?: number }
       created: 1,
       updated: 1,
       archived: input.archived,
+      pinned: input.pinned,
     },
   }) as Session
 
@@ -241,6 +242,41 @@ describe("applyDirectoryEvent", () => {
     expect(store.permission.ses_1).toBeUndefined()
     expect(store.question.ses_1).toBeUndefined()
     expect(store.session_status.ses_1).toBeUndefined()
+  })
+
+  test("keeps pinned sessions in the store on session.updated", () => {
+    const [store, setStore] = createStore(
+      baseState({
+        session: [rootSession({ id: "ses_1" }), rootSession({ id: "ses_2" })],
+        sessionTotal: 2,
+      }),
+    )
+
+    applyDirectoryEvent({
+      event: { type: "session.updated", properties: { info: rootSession({ id: "ses_1", pinned: 10 }) } },
+      store,
+      setStore,
+      push() {},
+      directory: "/tmp",
+      loadLsp() {},
+    })
+
+    expect(store.session.map((x) => x.id)).toEqual(["ses_1", "ses_2"])
+    expect(store.session[0]!.time.pinned).toBe(10)
+    expect(store.sessionTotal).toBe(2)
+
+    applyDirectoryEvent({
+      event: { type: "session.updated", properties: { info: rootSession({ id: "ses_1" }) } },
+      store,
+      setStore,
+      push() {},
+      directory: "/tmp",
+      loadLsp() {},
+    })
+
+    expect(store.session.map((x) => x.id)).toEqual(["ses_1", "ses_2"])
+    expect(store.session[0]!.time.pinned).toBeUndefined()
+    expect(store.sessionTotal).toBe(2)
   })
 
   test("cleans session caches when deleted and decrements only root totals", () => {

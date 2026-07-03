@@ -53,6 +53,8 @@ export const UpdatePayload = Schema.Struct({
   time: Schema.optional(
     Schema.Struct({
       archived: Schema.optional(Session.ArchivedTimestamp),
+      // A falsy timestamp (0) clears the pin; the OpenAPI pipeline cannot represent null.
+      pinned: Schema.optional(Session.PinnedTimestamp),
     }),
   ),
 })

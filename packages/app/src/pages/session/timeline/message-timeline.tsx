@@ -127,12 +127,15 @@ const markBoundaryGesture = (input: {
   }
 }
 
-function TimelineThinkingRow(props: { reasoningHeading?: string; showReasoningSummaries: boolean }) {
+function TimelineThinkingRow(props: { sessionID?: string; reasoningHeading?: string; showReasoningSummaries: boolean }) {
   const language = useLanguage()
+  // easter egg: 1-in-20 sessions graze instead of think (deterministic per session)
+  const grazing = () =>
+    !!props.sessionID && [...props.sessionID].reduce((sum, ch) => sum + ch.charCodeAt(0), 0) % 20 === 0
 
   return (
     <div data-slot="session-turn-thinking">
-      <TextShimmer text={language.t("ui.sessionTurn.status.thinking")} />
+      <TextShimmer text={language.t(grazing() ? "ui.sessionTurn.status.grazing" : "ui.sessionTurn.status.thinking")} />
       <Show when={!props.showReasoningSummaries}>
         <TextReveal text={props.reasoningHeading} class="session-turn-thinking-heading" travel={25} duration={700} />
       </Show>
@@ -1185,6 +1188,7 @@ export function MessageTimeline(props: {
           <TimelineRowFrame row={thinkingRow}>
             <div data-slot="session-turn-message-container" class="w-full px-4 md:px-5">
               <TimelineThinkingRow
+                sessionID={sessionID()}
                 reasoningHeading={thinkingRow().reasoningHeading}
                 showReasoningSummaries={settings.general.showReasoningSummaries()}
               />
