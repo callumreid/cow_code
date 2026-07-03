@@ -186,4 +186,30 @@ describe("createSessionTabs", () => {
       dispose()
     })
   })
+
+  test("treats the work tab as a special closable tab", () => {
+    createRoot((dispose) => {
+      const [state, setState] = createStore({
+        active: "work" as string | undefined,
+        all: ["work", "file://src/a.ts"],
+      })
+      const tabs = createMemo(() => ({ active: () => state.active, all: () => state.all }))
+      const result = createSessionTabs({
+        tabs,
+        pathFromTab: (tab) => (tab.startsWith("file://") ? tab.slice("file://".length) : undefined),
+        normalizeTab: (tab) => tab,
+      })
+
+      expect(result.workOpen()).toBe(true)
+      expect(result.activeTab()).toBe("work")
+      expect(result.closableTab()).toBe("work")
+      expect(result.activeFileTab()).toBeUndefined()
+      expect(result.openedTabs()).toEqual(["file://src/a.ts"])
+
+      setState("active", undefined)
+      setState("all", ["work"])
+      expect(result.activeTab()).toBe("work")
+      dispose()
+    })
+  })
 })

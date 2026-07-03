@@ -11,12 +11,16 @@ import { useSync } from "@/context/sync"
 import { useLanguage } from "@/context/language"
 import { useProviders } from "@/hooks/use-providers"
 import { useSDK } from "@/context/sdk"
-import { getSessionContext, getSessionTokenTotal } from "@/components/session/session-context-metrics"
+import {
+  getSessionContext,
+  getSessionTokenTotal,
+  getSubagentTotals,
+} from "@/components/session/session-context-metrics"
 import { useSessionLayout } from "@/pages/session/session-layout"
 import { createSessionTabs } from "@/pages/session/helpers"
 
 interface SessionContextUsageProps {
-  variant?: "button" | "indicator"
+  variant?: "button" | "indicator" | "compact"
   buttonAppearance?: "default" | "v2"
   placement?: ComponentProps<typeof TooltipV2>["placement"]
 }
@@ -73,6 +77,9 @@ export function SessionContextUsage(props: SessionContextUsageProps) {
   const cost = createMemo(() => {
     return usd().format(info()?.cost ?? 0)
   })
+  // Children accumulate their own cumulative totals; shown as a separate line,
+  // never merged into the parent numbers.
+  const subagents = createMemo(() => getSubagentTotals(sync().data.session, params.id))
   const contextVisible = createMemo(() => view().reviewPanel.opened() && tabState.activeTab() === "context")
   const hasOtherTabs = createMemo(() =>
     tabs()
@@ -122,13 +129,21 @@ export function SessionContextUsage(props: SessionContextUsageProps) {
   )
 
   const tooltipValue = () => (
-    <div class="flex w-[120px] flex-col gap-2">
+    <div class="flex min-w-[120px] flex-col gap-2">
       <ContextTooltipRow name={language.t("context.usage.cost")} value={cost()} />
       <ContextTooltipRow name={language.t("context.usage.usage")} value={`${context()?.usage ?? 0}%`} />
       <ContextTooltipRow
         name={language.t("context.usage.tokens")}
         value={getSessionTokenTotal(tokens())?.toLocaleString(language.intl()) ?? "0"}
       />
+      <Show when={subagents()}>
+        {(sub) => (
+          <ContextTooltipRow
+            name={language.t("context.usage.subagents")}
+            value={`${usd().format(sub().cost)} · ${sub().tokens.toLocaleString(language.intl())}`}
+          />
+        )}
+      </Show>
     </div>
   )
 
@@ -137,6 +152,21 @@ export function SessionContextUsage(props: SessionContextUsageProps) {
       <TooltipV2 value={tooltipValue()} placement={props.placement ?? "top"} shift={-8}>
         <Switch>
           <Match when={variant() === "indicator"}>{circle()}</Match>
+          <Match when={variant() === "compact"}>
+            <Button
+              type="button"
+              variant="ghost"
+              class="h-6 px-1.5 flex items-center gap-1.5"
+              onClick={openContext}
+              aria-label={language.t("context.usage.view")}
+            >
+              {circle()}
+              <span class="text-12-regular text-text-weak tabular-nums">{cost()}</span>
+              <span class="text-12-regular text-text-weaker tabular-nums">
+                {getSessionTokenTotal(tokens())?.toLocaleString(language.intl()) ?? "0"}
+              </span>
+            </Button>
+          </Match>
           <Match when={buttonAppearance() === "v2"}>
             <IconButtonV2
               type="button"

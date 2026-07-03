@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import type { Message } from "@opencode-ai/sdk/v2/client"
-import { getSessionContext, getSessionTokenTotal } from "./session-context-metrics"
+import { getSessionContext, getSessionTokenTotal, getSubagentTotals } from "./session-context-metrics"
 
 const assistant = (
   id: string,
@@ -104,5 +104,44 @@ describe("getSessionContext", () => {
         cache: { read: 40, write: 50 },
       }),
     ).toBe(150)
+  })
+})
+
+describe("getSubagentTotals", () => {
+  const tokens = (input: number, output: number) => ({
+    input,
+    output,
+    reasoning: 0,
+    cache: { read: 0, write: 0 },
+  })
+
+  test("sums cost and tokens across children of the given session only", () => {
+    const totals = getSubagentTotals(
+      [
+        { parentID: "ses_parent", cost: 0.5, tokens: tokens(100, 50) },
+        { parentID: "ses_parent", cost: 0.25, tokens: tokens(10, 5) },
+        { parentID: "ses_other", cost: 99, tokens: tokens(1000, 1000) },
+        { parentID: undefined, cost: 42, tokens: tokens(7, 7) },
+      ],
+      "ses_parent",
+    )
+
+    expect(totals?.count).toBe(2)
+    expect(totals?.cost).toBe(0.75)
+    expect(totals?.tokens).toBe(165)
+  })
+
+  test("tolerates children missing cost or tokens", () => {
+    const totals = getSubagentTotals([{ parentID: "ses_parent", cost: undefined, tokens: undefined }], "ses_parent")
+
+    expect(totals?.count).toBe(1)
+    expect(totals?.cost).toBe(0)
+    expect(totals?.tokens).toBe(0)
+  })
+
+  test("returns undefined without children or inputs", () => {
+    expect(getSubagentTotals([{ parentID: "ses_other", cost: 1, tokens: tokens(1, 1) }], "ses_parent")).toBeUndefined()
+    expect(getSubagentTotals(undefined, "ses_parent")).toBeUndefined()
+    expect(getSubagentTotals([], undefined)).toBeUndefined()
   })
 })

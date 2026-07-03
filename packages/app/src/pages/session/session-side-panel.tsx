@@ -15,6 +15,8 @@ import { useDialog } from "@opencode-ai/ui/context/dialog"
 import FileTree from "@/components/file-tree"
 import { SessionContextUsage } from "@/components/session-context-usage"
 import { SessionContextTab, SortableTab, FileVisual } from "@/components/session"
+import { createRunningWork, RunningWorkPanel } from "@/components/session/running-work-panel"
+import { runningWorkCount } from "@/components/session/running-work"
 import { useCommand } from "@/context/command"
 import { useFile, type SelectedLineRange } from "@/context/file"
 import { useLanguage } from "@/context/language"
@@ -151,9 +153,12 @@ export function SessionSidePanel(props: {
     hasReview: props.canReview,
   })
   const contextOpen = tabState.contextOpen
+  const workOpen = tabState.workOpen
   const openedTabs = tabState.openedTabs
   const activeTab = tabState.activeTab
   const activeFileTab = tabState.activeFileTab
+  const runningWork = createRunningWork(() => params.id)
+  const runningCount = createMemo(() => runningWorkCount(runningWork()))
 
   const fileTreeTab = () => layout.fileTree.tab()
 
@@ -299,6 +304,36 @@ export function SessionSidePanel(props: {
                             </div>
                           </Tabs.Trigger>
                         </Show>
+                        <Show when={workOpen()}>
+                          <Tabs.Trigger
+                            value="work"
+                            closeButton={
+                              <TooltipKeybind
+                                title={language.t("common.closeTab")}
+                                keybind={command.keybind("tab.close")}
+                                placement="bottom"
+                                gutter={10}
+                              >
+                                <IconButton
+                                  icon="close-small"
+                                  variant="ghost"
+                                  class="h-5 w-5"
+                                  onClick={() => tabs().close("work")}
+                                  aria-label={language.t("common.closeTab")}
+                                />
+                              </TooltipKeybind>
+                            }
+                            hideCloseButton
+                            onMiddleClick={() => tabs().close("work")}
+                          >
+                            <div class="flex items-center gap-1.5">
+                              <div>{language.t("session.tab.work")}</div>
+                              <Show when={runningCount() > 0}>
+                                <div>{runningCount()}</div>
+                              </Show>
+                            </div>
+                          </Tabs.Trigger>
+                        </Show>
                         <SortableProvider ids={openedTabs()}>
                           <For each={openedTabs()}>{(tab) => <SortableTab tab={tab} onTabClose={tabs().close} />}</For>
                         </SortableProvider>
@@ -349,6 +384,16 @@ export function SessionSidePanel(props: {
                         <Show when={activeTab() === "context"}>
                           <div class="relative pt-2 flex-1 min-h-0 overflow-hidden">
                             <SessionContextTab />
+                          </div>
+                        </Show>
+                      </Tabs.Content>
+                    </Show>
+
+                    <Show when={workOpen()}>
+                      <Tabs.Content value="work" class="flex flex-col h-full overflow-hidden contain-strict">
+                        <Show when={activeTab() === "work"}>
+                          <div class="relative pt-2 flex-1 min-h-0 overflow-hidden">
+                            <RunningWorkPanel />
                           </div>
                         </Show>
                       </Tabs.Content>
