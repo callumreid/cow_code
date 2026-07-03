@@ -254,6 +254,7 @@ export function MessageTimeline(props: {
   setContentRef: (el: HTMLDivElement) => void
   userMessages: UserMessage[]
   anchor: (id: string) => string
+  suppressThinking?: () => boolean
   setRevealMessage?: (fn: (id: string) => void) => void
   setScrollToEnd?: (fn: () => void) => void
   setHistoryAnchor?: (handlers: { capture: () => void; restore: (done: boolean) => void }) => void
@@ -328,6 +329,7 @@ export function MessageTimeline(props: {
     parts: getMsgParts,
     status: sessionStatus,
     showReasoningSummaries: settings.general.showReasoningSummaries,
+    suppressThinking: () => props.suppressThinking?.() ?? false,
   })
   const activeMessageID = projection.activeMessageID
   const assistantMessagesByParent = projection.assistantMessagesByParent

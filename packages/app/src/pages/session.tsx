@@ -2062,6 +2062,7 @@ export default function Page() {
                     if (root) scheduleScrollState(root)
                   }}
                   userMessages={visibleUserMessages()}
+                  suppressThinking={() => !composer.blocked()}
                   setHistoryAnchor={(handlers) => {
                     captureHistoryAnchor = handlers.capture
                     restoreHistoryAnchor = handlers.restore

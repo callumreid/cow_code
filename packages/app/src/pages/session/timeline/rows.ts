@@ -38,6 +38,7 @@ export namespace Timeline {
     showReasoning: boolean,
     status: SessionStatus["type"],
     isActive: boolean,
+    suppressThinking = false,
   ) {
     const rows: TimelineRow.TimelineRow[] = []
 
@@ -119,7 +120,14 @@ export namespace Timeline {
       assistantGroupIndex += 1
     })
 
-    if (isActive && status === "busy" && !error && (showReasoning ? assistantPartRefs.length === 0 : true)) {
+    // suppressThinking: the composer's live activity dock already shows the phase — skip the in-timeline shimmer.
+    if (
+      isActive &&
+      status === "busy" &&
+      !error &&
+      !suppressThinking &&
+      (showReasoning ? assistantPartRefs.length === 0 : true)
+    ) {
       const heading = assistantMessages
         .flatMap((message) => getMessageParts(message.id))
         .map((part) => (part.type === "reasoning" && part.text ? reasoningHeading(part.text) : undefined))

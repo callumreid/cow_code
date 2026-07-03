@@ -1,6 +1,7 @@
 import { Show, type JSX } from "solid-js"
 import { useLanguage } from "@/context/language"
 import { useSettings } from "@/context/settings"
+import { SessionActivityDock } from "@/pages/session/composer/session-activity-dock"
 import { SessionPermissionDock } from "@/pages/session/composer/session-permission-dock"
 import { SessionQuestionDock } from "@/pages/session/composer/session-question-dock"
 import { SessionFollowupDock } from "@/pages/session/composer/session-followup-dock"
@@ -138,6 +139,9 @@ export function SessionComposerRegion(props: {
                   onSend={controller.followup()!.onSend}
                   onEdit={controller.followup()!.onEdit}
                 />
+              </Show>
+              <Show when={!controller.state.blocked()}>
+                <SessionActivityDock sessionID={controller.sessionID} />
               </Show>
               <Show
                 when={controller.child()}

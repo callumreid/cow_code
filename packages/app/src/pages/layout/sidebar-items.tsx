@@ -21,6 +21,7 @@ import { sessionTitle } from "@/utils/session-title"
 import { showToast } from "@/utils/toast"
 import { sessionPermissionRequest } from "../session/composer/session-request-tree"
 import { childSessionOnPath, errorMessage, getProjectAvatarSource, hasProjectPermissions } from "./helpers"
+import { SidebarSessionActivitySpinner } from "./sidebar-session-activity"
 
 export const ProjectIcon = (props: {
   project: LocalProject
@@ -128,7 +129,7 @@ const SessionRow = (props: {
         >
           <Switch>
             <Match when={props.isWorking()}>
-              <Spinner class="size-[15px]" />
+              <SidebarSessionActivitySpinner session={props.session} mobile={props.mobile} />
             </Match>
             <Match when={props.hasPermissions()}>
               <div class="size-1.5 rounded-full bg-surface-warning-strong" />
