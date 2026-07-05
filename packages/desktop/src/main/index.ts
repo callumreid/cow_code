@@ -275,6 +275,8 @@ const main = Effect.gen(function* () {
   )
   app.setAsDefaultProtocolClient("opencode")
   registerRendererProtocol()
+  // Display-only branding for the native About panel; product/bundle ids stay upstream.
+  app.setAboutPanelOptions({ applicationName: "cow_code" })
   setDockIcon()
   const updater = setupAutoUpdater(stopSidecars)
   registerIpcHandlers({

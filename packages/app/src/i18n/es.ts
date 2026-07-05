@@ -642,7 +642,7 @@ export const dict = {
   "sidebar.project.viewAllSessions": "Ver todas las sesiones",
   "sidebar.project.clearNotifications": "Borrar notificaciones",
 
-  "app.name.desktop": "OpenCode Desktop",
+  "app.name.desktop": "cow_code Desktop",
 
   "settings.section.desktop": "Escritorio",
   "settings.section.server": "Servidor",
