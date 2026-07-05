@@ -152,16 +152,41 @@ function withFallback<T>(read: () => T | undefined, fallback: T) {
   return createMemo(() => read() ?? fallback)
 }
 
-// Older builds hard-coerced followup "queue" -> "steer" and wrote it back to storage,
-// and no settings UI ever exposed the choice — so any stored "steer" is that artifact.
-// Strip it so the queue default applies. Remove this once a followup settings row ships.
-function migrateStoredSettings(value: unknown) {
+// One-time settings migrations applied on read. Each returns the original
+// reference when it does not apply, so normalize() only rewrites storage when
+// something actually changed.
+export function migrateStoredSettings(value: unknown) {
   if (!value || typeof value !== "object") return value
-  const stored = value as { general?: { followup?: string } }
-  if (stored.general?.followup !== "steer") return value
-  const general = { ...stored.general }
-  delete general.followup
-  return { ...stored, general }
+  const stored = value as {
+    general?: { followup?: string }
+    notifications?: { errors?: boolean }
+    errorsNotificationDefaultApplied?: boolean
+  }
+  let next: object = value
+
+  // Older builds hard-coerced followup "queue" -> "steer" and wrote it back to
+  // storage, and no settings UI ever exposed the choice — so any stored "steer"
+  // is that artifact. Strip it so the queue default applies.
+  if (stored.general?.followup === "steer") {
+    const general = { ...stored.general }
+    delete general.followup
+    next = { ...next, general }
+  }
+
+  // Error notifications now default ON, but older builds defaulted them OFF and
+  // normalize() persisted that false into every stored blob, so the new default
+  // never reached upgraded profiles. Flip it on once; the marker makes this
+  // idempotent, so a user can still turn error notifications back off afterward.
+  if (!stored.errorsNotificationDefaultApplied) {
+    const current = next as { notifications?: { errors?: boolean } }
+    next = {
+      ...next,
+      errorsNotificationDefaultApplied: true,
+      notifications: { ...(current.notifications ?? {}), errors: true },
+    }
+  }
+
+  return next
 }
 
 export const { use: useSettings, provider: SettingsProvider } = createSimpleContext({
