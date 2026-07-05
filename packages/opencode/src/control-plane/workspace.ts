@@ -902,18 +902,24 @@ function waitUntilSynced(input: {
   signal?: AbortSignal
   timeout: number
 }): Effect.Effect<void, unknown> {
-  return Effect.suspend(() =>
-    waitEvent({
+  return Effect.suspend(() => {
+    // The "sync" arm below is an in-process sync-payload consumer: the event
+    // bridge skips building sync mirrors while GlobalBus.syncSubscribers is
+    // zero, so hold a retain for the duration of the wait or events that only
+    // match this arm (durable publishes without a workspace tag) never wake it.
+    const release = GlobalBus.retainSyncSubscriber()
+    return waitEvent({
       timeout: input.timeout,
       signal: input.signal,
       fn(event) {
         return event.workspace === input.workspaceID || event.payload.type === "sync"
       },
     }).pipe(
+      Effect.ensuring(Effect.sync(release)),
       Effect.andThen(synced(input.db, input.state)),
       Effect.flatMap((done): Effect.Effect<void, unknown> => (done ? Effect.void : waitUntilSynced(input))),
-    ),
-  )
+    )
+  })
 }
 
 function synced(db: Database.Interface["db"], state: Record<string, number>): Effect.Effect<boolean> {
