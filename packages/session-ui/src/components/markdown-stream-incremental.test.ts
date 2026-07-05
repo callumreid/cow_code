@@ -112,10 +112,13 @@ function compareChains(text: string, sizes: (index: number) => number, label: st
 
 describe("incremental project() stays byte-identical to full re-lex", () => {
   CORPUS.forEach(({ name, text }) => {
+    // Each case compares against the deliberately O(n²) legacy re-lex; the long
+    // corpus entries blow past bun's 5s default even though project() itself is
+    // fast, so give the equivalence cases a generous per-test budget.
     test(name, () => {
       CHUNK_SIZES.forEach((size) => compareChains(text, () => size, `${name} chunk=${size}`))
       compareChains(text, (index) => VARIABLE_PATTERN[index % VARIABLE_PATTERN.length]!, `${name} variable`)
-    })
+    }, 60000)
   })
 
   test("non-prefix replacement reprojects from scratch", () => {
