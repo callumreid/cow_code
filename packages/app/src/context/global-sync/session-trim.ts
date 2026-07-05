@@ -45,7 +45,12 @@ export function trimSessions(
   const children = all.filter((s) => !!s.parentID)
   const base = roots.slice(0, limit)
   const recent = takeRecentSessions(roots.slice(limit), SESSION_RECENT_LIMIT, cutoff)
-  const keepRoots = [...base, ...recent]
+  // Pinned roots are exempt from recency trimming: a pin must survive no matter
+  // how long ago the session was last updated (pinning deliberately never bumps
+  // time.updated), so it can't be allowed to age out of the kept set.
+  const kept = new Set([...base, ...recent].map((s) => s.id))
+  const pinned = roots.filter((s) => !!s.time?.pinned && !kept.has(s.id))
+  const keepRoots = [...base, ...recent, ...pinned]
   const keepRootIds = new Set(keepRoots.map((s) => s.id))
   const keepChildren = children.filter((s) => {
     if (s.parentID && keepRootIds.has(s.parentID)) return true

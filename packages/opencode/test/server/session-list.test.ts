@@ -285,6 +285,43 @@ describe("session.list", () => {
   )
 
   it.instance(
+    "always returns pinned roots even when older than the recency limit",
+    () =>
+      Effect.gen(function* () {
+        const a = yield* withSession({ title: "recent-a" })
+        const b = yield* withSession({ title: "recent-b" })
+        const pinnedOld = yield* withSession({ title: "pinned-old" })
+        const unpinnedOld = yield* withSession({ title: "unpinned-old" })
+
+        // Pin one old session, then force both "old" sessions below the recency
+        // window (pinning must not bump time_updated, so drive it old afterwards).
+        yield* SessionNs.Service.use((session) => session.setPinned({ sessionID: pinnedOld.id, time: Date.now() }))
+        const { db } = yield* Database.Service
+        yield* db
+          .update(SessionTable)
+          .set({ time_updated: 1000 })
+          .where(eq(SessionTable.id, pinnedOld.id))
+          .run()
+          .pipe(Effect.orDie)
+        yield* db
+          .update(SessionTable)
+          .set({ time_updated: 2000 })
+          .where(eq(SessionTable.id, unpinnedOld.id))
+          .run()
+          .pipe(Effect.orDie)
+
+        const ids = (yield* SessionNs.use.list({ roots: true, limit: 2 })).map((session) => session.id)
+        // a and b are the newest two; the pinned old session survives the limit,
+        // the equally-old unpinned session is trimmed.
+        expect(ids).toContain(a.id)
+        expect(ids).toContain(b.id)
+        expect(ids).toContain(pinnedOld.id)
+        expect(ids).not.toContain(unpinnedOld.id)
+      }),
+    { git: true },
+  )
+
+  it.instance(
     "includes metadata in listed sessions",
     () =>
       Effect.gen(function* () {

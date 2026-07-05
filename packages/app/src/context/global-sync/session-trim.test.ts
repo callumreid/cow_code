@@ -2,7 +2,14 @@ import { describe, expect, test } from "bun:test"
 import type { PermissionRequest, Session } from "@opencode-ai/sdk/v2/client"
 import { trimSessions } from "./session-trim"
 
-const session = (input: { id: string; parentID?: string; created: number; updated?: number; archived?: number }) =>
+const session = (input: {
+  id: string
+  parentID?: string
+  created: number
+  updated?: number
+  archived?: number
+  pinned?: number
+}) =>
   ({
     id: input.id,
     parentID: input.parentID,
@@ -10,6 +17,7 @@ const session = (input: { id: string; parentID?: string; created: number; update
       created: input.created,
       updated: input.updated,
       archived: input.archived,
+      pinned: input.pinned,
     },
   }) as Session
 
@@ -55,5 +63,32 @@ describe("trimSessions", () => {
       "root-1",
       "root-2",
     ])
+  })
+
+  test("keeps a pinned root even when it is old and beyond the limit", () => {
+    const now = 1_000_000
+    const list = [
+      session({ id: "a", created: now - 1_000, updated: now - 1_000 }),
+      session({ id: "b", created: now - 2_000, updated: now - 2_000 }),
+      // Old, not recent, and past the limit — but pinned, so it must survive.
+      session({ id: "pinned-old", created: now - 30_000_000, updated: now - 30_000_000, pinned: now - 5_000 }),
+      session({ id: "child-of-pinned", parentID: "pinned-old", created: now - 30_000_000 }),
+    ]
+
+    const result = trimSessions(list, { limit: 2, permission: {}, now })
+
+    // Without the pinned exemption "pinned-old" (and its child) would be trimmed.
+    expect(result.map((x) => x.id)).toEqual(["a", "b", "child-of-pinned", "pinned-old"])
+  })
+
+  test("does not duplicate a pinned root that is also within the recency window", () => {
+    const now = 1_000_000
+    const list = [
+      session({ id: "a", created: now - 1_000, updated: now - 1_000, pinned: now - 500 }),
+      session({ id: "b", created: now - 2_000, updated: now - 2_000 }),
+    ]
+
+    const result = trimSessions(list, { limit: 5, permission: {}, now })
+    expect(result.map((x) => x.id)).toEqual(["a", "b"])
   })
 })

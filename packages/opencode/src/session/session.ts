@@ -19,6 +19,7 @@ import { eq } from "drizzle-orm"
 import { and } from "drizzle-orm"
 import { gte } from "drizzle-orm"
 import { isNull } from "drizzle-orm"
+import { isNotNull } from "drizzle-orm"
 import { desc } from "drizzle-orm"
 import { like } from "drizzle-orm"
 import { sql } from "drizzle-orm"
@@ -997,26 +998,41 @@ function listByProject(
   if (input.roots) {
     conditions.push(isNull(SessionTable.parent_id))
   }
-  if (input.start) {
-    conditions.push(gte(SessionTable.time_updated, input.start))
-  }
   if (input.search) {
     conditions.push(like(SessionTable.title, `%${input.search}%`))
   }
 
   const limit = input.limit ?? 100
+  // `start` is a recency cursor; keep it off the shared `conditions` so pinned
+  // roots (below) can bypass it.
+  const recencyConditions = input.start ? [...conditions, gte(SessionTable.time_updated, input.start)] : conditions
 
-  return db
+  const recent = db
     .select()
     .from(SessionTable)
-    .where(and(...conditions))
+    .where(and(...recencyConditions))
     .orderBy(desc(SessionTable.time_updated))
     .limit(limit)
     .all()
-    .pipe(
-      Effect.orDie,
-      Effect.map((rows) => rows.map(fromRow)),
-    )
+    .pipe(Effect.orDie)
+
+  // Pinned roots must always be returned regardless of the recency window or
+  // limit: pinning never bumps time_updated (see setPinned), so an old pin would
+  // otherwise fall outside the newest-N page and vanish from the sidebar/home.
+  const pinned = db
+    .select()
+    .from(SessionTable)
+    .where(and(...conditions, isNull(SessionTable.parent_id), isNotNull(SessionTable.time_pinned)))
+    .all()
+    .pipe(Effect.orDie)
+
+  return Effect.all([recent, pinned]).pipe(
+    Effect.map(([recentRows, pinnedRows]) => {
+      const seen = new Set(recentRows.map((row) => row.id))
+      const merged = [...recentRows, ...pinnedRows.filter((row) => !seen.has(row.id))]
+      return merged.map(fromRow)
+    }),
+  )
 }
 
 export const node = LayerNode.make({
