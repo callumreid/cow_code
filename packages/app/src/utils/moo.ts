@@ -51,6 +51,10 @@ const syllable = (
 export const playMoo = (create: MooContextFactory = defaultContext) => {
   const ctx = create()
   if (!ctx) return
+  // The moo only ever fires while the window is unfocused or hidden — exactly
+  // the state where a fresh AudioContext can start out "suspended". Resume it
+  // or the egg never makes a sound.
+  if (ctx.state === "suspended") void ctx.resume().catch(() => undefined)
   const now = ctx.currentTime
   syllable(ctx, now, 0.5, { from: 155, to: 135 }, 0.16)
   syllable(ctx, now + 0.42, 0.95, { from: 130, to: 82 }, 0.2)
