@@ -45,7 +45,22 @@ function browserSession() {
   // permission request (camera, mic, geolocation, notifications, ...).
   ses.setPermissionRequestHandler((_contents, _permission, callback) => callback(false))
   ses.setPermissionCheckHandler(() => false)
+  // Same posture for downloads: a page must not be able to drop files on disk
+  // (the default handler pops a save dialog straight from web content).
+  ses.on("will-download", (event, item) => {
+    writeLog("browser-panel", "blocked download", { url: item.getURL() }, "warn")
+    event.preventDefault()
+  })
   return ses
+}
+
+// Favicon URLs come from the loaded page and get rendered as <img src> by the
+// app renderer (trusted UI session) — only let plain web URLs or inline image
+// data cross that boundary.
+function sanitizeFavicon(value: string | undefined) {
+  if (!value) return undefined
+  if (isAllowedBrowserUrl(value) || value.startsWith("data:image/")) return value
+  return undefined
 }
 
 function tabState(tab: BrowserTab): BrowserTabState {
@@ -94,7 +109,7 @@ function wireContents(tab: BrowserTab, contents: WebContents) {
   contents.on("did-navigate-in-page", push)
   contents.on("page-title-updated", push)
   contents.on("page-favicon-updated", (_event, favicons) => {
-    tab.favicon = favicons[0]
+    tab.favicon = sanitizeFavicon(favicons[0])
     push()
   })
   contents.on("did-fail-load", (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
