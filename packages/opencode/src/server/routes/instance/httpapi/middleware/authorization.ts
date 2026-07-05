@@ -10,8 +10,40 @@ export {
 } from "@opencode-ai/server/middleware/authorization"
 
 const AUTH_TOKEN_QUERY = "auth_token"
+const AUTH_COOKIE = "opencode_auth"
 const UNAUTHORIZED = 401
 const WWW_AUTHENTICATE = 'Basic realm="Secure Area"'
+
+// The remote-access / PWA handoff link carries the base64 credential in the
+// `auth_token` query param. The document request can pass that param, but the
+// browser fetches subresources (/assets/*.js, /oc-theme-preload.js, ...) and
+// opens EventSource streams WITHOUT it, so with a server password every one of
+// those 401s and the app never boots. On a valid token request we mint an
+// HttpOnly cookie carrying the same credential; the browser then attaches it to
+// every same-origin request, so assets, fetch and SSE all authenticate without
+// exposing anything unauthenticated. HttpOnly keeps page scripts from reading
+// it; SameSite=Lax blocks cross-site mutation (POST/PATCH) replay; no Secure
+// attribute because LAN remote access is plain HTTP.
+function readAuthCookie(cookieHeader: string | undefined) {
+  if (!cookieHeader) return undefined
+  const entry = cookieHeader.split(/;\s*/).find((pair) => pair.startsWith(`${AUTH_COOKIE}=`))
+  return entry ? decodeURIComponent(entry.slice(AUTH_COOKIE.length + 1)) : undefined
+}
+
+function authCookie(token: string) {
+  return `${AUTH_COOKIE}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax`
+}
+
+// When a request authenticates via the `auth_token` query param — i.e. the
+// initial PWA handoff navigation — attach a Set-Cookie so the browser replays
+// the credential on subsequent token-less requests (assets, fetch, SSE).
+function mintAuthCookie(url: URL, credential: ServerAuth.DecodedCredentials, config: ServerAuth.Info) {
+  const token = url.searchParams.get(AUTH_TOKEN_QUERY)
+  if (!token || !ServerAuth.authorized(credential, config)) return Effect.void
+  return HttpEffect.appendPreResponseHandler((_request, response) =>
+    Effect.succeed(HttpServerResponse.setHeader(response, "set-cookie", authCookie(token))),
+  )
+}
 
 // Avoid HttpApiSecurity alternatives here: Effect security middleware wraps the
 // full handler, so a downstream failure can make the next auth alternative run
@@ -70,15 +102,13 @@ function decodeCredential(input: string) {
   )
 }
 
-function credentialFromRequest(request: HttpServerRequest.HttpServerRequest) {
-  return credentialFromURL(new URL(request.url, "http://localhost"), request)
-}
-
 function credentialFromURL(url: URL, request: HttpServerRequest.HttpServerRequest) {
   const token = url.searchParams.get(AUTH_TOKEN_QUERY)
   if (token) return decodeCredential(token)
   const match = /^Basic\s+(.+)$/i.exec(request.headers.authorization ?? "")
   if (match) return decodeCredential(match[1])
+  const cookie = readAuthCookie(request.headers.cookie)
+  if (cookie) return decodeCredential(cookie)
   return Effect.succeed(emptyCredential())
 }
 
@@ -108,9 +138,9 @@ export const authorizationRouterMiddleware = HttpRouter.middleware()(
         const request = yield* HttpServerRequest.HttpServerRequest
         const url = new URL(request.url, "http://localhost")
         if (isPublicUIPath(request.method, url.pathname)) return yield* effect
-        return yield* credentialFromURL(url, request).pipe(
-          Effect.flatMap((credential) => validateRawCredential(effect, credential, config)),
-        )
+        const credential = yield* credentialFromURL(url, request)
+        yield* mintAuthCookie(url, credential, config)
+        return yield* validateRawCredential(effect, credential, config)
       })
   }),
 )
@@ -123,9 +153,10 @@ export const authorizationLayer = Layer.effect(
     return Authorization.of((effect) =>
       Effect.gen(function* () {
         const request = yield* HttpServerRequest.HttpServerRequest
-        return yield* credentialFromRequest(request).pipe(
-          Effect.flatMap((credential) => validateCredential(effect, credential, config)),
-        )
+        const url = new URL(request.url, "http://localhost")
+        const credential = yield* credentialFromURL(url, request)
+        yield* mintAuthCookie(url, credential, config)
+        return yield* validateCredential(effect, credential, config)
       }),
     )
   }),

@@ -161,6 +161,53 @@ describe("HttpApi authorization middleware", () => {
     }),
   )
 
+  itSecret.live("accepts the auth cookie so token-less subresource requests authenticate", () =>
+    Effect.gen(function* () {
+      const response = yield* getProbe({ cookie: `opencode_auth=${encodeURIComponent(token("opencode", "secret"))}` })
+
+      expect(response.status).toBe(200)
+    }),
+  )
+
+  itSecret.live("still authorizes when other cookies accompany the auth cookie", () =>
+    Effect.gen(function* () {
+      const response = yield* getProbe({
+        cookie: `theme=dark; opencode_auth=${encodeURIComponent(token("opencode", "secret"))}; other=1`,
+      })
+
+      expect(response.status).toBe(200)
+    }),
+  )
+
+  itSecret.live("rejects a stale auth cookie carrying the wrong password", () =>
+    Effect.gen(function* () {
+      const response = yield* getProbe({ cookie: `opencode_auth=${encodeURIComponent(token("opencode", "stale"))}` })
+
+      expect(response.status).toBe(401)
+    }),
+  )
+
+  itSecret.live("mints an HttpOnly auth cookie when the handoff token authenticates", () =>
+    Effect.gen(function* () {
+      const response = yield* HttpClient.get(`/probe?auth_token=${encodeURIComponent(token("opencode", "secret"))}`)
+
+      expect(response.status).toBe(200)
+      const cookie = response.headers["set-cookie"] ?? ""
+      expect(cookie).toContain(`opencode_auth=${encodeURIComponent(token("opencode", "secret"))}`)
+      expect(cookie).toContain("HttpOnly")
+      expect(cookie).toContain("SameSite=Lax")
+    }),
+  )
+
+  itSecret.live("does not mint a cookie when basic-auth header (no token) authenticates", () =>
+    Effect.gen(function* () {
+      const response = yield* getProbe({ authorization: basic("opencode", "secret") })
+
+      expect(response.status).toBe(200)
+      expect(response.headers["set-cookie"] ?? "").toBe("")
+    }),
+  )
+
   itV2Secret.live("returns bodyful v2 unauthorized errors", () =>
     Effect.gen(function* () {
       const response = yield* HttpClient.get("/api/probe")

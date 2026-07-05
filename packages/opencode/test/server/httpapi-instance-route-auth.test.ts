@@ -78,4 +78,40 @@ describe("HttpApi instance route authorization", () => {
     await cancelBody(authed)
     expect(authed.status).toBe(404)
   })
+
+  test("mints an auth cookie from the handoff token so token-less subresource requests authenticate", async () => {
+    await using tmp = await tmpdir({ git: true, config: { formatter: false, lsp: false } })
+    const server = app({ password: "secret" })
+    const headers = { "x-opencode-directory": tmp.path }
+    const token = Buffer.from("opencode:secret").toString("base64")
+
+    // The PWA document load carries the credential in the query param; the
+    // response must set an HttpOnly cookie the browser can replay on assets/SSE.
+    const authed = await server.request(`${EventPaths.event}?auth_token=${encodeURIComponent(token)}`, { headers })
+    await cancelBody(authed)
+    expect(authed.status).toBe(200)
+    const cookie = authed.headers.get("set-cookie") ?? ""
+    expect(cookie).toContain(`opencode_auth=${encodeURIComponent(token)}`)
+    expect(cookie).toContain("HttpOnly")
+    expect(cookie).toContain("SameSite=Lax")
+
+    // A token-less request bearing only that cookie must be authorized.
+    const viaCookie = await server.request(EventPaths.event, {
+      headers: { ...headers, cookie: `opencode_auth=${encodeURIComponent(token)}` },
+    })
+    await cancelBody(viaCookie)
+    expect(viaCookie.status).toBe(200)
+  })
+
+  test("does not mint a cookie for an invalid handoff token", async () => {
+    await using tmp = await tmpdir({ git: true, config: { formatter: false, lsp: false } })
+    const server = app({ password: "secret" })
+    const headers = { "x-opencode-directory": tmp.path }
+    const token = Buffer.from("opencode:wrong").toString("base64")
+
+    const rejected = await server.request(`${EventPaths.event}?auth_token=${encodeURIComponent(token)}`, { headers })
+    await cancelBody(rejected)
+    expect(rejected.status).toBe(401)
+    expect(rejected.headers.get("set-cookie")).toBeNull()
+  })
 })
