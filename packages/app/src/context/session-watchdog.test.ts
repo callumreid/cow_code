@@ -218,3 +218,89 @@ describe("noise immunity", () => {
     expect(fired.stuck).toHaveLength(1)
   })
 })
+
+describe("pre-launch seeding", () => {
+  test("seeds an already-busy session so its silence timer starts", () => {
+    const { core, fired } = harness()
+    core.seed(DIR, { s1: { type: "busy" } }, 0)
+    core.sweep(STUCK_SILENCE_MS - 1)
+    expect(fired.stuck).toHaveLength(0)
+    core.sweep(STUCK_SILENCE_MS)
+    expect(fired.stuck).toEqual([{ sessionID: "s1", reason: "silent", attempt: undefined }])
+  })
+
+  test("seeds a retry-looping session and fires immediately at the attempt threshold", () => {
+    const { core, fired } = harness()
+    core.seed(DIR, { s1: { type: "retry", attempt: STUCK_RETRY_ATTEMPTS } }, 0)
+    core.sweep(0)
+    expect(fired.stuck).toEqual([{ sessionID: "s1", reason: "retry", attempt: STUCK_RETRY_ATTEMPTS }])
+  })
+
+  test("ignores idle snapshot entries", () => {
+    const { core, fired } = harness()
+    core.seed(DIR, { s1: { type: "idle" } }, 0)
+    core.sweep(STUCK_SILENCE_MS)
+    expect(fired.stuck).toHaveLength(0)
+  })
+
+  test("never clobbers a session the live stream already tracks", () => {
+    const { core, fired } = harness()
+    core.handleEvent(DIR, status("s1", { type: "busy" }), 0)
+    // A late seed with a newer timestamp must not push the silence deadline out.
+    core.seed(DIR, { s1: { type: "busy" } }, 50_000)
+    core.sweep(STUCK_SILENCE_MS)
+    expect(fired.stuck).toHaveLength(1)
+  })
+})
+
+describe("connection-loss suppression", () => {
+  test("suppresses new stuck alerts while the stream is down", () => {
+    const { core, fired } = harness()
+    core.handleEvent(DIR, status("s1", { type: "busy" }), 0)
+    core.setConnected(false, 10)
+    core.sweep(STUCK_SILENCE_MS)
+    expect(fired.stuck).toHaveLength(0)
+  })
+
+  test("resets the silence clock on reconnect so the disconnect gap is not counted", () => {
+    const { core, fired } = harness()
+    core.handleEvent(DIR, status("s1", { type: "busy" }), 0)
+    core.setConnected(false, 10)
+    core.sweep(STUCK_SILENCE_MS)
+    expect(fired.stuck).toHaveLength(0)
+    // Reconnect at STUCK_SILENCE_MS: the gap is forgiven, a fresh window starts.
+    core.setConnected(true, STUCK_SILENCE_MS)
+    core.sweep(STUCK_SILENCE_MS)
+    expect(fired.stuck).toHaveLength(0)
+    core.sweep(STUCK_SILENCE_MS * 2)
+    expect(fired.stuck).toHaveLength(1)
+  })
+
+  test("does NOT clear an already-stuck session when the stream drops", () => {
+    const { core, fired } = harness()
+    core.handleEvent(DIR, status("s1", { type: "busy" }), 0)
+    core.sweep(STUCK_SILENCE_MS)
+    expect(fired.stuck).toHaveLength(1)
+    core.setConnected(false, STUCK_SILENCE_MS + 5)
+    core.sweep(STUCK_SILENCE_MS + 10)
+    expect(fired.cleared).toHaveLength(0)
+    expect(core.stuckFor("s1")?.reason).toBe("silent")
+    // Reconnect keeps the genuine stuck (an already-stuck session's clock is not reset).
+    core.setConnected(true, STUCK_SILENCE_MS + 20)
+    core.sweep(STUCK_SILENCE_MS + 20)
+    expect(fired.cleared).toHaveLength(0)
+    expect(core.stuckFor("s1")?.reason).toBe("silent")
+  })
+
+  test("a real recovery still clears once events resume after reconnect", () => {
+    const { core, fired } = harness()
+    core.handleEvent(DIR, status("s1", { type: "busy" }), 0)
+    core.sweep(STUCK_SILENCE_MS)
+    expect(fired.stuck).toHaveLength(1)
+    core.setConnected(false, STUCK_SILENCE_MS)
+    core.setConnected(true, STUCK_SILENCE_MS + 5)
+    // Engine comes back to life and reports idle → the stuck clears.
+    core.handleEvent(DIR, status("s1", { type: "idle" }), STUCK_SILENCE_MS + 6)
+    expect(fired.cleared).toEqual(["s1"])
+  })
+})

@@ -48,6 +48,35 @@ function createServerWatchdogState(input: {
 
   const unsub = input.sdk.event.listen((e) => core.handleEvent(e.name, e.details))
   const timer = setInterval(() => core.sweep(), SWEEP_INTERVAL_MS)
+
+  // Mirror the event-stream connection state into the core so the silence rule
+  // is suppressed while the stream is down and resumes cleanly on reconnect.
+  createEffect(() => core.setConnected(input.sdk.event.connection() === "connected"))
+
+  // Seed already-busy sessions from the status snapshot so a session that was
+  // busy-silent before this window subscribed still starts its silence timer
+  // (e.g. reconnecting to a shared server where another device left a run
+  // going). The snapshot has no directory, so resolve each non-idle session's
+  // directory directly; the busy-at-connect set is tiny. Fire-and-forget.
+  void input.sdk.client.session
+    .status()
+    .then((snapshot) =>
+      Promise.all(
+        Object.entries(snapshot.data ?? {})
+          .filter(([, status]) => status?.type !== "idle")
+          .map(([sessionID, status]) =>
+            input.sdk.client.session
+              .get({ sessionID })
+              .then((got) => {
+                const directory = got.data?.directory
+                if (directory) core.seed(directory, { [sessionID]: status })
+              })
+              .catch(() => undefined),
+          ),
+      ),
+    )
+    .catch(() => undefined)
+
   onCleanup(() => {
     clearInterval(timer)
     unsub()

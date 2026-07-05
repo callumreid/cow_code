@@ -65,6 +65,21 @@ const END_SIGNALS = new Set(["session.idle", "session.error"])
 const WAIT_START = new Set(["permission.asked", "question.asked"])
 const WAIT_END = new Set(["permission.replied", "question.replied", "question.rejected"])
 
+// The status shape carried by both the live session.status event and the
+// GET /session/status snapshot — the discriminated union from the SDK.
+export type WatchdogStatus = { type?: string; attempt?: number }
+
+// Fold a status value into a tracked session. Shared by the live session.status
+// event and the bootstrap snapshot seed so both read busy/retry/idle the same
+// way. Returns false for idle (caller deletes + clears the session).
+function applyStatus(tracked: TrackedSession, status: WatchdogStatus | undefined) {
+  if (status?.type === "idle") return false
+  tracked.busy = true
+  tracked.retryAttempt = status?.type === "retry" ? (status.attempt ?? 0) : 0
+  if (status?.type === "busy") tracked.waiting = false
+  return true
+}
+
 export function createWatchdogCore(input: {
   onStuck: (info: StuckInfo) => void
   onClear: (info: { directory: string; sessionID: string }) => void
@@ -75,6 +90,10 @@ export function createWatchdogCore(input: {
   const retryAttempts = input.retryAttempts ?? STUCK_RETRY_ATTEMPTS
   const sessions = new Map<string, TrackedSession>()
   const stuck = new Map<string, StuckInfo>()
+  // While the event stream is down, no liveness signals arrive, so silence is
+  // meaningless — freeze detection until it reconnects. Defaults to true so
+  // callers/tests that never touch connection state behave exactly as before.
+  let connected = true
 
   const clear = (sessionID: string) => {
     const current = stuck.get(sessionID)
@@ -84,6 +103,11 @@ export function createWatchdogCore(input: {
   }
 
   const evaluate = (sessionID: string, now: number) => {
+    // Stream down: no event can refresh liveness or advance the retry count, so
+    // neither rule can distinguish a stuck engine from a dead pipe. Freeze
+    // entirely — do not fire new alerts, and (critically) do not clear existing
+    // ones, so a genuine stuck survives a blip.
+    if (!connected) return
     const tracked = sessions.get(sessionID)
     const current = stuck.get(sessionID)
     const next = (() => {
@@ -136,15 +160,12 @@ export function createWatchdogCore(input: {
       tracked.lastActivityAt = now
 
       if (event.type === "session.status") {
-        const status = (event.properties as { status?: { type?: string; attempt?: number } }).status
-        if (status?.type === "idle") {
+        const status = (event.properties as { status?: WatchdogStatus }).status
+        if (!applyStatus(tracked, status)) {
           sessions.delete(sessionID)
           clear(sessionID)
           return
         }
-        tracked.busy = true
-        tracked.retryAttempt = status?.type === "retry" ? (status.attempt ?? 0) : 0
-        if (status?.type === "busy") tracked.waiting = false
       }
       if (BUSY_SIGNALS.has(event.type)) tracked.busy = true
       if (WAIT_START.has(event.type)) tracked.waiting = true
@@ -156,6 +177,36 @@ export function createWatchdogCore(input: {
     sweep(now = Date.now()) {
       const ids = [...sessions.keys()]
       ids.forEach((sessionID) => evaluate(sessionID, now))
+    },
+    // Seed tracked sessions from a GET /session/status snapshot so a session
+    // that was already busy-silent before this run subscribed to events still
+    // starts its silence timer. Never clobbers a session the live stream is
+    // already tracking (that has a fresher lastActivityAt).
+    seed(directory: string, statuses: Record<string, WatchdogStatus>, now = Date.now()) {
+      Object.entries(statuses).forEach(([sessionID, status]) => {
+        if (sessions.has(sessionID)) return
+        const tracked: TrackedSession = {
+          directory,
+          busy: false,
+          waiting: false,
+          lastActivityAt: now,
+          retryAttempt: 0,
+        }
+        if (!applyStatus(tracked, status)) return
+        sessions.set(sessionID, tracked)
+        evaluate(sessionID, now)
+      })
+    },
+    setConnected(next: boolean, now = Date.now()) {
+      if (next === connected) return
+      connected = next
+      // On reconnect the silence accrued while the stream was down is not
+      // evidence of a hung engine, so give every not-yet-flagged busy session a
+      // fresh window. Already-stuck sessions keep their state (their old clock
+      // still reads past the threshold, so they are not cleared).
+      if (next) sessions.forEach((tracked, sessionID) => {
+        if (!stuck.has(sessionID)) tracked.lastActivityAt = now
+      })
     },
     stuckFor(sessionID: string) {
       return stuck.get(sessionID)
