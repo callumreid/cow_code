@@ -72,4 +72,33 @@ describe("MetadataThrottle", () => {
     }
     expect(applied).toEqual([1, 2, 3])
   })
+
+  test("a dying trailing flush does not wedge later updates", async () => {
+    const applied: number[] = []
+    let failNext = false
+    const update = MetadataThrottle.make<number>({
+      intervalMillis: 100,
+      fork: (effect) => Effect.runFork(effect),
+      apply: (value) =>
+        Effect.suspend(() => {
+          if (failNext) {
+            failNext = false
+            return Effect.die(new Error("boom"))
+          }
+          return Effect.sync(() => applied.push(value))
+        }),
+    })
+    await Effect.runPromise(update(1))
+    failNext = true
+    // Coalesced into a trailing flush whose apply dies. (The catch only
+    // matters on a stalled CI runner where the window already elapsed and the
+    // die surfaces on the leading edge instead.)
+    await Effect.runPromise(update(2)).catch(() => undefined)
+    await new Promise((resolve) => setTimeout(resolve, 250))
+    // The loop must have recovered (`scheduled` reset), so a later update
+    // still flushes instead of parking in `pending` forever.
+    await Effect.runPromise(update(3))
+    expect(await waitFor(() => applied.at(-1) === 3, 1000)).toBe(true)
+    expect(applied).toEqual([1, 3])
+  })
 })

@@ -37,6 +37,11 @@ export const make = <T>(input: {
     state.pending = undefined
     state.last = Date.now()
     return input.apply(pending.value).pipe(
+      // A dying apply must not wedge the loop: `scheduled` stays true until
+      // this chain settles, so an uncaught defect here would silently swallow
+      // every later update for this tool call. The failed value is superseded
+      // by the next one; the leading-edge path still surfaces apply failures.
+      Effect.catchCause((cause) => Effect.logWarning("throttled metadata flush failed", cause)),
       Effect.flatMap(() =>
         Effect.suspend(() => {
           if (state.pending === undefined) {
