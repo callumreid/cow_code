@@ -1,0 +1,29 @@
+Use this tool to read and maintain persistent memory that survives across sessions.
+
+Memory lives in two scopes:
+- "global": durable facts about the user and their machine, stored under the opencode config directory
+- "project": durable facts about this project, stored in .opencode/memory at the workspace root
+
+Each scope contains a MEMORY.md index plus one markdown file per fact. The MEMORY.md index of each scope is loaded into your context at session start; individual fact files are read on demand with this tool.
+
+Operations:
+- list: list all memory files in a scope
+- read: read one memory file (file is relative to the memory root, e.g. "deploy-process.md")
+- write: create or overwrite a memory file with content
+- update: replace an exact string in an existing memory file (oldString/newString)
+- delete: remove a memory file
+
+When to write memory:
+- The user states a durable preference, correction, or fact ("we deploy with ./deploy.sh, not git push")
+- You discover something non-obvious that took real effort and will still be true next session
+- The user explicitly asks you to remember something
+- Never store secrets, tokens, passwords, or credentials
+
+How to write memory:
+- One fact per file, kebab-case filename named for the fact
+- Start each fact file with frontmatter: name, description (one line, shown in listings), type (fact | preference | project)
+- Date every fact in its body, e.g. "As of 2026-07-05, ..."
+- After adding, updating, or deleting a fact file, update that scope's MEMORY.md index in the same turn. The index is a short bullet list: one line per file with its one-line description
+- Keep MEMORY.md under 100 lines. Merge or prune stale entries instead of letting it grow
+
+Memory is a point-in-time snapshot, not ground truth. A memory says X existed when it was written. Before acting on a remembered path, flag, or endpoint, verify it still exists (read the file, grep for the flag). If a memory turns out to be wrong or stale, correct or delete it immediately.

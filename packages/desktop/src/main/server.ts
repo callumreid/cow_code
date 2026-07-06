@@ -55,6 +55,9 @@ export function preferAppEnv(userDataPath: string) {
     // Enables the plan agent's approve→build flow (plan_exit tool + plan file)
     // instead of the legacy reminder injection — Claude-style plan approval.
     OPENCODE_EXPERIMENTAL_PLAN_MODE: "true",
+    // Enables persistent cross-session memory (memory tool + MEMORY.md index
+    // injected at session start) — Claude Code-style auto-memory.
+    OPENCODE_EXPERIMENTAL_MEMORY: "true",
     OPENCODE_CLIENT: "desktop",
     XDG_STATE_HOME: process.env.XDG_STATE_HOME ?? userDataPath,
   })

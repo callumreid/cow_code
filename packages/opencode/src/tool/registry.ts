@@ -2,6 +2,7 @@ import { LayerNode } from "@opencode-ai/core/effect/layer-node"
 import { httpClient } from "@opencode-ai/core/effect/app-node-platform"
 import { Ripgrep } from "@opencode-ai/core/ripgrep"
 import { PlanExitTool } from "./plan"
+import { MemoryTool } from "./memory"
 import { Session } from "@/session/session"
 import { QuestionTool } from "./question"
 import { ShellTool } from "./shell"
@@ -43,6 +44,7 @@ import { Todo } from "../session/todo"
 import { LSP } from "@/lsp/lsp"
 import { Instruction } from "../session/instruction"
 import { FSUtil } from "@opencode-ai/core/fs-util"
+import { Global } from "@opencode-ai/core/global"
 import { EventV2Bridge } from "@/event-v2-bridge"
 import { Agent } from "../agent/agent"
 import { Skill } from "../skill"
@@ -95,6 +97,7 @@ const layer = Layer.effect(
     const todo = yield* TodoWriteTool
     const lsptool = yield* LspTool
     const plan = yield* PlanExitTool
+    const memorytool = yield* MemoryTool
     const webfetch = yield* WebFetchTool
     const websearch = yield* WebSearchTool
     const shell = yield* ShellTool
@@ -211,6 +214,7 @@ const layer = Layer.effect(
           question: Tool.init(question),
           lsp: Tool.init(lsptool),
           plan: Tool.init(plan),
+          memory: Tool.init(memorytool),
         })
 
         return {
@@ -233,6 +237,9 @@ const layer = Layer.effect(
             ...(flags.experimentalLspTool ? [tool.lsp] : []),
             ...(flags.experimentalPlanMode && (flags.client === "cli" || flags.client === "desktop")
               ? [tool.plan]
+              : []),
+            ...(flags.experimentalMemory && (flags.client === "cli" || flags.client === "desktop")
+              ? [tool.memory]
               : []),
           ],
           task: tool.task,
@@ -408,6 +415,7 @@ export const node = LayerNode.make({
     LSP.node,
     Instruction.node,
     FSUtil.node,
+    Global.node, // MemoryTool needs Global.Service for the config-dir memory root
     EventV2Bridge.node,
     httpClient,
     CrossSpawnSpawner.node,

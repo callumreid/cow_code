@@ -248,6 +248,52 @@ describe("Instruction.system", () => {
   )
 })
 
+describe("Instruction.system memory index", () => {
+  it.live("injects the memory index with a verify-before-use preamble when the flag is on", () =>
+    Effect.gen(function* () {
+      const globalTmp = yield* tmpWithFiles({ "memory/MEMORY.md": "- global fact one" })
+      const projectTmp = yield* tmpWithFiles({ "AGENTS.md": "# P" })
+
+      yield* Effect.gen(function* () {
+        const svc = yield* Instruction.Service
+        const rules = yield* svc.system()
+        const global = rules.find((rule) => rule.startsWith("Memory index (global scope)"))
+        expect(global).toBeDefined()
+        expect(global!.toLowerCase()).toContain("verify paths, flags, and endpoints still exist")
+        expect(global).toContain("<memory_index>\n- global fact one\n</memory_index>")
+      }).pipe(provideInstance(projectTmp), provideInstruction({ home: globalTmp, config: globalTmp }, { experimentalMemory: true }))
+    }),
+  )
+
+  it.live("injects nothing when the memory flag is off", () =>
+    Effect.gen(function* () {
+      const globalTmp = yield* tmpWithFiles({ "memory/MEMORY.md": "- global fact" })
+      const projectTmp = yield* tmpWithFiles({ "AGENTS.md": "# P" })
+
+      yield* Effect.gen(function* () {
+        const svc = yield* Instruction.Service
+        const rules = yield* svc.system()
+        expect(rules.some((rule) => rule.startsWith("Memory index"))).toBe(false)
+      }).pipe(provideInstance(projectTmp), provideInstruction({ home: globalTmp, config: globalTmp }))
+    }),
+  )
+
+  it.live("caps an oversized index and marks it truncated", () =>
+    Effect.gen(function* () {
+      const globalTmp = yield* tmpWithFiles({ "memory/MEMORY.md": "- ".repeat(5000) })
+      const projectTmp = yield* tmpWithFiles({ "AGENTS.md": "# P" })
+
+      yield* Effect.gen(function* () {
+        const svc = yield* Instruction.Service
+        const rules = yield* svc.system()
+        const global = rules.find((rule) => rule.startsWith("Memory index (global scope)"))
+        expect(global).toBeDefined()
+        expect(global).toContain("[memory index truncated")
+      }).pipe(provideInstance(projectTmp), provideInstruction({ home: globalTmp, config: globalTmp }, { experimentalMemory: true }))
+    }),
+  )
+})
+
 describe("Instruction.systemPaths global config", () => {
   it.live("uses Global.Service config AGENTS.md", () =>
     Effect.gen(function* () {

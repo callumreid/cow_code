@@ -11,6 +11,7 @@ import { Flag } from "@opencode-ai/core/flag/flag"
 import { FSUtil } from "@opencode-ai/core/fs-util"
 import { withTransientReadRetry } from "@/util/effect-http-client"
 import { Global } from "@opencode-ai/core/global"
+import { Memory } from "@/memory"
 import type { MessageV2 } from "./message-v2"
 import type { MessageID } from "./schema"
 
@@ -92,6 +93,38 @@ const layer: Layer.Layer<
       return yield* fs.readFileString(filepath).pipe(Effect.catch(() => Effect.succeed("")))
     })
 
+    // Cross-session memory: inject each scope's MEMORY.md index (not the fact
+    // bodies — those are read on demand by the memory tool) with a verify-before-
+    // use preamble, capped so a large index can't bloat the system prompt.
+    const memoryPreamble = (scope: string, filepath: string) =>
+      [
+        `Memory index (${scope} scope) from: ${filepath}`,
+        `These are facts recorded by the memory tool in previous sessions. They are point-in-time snapshots, NOT ground truth:`,
+        `- A memory says X existed when it was written. Verify paths, flags, and endpoints still exist (read the file, grep for the flag) before acting on them.`,
+        `- Read the referenced fact file with the memory tool before relying on an index entry.`,
+        `- If a memory is wrong or stale, correct or delete it with the memory tool.`,
+      ].join("\n")
+
+    const memoryIndex = Effect.fnUntraced(function* () {
+      if (!flags.experimentalMemory) return [] as string[]
+      const ctx = yield* InstanceState.context
+      const roots = { config: global.config, worktree: ctx.worktree }
+      const indexes = [
+        { scope: "global", filepath: path.join(Memory.root("global", roots), Memory.INDEX_FILE) },
+        { scope: "project", filepath: path.join(Memory.root("project", roots), Memory.INDEX_FILE) },
+      ]
+      const contents = yield* Effect.forEach(indexes, (item) => read(item.filepath), { concurrency: 2 })
+      return indexes.flatMap((item, i) => {
+        const body = contents[i]
+        if (!body) return []
+        const capped =
+          body.length > Memory.INDEX_MAX
+            ? `${body.slice(0, Memory.INDEX_MAX)}\n[memory index truncated at ${Memory.INDEX_MAX} chars — prune MEMORY.md]`
+            : body
+        return [`${memoryPreamble(item.scope, item.filepath)}\n<memory_index>\n${capped}\n</memory_index>`]
+      })
+    })
+
     const fetch = Effect.fnUntraced(function* (url: string) {
       const res = yield* http.execute(HttpClientRequest.get(url)).pipe(
         Effect.timeout(5000),
@@ -165,6 +198,7 @@ const layer: Layer.Layer<
       return [
         ...Array.from(paths).flatMap((item, i) => (files[i] ? [`Instructions from: ${item}\n${files[i]}`] : [])),
         ...urls.flatMap((item, i) => (remote[i] ? [`Instructions from: ${item}\n${remote[i]}`] : [])),
+        ...(yield* memoryIndex()),
       ]
     })
 
