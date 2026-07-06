@@ -413,6 +413,11 @@ function renderMathInText(text: string): string {
 const inlineMathRegex = /^\\\(((?:\\.|[^\\\n])*?)\\\)/
 const blockMathRegex = /^\$\$\n([\s\S]+?)\n\$\$(?:\n|$)/
 
+// GFM strikes a single ~ (`~text~`), but Claude Code and most chat UIs require
+// ~~ — otherwise prose like "~68°F ... gusts to ~18 mph" renders as one struck
+// run. This mirrors marked's built-in del regex but demands two tildes.
+export const DOUBLE_TILDE_DEL = /^(~~)(?=[^\s~])((?:\\[\s\S]|[^\\])*?(?:\\[\s\S]|[^\s~\\]))\1(?=[^~]|$)/
+
 const katexExtension: MarkedExtension = {
   extensions: [
     {
@@ -526,6 +531,15 @@ export const { use: useMarked, provider: MarkedProvider } = createSimpleContext(
           link({ href, title, text }) {
             const titleAttr = title ? ` title="${title}"` : ""
             return `<a href="${href}"${titleAttr} class="external-link" target="_blank" rel="noopener noreferrer">${text}</a>`
+          },
+        },
+        tokenizer: {
+          // Require ~~ for strikethrough (see DOUBLE_TILDE_DEL). Return undefined
+          // — never false — so marked does not fall back to its single-tilde del.
+          del(src) {
+            const match = DOUBLE_TILDE_DEL.exec(src)
+            if (!match) return undefined
+            return { type: "del", raw: match[0], text: match[2], tokens: this.lexer.inlineTokens(match[2]) }
           },
         },
       },
