@@ -1,10 +1,13 @@
 import { createMemo, For, Show, type Accessor } from "solid-js"
 import { useNavigate } from "@solidjs/router"
 import { Button } from "@opencode-ai/ui/button"
+import { Icon } from "@opencode-ai/ui/icon"
 import { ScrollView } from "@opencode-ai/ui/scroll-view"
 import { Spinner } from "@opencode-ai/ui/spinner"
 import { createElapsedSeconds } from "@opencode-ai/session-ui/session-status-line"
 import { getToolInfo } from "@opencode-ai/session-ui/message-part"
+import { clearFinished, finishedRows } from "@/components/session/finished-work-store"
+import type { FinishedRow } from "@/components/session/finished-work"
 
 import { useLanguage } from "@/context/language"
 import { useLayout } from "@/context/layout"
@@ -65,6 +68,79 @@ function Elapsed(props: { startedAt?: number }) {
     <Show when={text()}>
       {(value) => <span class="shrink-0 tabular-nums text-11-regular text-text-weaker">{value()}</span>}
     </Show>
+  )
+}
+
+// Finished rows are dead — format their duration once, never subscribe to the ticker.
+function StaticDuration(props: { durationMs?: number }) {
+  const language = useLanguage()
+  const text = createMemo(() => {
+    if (props.durationMs === undefined) return undefined
+    const total = Math.max(0, Math.round(props.durationMs / 1000))
+    if (total < 60) return language.t("ui.message.duration.seconds", { count: total })
+    return language.t("ui.message.duration.minutesSeconds", { minutes: Math.floor(total / 60), seconds: total % 60 })
+  })
+  return (
+    <Show when={text()}>
+      {(value) => <span class="shrink-0 tabular-nums text-11-regular text-text-weaker">{value()}</span>}
+    </Show>
+  )
+}
+
+function FinishedRowView(props: { row: FinishedRow }) {
+  const language = useLanguage()
+  const sdk = useSDK()
+  const navigate = useNavigate()
+  const { params } = useSessionLayout()
+  const info = createMemo(() =>
+    getToolInfo(
+      props.row.tool ?? "task",
+      props.row.input ?? { subagent_type: props.row.agentType, description: props.row.description },
+      props.row.metadata,
+    ),
+  )
+  const usd = createMemo(() => new Intl.NumberFormat(language.intl(), { style: "currency", currency: "USD" }))
+  const failed = () => props.row.status === "error"
+  const clickable = () => props.row.kind === "subagent" && !!props.row.childSessionID
+  const open = () => {
+    const id = props.row.childSessionID
+    if (!id) return
+    navigate(
+      params.serverKey ? sessionHref(requireServerKey(params.serverKey), id) : legacySessionHref(sdk().directory, id),
+    )
+  }
+  return (
+    <button
+      type="button"
+      data-component="finished-work-row"
+      class="w-full text-left flex items-center gap-2 px-3 py-2 rounded-md bg-surface-base"
+      classList={{
+        "cursor-pointer hover:bg-surface-base-hover": clickable(),
+        "cursor-default": !clickable(),
+      }}
+      disabled={!clickable()}
+      onClick={open}
+    >
+      <Icon
+        name={failed() ? "circle-x" : "circle-check"}
+        size="small"
+        class="shrink-0"
+        classList={{ "text-text-danger-base": failed(), "text-text-weak": !failed() }}
+      />
+      <div class="min-w-0 flex-1 flex items-baseline gap-2">
+        <span class="shrink-0 text-12-medium text-text-strong">{info().title}</span>
+        <Show when={info().subtitle ?? props.row.description}>
+          {(subtitle) => <span class="min-w-0 truncate text-12-regular text-text-weak">{subtitle()}</span>}
+        </Show>
+      </div>
+      <Show when={props.row.tokens !== undefined || props.row.cost !== undefined}>
+        <span class="shrink-0 tabular-nums text-11-regular text-text-weaker">
+          {usd().format(props.row.cost ?? 0)} ·{" "}
+          {language.t("work.tokens", { count: (props.row.tokens ?? 0).toLocaleString(language.intl()) })}
+        </span>
+      </Show>
+      <StaticDuration durationMs={props.row.durationMs} />
+    </button>
   )
 }
 
@@ -179,12 +255,13 @@ export function RunningWorkPanel() {
   const language = useLanguage()
   const { params } = useSessionLayout()
   const work = createRunningWork(() => params.id)
+  const finished = createMemo(() => finishedRows(params.id))
 
   return (
     <ScrollView class="h-full">
       <div class="px-4 pt-4 pb-10 flex flex-col gap-6">
         <Show
-          when={runningWorkCount(work()) > 0}
+          when={runningWorkCount(work()) > 0 || finished().length > 0}
           fallback={
             <div class="pt-10 flex items-center justify-center text-center text-12-regular text-text-weak">
               {language.t("work.empty")}
@@ -203,6 +280,26 @@ export function RunningWorkPanel() {
               <For each={work().subagents}>{(row) => <SubagentRowView row={row} />}</For>
             </div>
           </Show>
+          <Show when={finished().length > 0}>
+            <div class="flex flex-col gap-2">
+              <div class="flex items-center justify-between">
+                <span class="text-12-regular text-text-weak">{language.t("work.finished.title")}</span>
+                <Show when={params.id}>
+                  {(id) => (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      class="h-6 px-2 text-11-regular text-text-weak"
+                      onClick={() => clearFinished(id())}
+                    >
+                      {language.t("work.finished.clear")}
+                    </Button>
+                  )}
+                </Show>
+              </div>
+              <For each={finished()}>{(row) => <FinishedRowView row={row} />}</For>
+            </div>
+          </Show>
         </Show>
       </div>
     </ScrollView>
@@ -215,9 +312,10 @@ export function RunningWorkChip() {
   const { params, tabs, view } = useSessionLayout()
   const work = createRunningWork(() => params.id)
   const count = createMemo(() => runningWorkCount(work()))
+  const finishedCount = createMemo(() => finishedRows(params.id).length)
 
   return (
-    <Show when={params.id && count() > 0}>
+    <Show when={params.id && (count() > 0 || finishedCount() > 0)}>
       <Button
         type="button"
         variant="ghost"
@@ -225,9 +323,13 @@ export function RunningWorkChip() {
         onClick={() => openSessionWork({ view: view(), layout, tabs: tabs() })}
         aria-label={language.t("work.open")}
       >
-        <Spinner class="size-3 shrink-0 text-text-weak" />
+        <Show when={count() > 0} fallback={<Icon name="circle-check" size="small" class="shrink-0 text-text-weak" />}>
+          <Spinner class="size-3 shrink-0 text-text-weak" />
+        </Show>
         <span class="text-12-regular text-text-weak tabular-nums">
-          {language.t("work.chip.running", { count: count() })}
+          {count() > 0
+            ? language.t("work.chip.running", { count: count() })
+            : language.t("work.chip.finished", { count: finishedCount() })}
         </span>
       </Button>
     </Show>

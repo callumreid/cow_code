@@ -19,6 +19,7 @@ import { createSessionTabs } from "@/pages/session/helpers"
 import { extractPromptFromParts } from "@/utils/prompt"
 import { UserMessage } from "@opencode-ai/sdk/v2"
 import { useSessionLayout } from "@/pages/session/session-layout"
+import { openSessionWork } from "@/components/session/running-work-panel"
 import { useTabs } from "@/context/tabs"
 import { requireServerKey } from "@/utils/session-route"
 import { createSessionOwnership } from "./session-ownership"
@@ -516,6 +517,14 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
       title: language.t("command.review.toggle"),
       keybind: "mod+shift+r",
       onSelect: () => view().reviewPanel.toggle(),
+    }),
+    viewCommand({
+      id: "work.open",
+      title: language.t("command.work.open"),
+      description: language.t("command.work.open.description"),
+      slash: "activity",
+      disabled: !params.id,
+      onSelect: () => openSessionWork({ view: view(), layout, tabs: tabs() }),
     }),
     ...(shown()
       ? [

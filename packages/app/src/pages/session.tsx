@@ -87,6 +87,7 @@ import { BrowserPanel } from "@/components/browser-panel"
 import { BrowserProvider } from "@/context/browser"
 import { useComposerCommands } from "@/pages/session/use-composer-commands"
 import { useSessionCommands } from "@/pages/session/use-session-commands"
+import { createFinishedWorkRetention } from "@/components/session/finished-work-store"
 import { useSessionHashScroll } from "@/pages/session/use-session-hash-scroll"
 import { Identifier } from "@/utils/id"
 import { diffs as list } from "@/utils/diffs"
@@ -1027,6 +1028,10 @@ export default function Page() {
     focusInput,
     review: reviewTab,
   })
+
+  // Single always-mounted observer that retains finished tools/subagents for the
+  // Activity panel's history — must not be gated by the chip/panel visibility.
+  createFinishedWorkRetention(() => params.id)
 
   const openReviewFile = createOpenReviewFile({
     showAllFiles,
