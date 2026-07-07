@@ -79,6 +79,9 @@ export const { use: usePermission, provider: PermissionProvider } = createSimple
       },
       createStore({
         autoAccept: {} as Record<string, boolean>,
+        // Global "bypass all permissions" flag. Absent in older persisted state,
+        // which reads back falsy — so bypass is off by default with no migration.
+        bypass: false,
       }),
     )
 
@@ -151,6 +154,8 @@ export const { use: usePermission, provider: PermissionProvider } = createSimple
     }
 
     function shouldAutoRespond(permission: PermissionRequest, directory?: string) {
+      // Bypass = auto-approve every prompt across all sessions/directories.
+      if (store.bypass) return true
       const session = directory ? serverSync().child(directory, { bootstrap: false })[0].session : []
       return autoRespondsPermission(store.autoAccept, session, permission, directory)
     }
@@ -275,6 +280,9 @@ export const { use: usePermission, provider: PermissionProvider } = createSimple
         const perm = childStore.config.permission
         return typeof perm === "string" && perm === "allow"
       },
+      isBypassing: () => store.bypass,
+      setBypass: (value: boolean) => setStore("bypass", value),
+      toggleBypass: () => setStore("bypass", !store.bypass),
     }
   },
 })

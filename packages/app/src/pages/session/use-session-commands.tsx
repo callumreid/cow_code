@@ -302,6 +302,19 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
     })
   }
 
+  const toggleBypass = () => {
+    const on = !permission.isBypassing()
+    permission.setBypass(on)
+    showToast({
+      title: on
+        ? language.t("toast.permissions.bypass.on.title")
+        : language.t("toast.permissions.bypass.off.title"),
+      description: on
+        ? language.t("toast.permissions.bypass.on.description")
+        : language.t("toast.permissions.bypass.off.description"),
+    })
+  }
+
   const undo = async () => {
     const sessionID = params.id
     if (!sessionID) return
@@ -606,6 +619,16 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
       keybind: "mod+shift+a",
       disabled: false,
       onSelect: toggleAutoAccept,
+    }),
+    // Deliberately NO keybind — a global permission bypass must be enabled on
+    // purpose (command palette or settings), never by a stray chord.
+    permissionsCommand({
+      id: "permissions.bypass",
+      title: permission.isBypassing()
+        ? language.t("command.permissions.bypass.disable")
+        : language.t("command.permissions.bypass.enable"),
+      disabled: false,
+      onSelect: toggleBypass,
     }),
   ]
 

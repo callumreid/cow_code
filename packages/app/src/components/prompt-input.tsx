@@ -1667,6 +1667,19 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                       aria-label={language.t("prompt.action.attachFile")}
                     />
                   </TooltipV2>
+                  <Show when={permission.isBypassing()}>
+                    <TooltipV2 placement="top" value={language.t("permission.bypass.indicator.tooltip")}>
+                      <button
+                        type="button"
+                        data-component="bypass-indicator"
+                        class="flex items-center gap-1 h-7 px-2 rounded-md text-11-medium text-text-danger-base bg-surface-base"
+                        onClick={() => permission.setBypass(false)}
+                      >
+                        <Icon name="circle-x" size="small" class="shrink-0" />
+                        {language.t("permission.bypass.indicator")}
+                      </button>
+                    </TooltipV2>
+                  </Show>
                   <Show when={showAgentControl()}>
                     <ComposerAgentControl state={agentControlState()} />
                   </Show>

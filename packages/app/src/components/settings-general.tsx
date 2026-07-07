@@ -279,6 +279,15 @@ export const SettingsGeneral: Component = () => {
         </SettingsRow>
 
         <SettingsRow
+          title={language.t("settings.general.row.bypass.title")}
+          description={language.t("settings.general.row.bypass.description")}
+        >
+          <div data-action="settings-bypass-permissions">
+            <Switch checked={permission.isBypassing()} onChange={(checked) => permission.setBypass(checked)} />
+          </div>
+        </SettingsRow>
+
+        <SettingsRow
           title={language.t("settings.general.row.shell.title")}
           description={language.t("settings.general.row.shell.description")}
         >
