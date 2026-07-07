@@ -119,7 +119,7 @@ export const dict = {
   "dialog.model.manage.description": "自訂模型選擇器中顯示的模型。",
   "dialog.model.manage.provider.toggle": "切換所有 {{provider}} 模型",
 
-  "dialog.model.unpaid.freeModels.title": "OpenCode 提供的免費模型",
+  "dialog.model.unpaid.freeModels.title": "cow_code 提供的免費模型",
   "dialog.model.unpaid.addMore.title": "從熱門提供者新增更多模型",
 
   "dialog.provider.viewAll": "查看更多提供者",
@@ -132,7 +132,7 @@ export const dict = {
   "provider.connect.status.waiting": "等待授權...",
   "provider.connect.status.failed": "授權失敗: {{error}}",
   "provider.connect.apiKey.description":
-    "輸入你的 {{provider}} API 金鑰以連線帳戶，並在 OpenCode 中使用 {{provider}} 模型。",
+    "輸入你的 {{provider}} API 金鑰以連線帳戶，並在 cow_code 中使用 {{provider}} 模型。",
   "provider.connect.apiKey.label": "{{provider}} API 金鑰",
   "provider.connect.apiKey.placeholder": "API 金鑰",
   "provider.connect.apiKey.required": "API 金鑰為必填",
@@ -143,7 +143,7 @@ export const dict = {
   "provider.connect.opencodeZen.visit.suffix": " 取得你的 API 金鑰。",
   "provider.connect.oauth.code.visit.prefix": "造訪 ",
   "provider.connect.oauth.code.visit.link": "此連結",
-  "provider.connect.oauth.code.visit.suffix": " 取得授權碼，以連線你的帳戶並在 OpenCode 中使用 {{provider}} 模型。",
+  "provider.connect.oauth.code.visit.suffix": " 取得授權碼，以連線你的帳戶並在 cow_code 中使用 {{provider}} 模型。",
   "provider.connect.oauth.code.label": "{{method}} 授權碼",
   "provider.connect.oauth.code.placeholder": "授權碼",
   "provider.connect.oauth.code.required": "授權碼為必填",
@@ -151,7 +151,7 @@ export const dict = {
   "provider.connect.oauth.auto.visit.prefix": "造訪 ",
   "provider.connect.oauth.auto.visit.link": "此連結",
   "provider.connect.oauth.auto.visit.suffix":
-    " 並輸入以下程式碼，以連線你的帳戶並在 OpenCode 中使用 {{provider}} 模型。",
+    " 並輸入以下程式碼，以連線你的帳戶並在 cow_code 中使用 {{provider}} 模型。",
   "provider.connect.oauth.auto.confirmationCode": "確認碼",
   "provider.connect.toast.connected.title": "{{provider}} 已連線",
   "provider.connect.toast.connected.description": "現在可以使用 {{provider}} 模型了。",
@@ -313,7 +313,7 @@ export const dict = {
   "dialog.directory.readError": "無法讀取此資料夾",
 
   "dialog.server.title": "伺服器",
-  "dialog.server.description": "切換此應用程式連線的 OpenCode 伺服器。",
+  "dialog.server.description": "切換此應用程式連線的 cow_code 伺服器。",
   "dialog.server.search.placeholder": "搜尋伺服器",
   "dialog.server.empty": "暫無伺服器",
   "dialog.server.add.title": "新增伺服器",
@@ -461,7 +461,7 @@ export const dict = {
   "toast.session.listFailed.title": "無法載入 {{project}} 的工作階段",
 
   "toast.update.title": "有可用更新",
-  "toast.update.description": "OpenCode 有新版本 ({{version}}) 可安裝。",
+  "toast.update.description": "cow_code 有新版本 ({{version}}) 可安裝。",
   "toast.update.action.installRestart": "安裝並重新啟動",
   "toast.update.action.notYet": "稍後",
 
@@ -474,7 +474,7 @@ export const dict = {
   "error.page.action.checking": "檢查中...",
   "error.page.action.checkUpdates": "檢查更新",
   "error.page.action.updateTo": "更新到 {{version}}",
-  "error.page.report.prefix": "請將此錯誤回報給 OpenCode 團隊",
+  "error.page.report.prefix": "請將此錯誤回報給 cow_code 團隊",
   "error.page.report.discord": "在 Discord 上",
   "error.page.version": "版本: {{version}}",
 
@@ -492,7 +492,7 @@ export const dict = {
   "error.chain.didYouMean": "你是不是想輸入: {{suggestions}}",
   "error.chain.modelNotFound": "找不到模型: {{provider}}/{{model}}",
   "error.chain.checkConfig": "請檢查你的設定 (opencode.json) 中的 provider/model 名稱",
-  "error.chain.mcpFailed": 'MCP 伺服器 "{{name}}" 啟動失敗。注意: OpenCode 暫不支援 MCP 認證。',
+  "error.chain.mcpFailed": 'MCP 伺服器 "{{name}}" 啟動失敗。注意: cow_code 暫不支援 MCP 認證。',
   "error.chain.providerAuthFailed": "提供者認證失敗 ({{provider}}): {{message}}",
   "error.chain.providerInitFailed": '無法初始化提供者 "{{provider}}"。請檢查憑證和設定。',
   "error.chain.configJsonInvalid": "設定檔 {{path}} 不是有效的 JSON(C)",
@@ -632,9 +632,11 @@ export const dict = {
   "sidebar.workspaces.enable": "啟用工作區",
   "sidebar.workspaces.disable": "停用工作區",
   "sidebar.gettingStarted.title": "開始使用",
-  "sidebar.gettingStarted.line1": "OpenCode 提供免費模型，你可以立即開始使用。",
+  "sidebar.gettingStarted.line1": "cow_code 提供免費模型，你可以立即開始使用。",
   "sidebar.gettingStarted.line2": "連線任意提供者即可使用更多模型，如 Claude、GPT、Gemini 等。",
   "sidebar.project.recentSessions": "最近工作階段",
+  "sidebar.group.pinned": "已置頂",
+  "sidebar.group.recents": "最近",
   "sidebar.project.viewAllSessions": "查看全部工作階段",
   "sidebar.project.clearNotifications": "清除通知",
 
@@ -645,7 +647,7 @@ export const dict = {
   "settings.tab.shortcuts": "快速鍵",
   "settings.desktop.section.wsl": "WSL",
   "settings.desktop.wsl.title": "WSL 整合",
-  "settings.desktop.wsl.description": "在 Windows 上的 WSL 中執行 OpenCode 伺服器。",
+  "settings.desktop.wsl.description": "在 Windows 上的 WSL 中執行 cow_code 伺服器。",
 
   "settings.general.section.appearance": "外觀",
   "settings.general.section.notifications": "系統通知",
@@ -655,13 +657,13 @@ export const dict = {
   "settings.general.section.display": "顯示",
 
   "settings.general.row.language.title": "語言",
-  "settings.general.row.language.description": "變更 OpenCode 的顯示語言",
+  "settings.general.row.language.description": "變更 cow_code 的顯示語言",
   "settings.general.row.appearance.title": "外觀",
-  "settings.general.row.appearance.description": "自訂 OpenCode 在你的裝置上的外觀",
+  "settings.general.row.appearance.description": "自訂 cow_code 在你的裝置上的外觀",
   "settings.general.row.colorScheme.title": "配色方案",
-  "settings.general.row.colorScheme.description": "選擇 OpenCode 要跟隨系統、淺色或深色主題",
+  "settings.general.row.colorScheme.description": "選擇 cow_code 要跟隨系統、淺色或深色主題",
   "settings.general.row.theme.title": "主題",
-  "settings.general.row.theme.description": "自訂 OpenCode 的主題。",
+  "settings.general.row.theme.description": "自訂 cow_code 的主題。",
   "settings.general.row.font.title": "程式碼字型",
   "settings.general.row.font.description": "自訂程式碼區塊使用的字型",
   "settings.general.row.terminalFont.title": "Terminal Font",
@@ -687,13 +689,13 @@ export const dict = {
   "settings.general.row.releaseNotes.description": "更新後顯示「新功能」彈出視窗",
 
   "settings.updates.row.startup.title": "啟動時檢查更新",
-  "settings.updates.row.startup.description": "在 OpenCode 啟動時自動檢查更新",
+  "settings.updates.row.startup.description": "在 cow_code 啟動時自動檢查更新",
   "settings.updates.row.check.title": "檢查更新",
   "settings.updates.row.check.description": "手動檢查更新並在有更新時安裝",
   "settings.updates.action.checkNow": "立即檢查",
   "settings.updates.action.checking": "檢查中...",
   "settings.updates.toast.latest.title": "已是最新版本",
-  "settings.updates.toast.latest.description": "你正在使用最新版本的 OpenCode。",
+  "settings.updates.toast.latest.description": "你正在使用最新版本的 cow_code。",
 
   "sound.option.none": "無",
   "sound.option.alert01": "警報 01",

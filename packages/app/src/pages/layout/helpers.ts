@@ -36,6 +36,24 @@ export const roots = (store: SessionStore) =>
 
 export const sortedRootSessions = (store: SessionStore, now: number) => roots(store).sort(sortSessions(now))
 
+export type SidebarSessionGroup = {
+  id: "pinned" | "recents"
+  titleKey: "sidebar.group.pinned" | "sidebar.group.recents"
+  sessions: Session[]
+}
+
+// Split the already-sorted (pinned-first, then recency) root sessions into a
+// Pinned group and a Recents group for the sidebar's section headers. Sorting
+// happens in sortedRootSessions; this only partitions, preserving that order.
+export const groupSidebarSessions = (store: SessionStore, now: number): SidebarSessionGroup[] => {
+  const sorted = sortedRootSessions(store, now)
+  const groups: SidebarSessionGroup[] = [
+    { id: "pinned", titleKey: "sidebar.group.pinned", sessions: sorted.filter((session) => session.time.pinned) },
+    { id: "recents", titleKey: "sidebar.group.recents", sessions: sorted.filter((session) => !session.time.pinned) },
+  ]
+  return groups.filter((group) => group.sessions.length > 0)
+}
+
 export const latestRootSession = (stores: SessionStore[], now: number) =>
   stores.flatMap(roots).sort(sortSessions(now))[0]
 
