@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import type { Message } from "@opencode-ai/sdk/v2/client"
-import { getSessionContext, getSessionTokenTotal, getSubagentTotals } from "./session-context-metrics"
+import { getSessionContext, getSessionsUsage, getSessionTokenTotal, getSubagentTotals } from "./session-context-metrics"
 
 const assistant = (
   id: string,
@@ -143,5 +143,37 @@ describe("getSubagentTotals", () => {
     expect(getSubagentTotals([{ parentID: "ses_other", cost: 1, tokens: tokens(1, 1) }], "ses_parent")).toBeUndefined()
     expect(getSubagentTotals(undefined, "ses_parent")).toBeUndefined()
     expect(getSubagentTotals([], undefined)).toBeUndefined()
+  })
+})
+
+describe("getSessionsUsage", () => {
+  const tok = (input: number, output: number) => ({ input, output, reasoning: 0, cache: { read: 0, write: 0 } })
+  const s = (id: string, cost: number, input: number, parentID?: string) => ({
+    id,
+    title: `t ${id}`,
+    cost,
+    tokens: tok(input, 0),
+    parentID,
+    time: { created: 1, updated: 2 },
+  })
+
+  test("empty input yields zero totals", () => {
+    expect(getSessionsUsage([])).toEqual({ rows: [], count: 0, totalCost: 0, totalTokens: 0 })
+  })
+
+  test("sums roots and children and flags child rows", () => {
+    const agg = getSessionsUsage([s("ses_a", 0.5, 100), s("ses_b", 0.25, 40, "ses_a")])
+    expect(agg.count).toBe(2)
+    expect(agg.totalCost).toBe(0.75)
+    expect(agg.totalTokens).toBe(140)
+    expect(agg.rows.find((r) => r.id === "ses_b")?.isChild).toBe(true)
+    expect(agg.rows.find((r) => r.id === "ses_a")?.isChild).toBe(false)
+  })
+
+  test("coalesces missing cost/tokens to zero", () => {
+    const agg = getSessionsUsage([{ id: "x", title: "x", cost: undefined, tokens: undefined, time: { created: 1 } }])
+    expect(agg.totalCost).toBe(0)
+    expect(agg.totalTokens).toBe(0)
+    expect(agg.rows[0].updated).toBe(1)
   })
 })

@@ -82,3 +82,38 @@ export function getSubagentTotals(sessions: readonly SubagentSource[] | undefine
     tokens: children.reduce((sum, child) => sum + (getSessionTokenTotal(child.tokens) ?? 0), 0),
   }
 }
+
+export type SessionUsageRow = {
+  id: string
+  title: string
+  cost: number
+  tokens: number
+  updated: number
+  isChild: boolean
+}
+export type UsageAggregate = { rows: SessionUsageRow[]; totalCost: number; totalTokens: number; count: number }
+
+type UsageSource = Pick<Session, "id" | "title" | "cost" | "tokens" | "parentID"> & {
+  time: { created: number; updated?: number }
+}
+
+// Sum cost/tokens across a set of sessions. Roots AND children are summed: the
+// engine never rolls child cost into the parent (see getSubagentTotals), so
+// including both is the honest total with no double-count. Sorting is left to
+// the render memo — the sessions store is sorted-by-id.
+export function getSessionsUsage(sessions: readonly UsageSource[] = []): UsageAggregate {
+  const rows: SessionUsageRow[] = sessions.map((session) => ({
+    id: session.id,
+    title: session.title,
+    cost: session.cost ?? 0,
+    tokens: getSessionTokenTotal(session.tokens) ?? 0,
+    updated: session.time.updated ?? session.time.created,
+    isChild: !!session.parentID,
+  }))
+  return {
+    rows,
+    count: rows.length,
+    totalCost: rows.reduce((sum, row) => sum + row.cost, 0),
+    totalTokens: rows.reduce((sum, row) => sum + row.tokens, 0),
+  }
+}

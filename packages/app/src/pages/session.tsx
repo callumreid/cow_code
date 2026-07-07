@@ -88,6 +88,7 @@ import { BrowserProvider } from "@/context/browser"
 import { useComposerCommands } from "@/pages/session/use-composer-commands"
 import { useSessionCommands } from "@/pages/session/use-session-commands"
 import { createFinishedWorkRetention } from "@/components/session/finished-work-store"
+import { useUsageCommand } from "@/components/session-usage-dialog"
 import { useSessionHashScroll } from "@/pages/session/use-session-hash-scroll"
 import { Identifier } from "@/utils/id"
 import { diffs as list } from "@/utils/diffs"
@@ -1032,6 +1033,9 @@ export default function Page() {
   // Single always-mounted observer that retains finished tools/subagents for the
   // Activity panel's history — must not be gated by the chip/panel visibility.
   createFinishedWorkRetention(() => params.id)
+
+  // Command-palette "View usage" (mod+shift+u): project-wide cost/token totals.
+  useUsageCommand()
 
   const openReviewFile = createOpenReviewFile({
     showAllFiles,
