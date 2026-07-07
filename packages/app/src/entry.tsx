@@ -109,6 +109,10 @@ const getCurrentUrl = () => {
 const getDefaultUrl = () => {
   const lsDefault = readDefaultServerUrl()
   if (lsDefault) return lsDefault
+  // A self-hosted web build can bake in the always-on server URL so every device
+  // that opens it targets that server with no manual "add server" step. Password
+  // is still supplied once via ?auth_token — never bake a secret into the bundle.
+  if (import.meta.env.VITE_OPENCODE_DEFAULT_SERVER) return import.meta.env.VITE_OPENCODE_DEFAULT_SERVER
   return getCurrentUrl()
 }
 
