@@ -16,7 +16,9 @@ import { usePermission } from "@/context/permission"
 import { messageAgentColor } from "@/utils/agent"
 import { sessionTitle } from "@/utils/session-title"
 import { sessionPermissionRequest } from "../session/composer/session-request-tree"
+import { useSDK } from "@/context/sdk"
 import { childSessionOnPath, getProjectAvatarSource, hasProjectPermissions } from "./helpers"
+import { createInlineEditorController } from "./inline-editor"
 
 export const ProjectIcon = (props: {
   project: LocalProject
@@ -103,8 +105,10 @@ const SessionRow = (props: {
   sidebarOpened: Accessor<boolean>
   warmPress: () => void
   warmFocus: () => void
+  editor: ReturnType<typeof createInlineEditorController>
+  onRename: (next: string) => void
 }): JSX.Element => {
-  const title = () => sessionTitle(props.session.title)
+  const title = () => sessionTitle(props.session.title) ?? ""
 
   return (
     <A
@@ -138,7 +142,13 @@ const SessionRow = (props: {
           </Switch>
         </div>
       </Show>
-      <span class="text-14-regular text-text-strong min-w-0 flex-1 truncate">{title()}</span>
+      <props.editor.InlineEditor
+        id={props.session.id}
+        value={title}
+        onSave={props.onRename}
+        class="text-14-regular text-text-strong min-w-0 flex-1 truncate"
+        displayClass="text-14-regular text-text-strong min-w-0 flex-1 truncate"
+      />
     </A>
   )
 }
@@ -171,6 +181,14 @@ export const SessionItem = (props: SessionItemProps): JSX.Element => {
   const tint = createMemo(() =>
     messageAgentColor(serverSync().session.data.message[props.session.id], sessionStore.agent),
   )
+  const sdk = useSDK()
+  const editor = createInlineEditorController()
+  const renameSession = (next: string) => {
+    if (next === sessionTitle(props.session.title)) return
+    void sdk()
+      .api.session.rename({ sessionID: props.session.id, title: next })
+      .catch(() => {})
+  }
   const tooltip = createMemo(() => props.showTooltip ?? (props.mobile || !props.sidebarExpanded()))
   const currentChild = createMemo(() => {
     if (!props.showChild) return
@@ -212,6 +230,8 @@ export const SessionItem = (props: SessionItemProps): JSX.Element => {
       sidebarOpened={layout.sidebar.opened}
       warmPress={() => warm(2, "high")}
       warmFocus={() => warm(2, "high")}
+      editor={editor}
+      onRename={renameSession}
     />
   )
 
