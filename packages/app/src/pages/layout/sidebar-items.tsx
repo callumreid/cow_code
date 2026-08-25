@@ -15,7 +15,7 @@ import { usePermission } from "@/context/permission"
 import { messageAgentColor } from "@/utils/agent"
 import { sessionTitle } from "@/utils/session-title"
 import { sessionPermissionRequest } from "../session/composer/session-request-tree"
-import { useSDK } from "@/context/sdk"
+import { useServerSDK } from "@/context/server-sdk"
 import { childSessionOnPath, getProjectAvatarSource, hasProjectPermissions } from "./helpers"
 import { createInlineEditorController } from "./inline-editor"
 
@@ -179,12 +179,12 @@ export const SessionItem = (props: SessionItemProps): JSX.Element => {
   const tint = createMemo(() =>
     messageAgentColor(serverSync().session.data.message[props.session.id], sessionStore.agent),
   )
-  const sdk = useSDK()
+  const serverSDK = useServerSDK()
   const pinned = createMemo(() => layout.pins.isPinned(props.session.id))
   const editor = createInlineEditorController()
   const renameSession = (next: string) => {
     if (next === sessionTitle(props.session.title)) return
-    void sdk()
+    void serverSDK()
       .api.session.rename({ sessionID: props.session.id, title: next })
       .catch(() => {})
   }
