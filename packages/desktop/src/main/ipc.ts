@@ -24,6 +24,7 @@ import type { UpdaterController } from "./updater-controller"
 import { createUpdaterSubscriptions } from "./updater-subscriptions"
 import { createDesktopDraftStore } from "./draft-store"
 import { nativeT } from "./native-translations"
+import { getPrStatus } from "./pr-status"
 
 const pickerFilters = (ext?: string[]) => {
   if (!ext || ext.length === 0) return undefined
@@ -211,6 +212,8 @@ export function registerIpcHandlers(deps: Deps) {
   ipcMain.on("open-external", (_event: IpcMainEvent, url: string) => {
     openExternalURL(url)
   })
+
+  ipcMain.handle("pr-status", (_event: IpcMainInvokeEvent, url: string) => getPrStatus(url))
 
   ipcMain.on("open-local-file", (_event: IpcMainEvent, url: string) => {
     openLocalFileURL(url)

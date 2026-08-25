@@ -35,6 +35,9 @@ type PlatformBase = {
   /** Open a web or mail URL in the default system application */
   openExternal(url: string): void
 
+  /** Resolve the merge status of a GitHub pull request URL */
+  prStatus?(url: string): Promise<"open" | "merged" | "closed" | null>
+
   /** Open a local path in a local app (desktop only) */
   openPath?(path: string, app?: string): Promise<void>
 

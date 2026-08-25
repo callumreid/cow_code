@@ -90,6 +90,7 @@ export type ElectronAPI = {
   getPathForFile: (file: File) => string
   saveFilePicker: (opts?: { title?: string; defaultPath?: string }) => Promise<string | null>
   openExternal: (url: string) => void
+  prStatus: (url: string) => Promise<"open" | "merged" | "closed" | null>
   openLocalFile: (url: string) => void
   openPath: (path: string, app?: string) => Promise<void>
   revealPath: (path: string) => Promise<boolean>

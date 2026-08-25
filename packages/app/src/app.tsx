@@ -4,6 +4,7 @@ import { I18nProvider } from "@opencode-ai/ui/context"
 import { DialogProvider } from "@opencode-ai/ui/context/dialog"
 import { FileComponentProvider } from "@opencode-ai/ui/context/file"
 import { File } from "@opencode-ai/session-ui/file"
+import { setPrStatusFetcher } from "@opencode-ai/session-ui/pr-status"
 import { Font } from "@opencode-ai/ui/font"
 import { Splash } from "@opencode-ai/ui/logo"
 import { ThemeProvider } from "@opencode-ai/ui/theme/context"
@@ -390,6 +391,15 @@ function DraftProviders(props: ParentProps) {
   )
 }
 
+function PrStatusBridge() {
+  const platform = usePlatform()
+  createEffect(() => {
+    const fetcher = platform.prStatus
+    setPrStatusFetcher(fetcher ? (url) => fetcher(url) : undefined)
+  })
+  return null
+}
+
 export function AppBaseProviders(
   props: ParentProps<{
     locale?: Locale
@@ -398,6 +408,7 @@ export function AppBaseProviders(
 ) {
   return (
     <MetaProvider>
+      <PrStatusBridge />
       <Font />
       <ThemeProvider
         onThemeApplied={(_, mode, scheme) => {

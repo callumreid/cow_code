@@ -383,3 +383,34 @@ body:not([data-new-layout]) [data-component="markdown"] {
   text-decoration: underline;
   text-underline-offset: 2px;
 }
+
+[data-component="markdown"] a.external-link .pr-status {
+  margin-inline-start: 6px;
+  padding: 0 5px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 16px;
+  vertical-align: middle;
+  text-decoration: none;
+  user-select: none;
+}
+
+[data-component="markdown"] a.external-link .pr-status[data-pr-status="pending"] {
+  display: none;
+}
+
+[data-component="markdown"] a.external-link .pr-status[data-pr-status="open"] {
+  color: var(--v2-state-fg-success);
+  background: var(--v2-state-bg-success);
+}
+
+[data-component="markdown"] a.external-link .pr-status[data-pr-status="closed"] {
+  color: var(--v2-state-fg-danger);
+  background: var(--v2-state-bg-danger);
+}
+
+[data-component="markdown"] a.external-link .pr-status[data-pr-status="merged"] {
+  color: var(--v2-agent-writer-solid);
+  background: color-mix(in oklch, var(--v2-agent-writer-solid) 12%, transparent);
+}

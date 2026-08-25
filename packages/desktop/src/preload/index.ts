@@ -98,6 +98,7 @@ const api: ElectronAPI = {
   getPathForFile: (file) => webUtils.getPathForFile(file),
   saveFilePicker: (opts) => ipcRenderer.invoke("save-file-picker", opts),
   openExternal: (url) => ipcRenderer.send("open-external", url),
+  prStatus: (url) => ipcRenderer.invoke("pr-status", url),
   openLocalFile: (url) => ipcRenderer.send("open-local-file", url),
   openPath: (path, app) => ipcRenderer.invoke("open-path", path, app),
   revealPath: (path) => ipcRenderer.invoke("reveal-path", path),
