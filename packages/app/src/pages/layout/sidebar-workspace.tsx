@@ -15,7 +15,7 @@ import { Icon as IconV2 } from "@opencode-ai/ui/v2/icon"
 import { Spinner } from "@opencode-ai/ui/spinner"
 import { Tooltip } from "@opencode-ai/ui/tooltip"
 import { type Session } from "@opencode-ai/sdk/v2/client"
-import { type LocalProject } from "@/context/layout"
+import { type LocalProject, useLayout } from "@/context/layout"
 import { useServerSync, useQueryOptions } from "@/context/server-sync"
 import { useLanguage } from "@/context/language"
 import { pathKey } from "@/utils/path-key"
@@ -246,7 +246,13 @@ const WorkspaceSessionList = (props: {
   hasMore: Accessor<boolean>
   loadMore: () => Promise<void>
   language: ReturnType<typeof useLanguage>
-}): JSX.Element => (
+}): JSX.Element => {
+  const layout = useLayout()
+  const ordered = createMemo(() => {
+    const list = props.sessions()
+    return [...list.filter((item) => layout.pins.isPinned(item.id)), ...list.filter((item) => !layout.pins.isPinned(item.id))]
+  })
+  return (
   <nav class="flex flex-col gap-1">
     <Show when={props.showNew()}>
       <NewSessionItem
@@ -259,7 +265,7 @@ const WorkspaceSessionList = (props: {
     <Show when={props.loading()}>
       <SessionSkeleton />
     </Show>
-    <For each={props.sessions()}>
+    <For each={ordered()}>
       {(session) => (
         <SessionItem
           session={session}
@@ -291,7 +297,8 @@ const WorkspaceSessionList = (props: {
       </div>
     </Show>
   </nav>
-)
+  )
+}
 
 export const SortableWorkspace = (props: {
   ctx: WorkspaceSidebarContext

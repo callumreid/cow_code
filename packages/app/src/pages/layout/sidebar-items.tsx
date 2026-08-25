@@ -2,7 +2,6 @@ import type { Session } from "@opencode-ai/sdk/v2/client"
 import { Avatar } from "@opencode-ai/ui/avatar"
 import { Icon } from "@opencode-ai/ui/icon"
 import { Icon as IconV2 } from "@opencode-ai/ui/v2/icon"
-import { IconButton } from "@opencode-ai/ui/icon-button"
 import { Spinner } from "@opencode-ai/ui/spinner"
 import { Tooltip } from "@opencode-ai/ui/tooltip"
 import { getFilename } from "@opencode-ai/core/util/path"
@@ -156,7 +155,6 @@ const SessionRow = (props: {
 export const SessionItem = (props: SessionItemProps): JSX.Element => {
   const params = useParams()
   const layout = useLayout()
-  const language = useLanguage()
   const notification = useNotification()
   const permission = usePermission()
   const serverSync = useServerSync()
@@ -182,6 +180,7 @@ export const SessionItem = (props: SessionItemProps): JSX.Element => {
     messageAgentColor(serverSync().session.data.message[props.session.id], sessionStore.agent),
   )
   const sdk = useSDK()
+  const pinned = createMemo(() => layout.pins.isPinned(props.session.id))
   const editor = createInlineEditorController()
   const renameSession = (next: string) => {
     if (next === sessionTitle(props.session.title)) return
@@ -261,28 +260,29 @@ export const SessionItem = (props: SessionItemProps): JSX.Element => {
             </Show>
           </div>
 
-          <Show when={!props.level}>
+          <Show when={!props.level || pinned()}>
             <div
               class="shrink-0 overflow-hidden transition-[width,opacity]"
               classList={{
-                "w-6 opacity-100 pointer-events-auto": !!props.mobile,
-                "w-0 opacity-0 pointer-events-none": !props.mobile,
+                "w-6 opacity-100 pointer-events-auto": !!props.mobile || pinned(),
+                "w-0 opacity-0 pointer-events-none": !props.mobile && !pinned(),
                 "group-hover/session:w-6 group-hover/session:opacity-100 group-hover/session:pointer-events-auto": true,
                 "group-focus-within/session:w-6 group-focus-within/session:opacity-100 group-focus-within/session:pointer-events-auto": true,
               }}
             >
-              <Tooltip value={language.t("common.archive")} placement="top">
-                <IconButton
-                  icon="archive"
-                  variant="ghost"
-                  class="size-6 rounded-md"
-                  aria-label={language.t("common.archive")}
+              <Tooltip value={pinned() ? "Unpin" : "Pin"} placement="top">
+                <button
+                  type="button"
+                  class="size-6 rounded-md flex items-center justify-center text-[13px] leading-none cursor-pointer hover:bg-surface-raised-base-hover"
+                  aria-label={pinned() ? "Unpin" : "Pin"}
                   onClick={(event) => {
                     event.preventDefault()
                     event.stopPropagation()
-                    void props.archiveSession(props.session)
+                    layout.pins.toggle(props.session.id)
                   }}
-                />
+                >
+                  📌
+                </button>
               </Tooltip>
             </div>
           </Show>
