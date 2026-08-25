@@ -659,7 +659,7 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
         },
       },
       sidebar: {
-        opened: createMemo(() => store.sidebar.opened),
+        opened: createMemo(() => true),
         open() {
           setStore("sidebar", "opened", true)
         },

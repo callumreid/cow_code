@@ -2266,7 +2266,7 @@ export default function LegacyLayout(props: ParentProps) {
               aria-label={language.t("sidebar.nav.projectsAndSessions")}
               data-component="sidebar-nav-desktop"
               classList={{
-                "hidden xl:block": true,
+                "block": true,
                 "absolute inset-y-0 start-0": true,
                 "z-10": true,
               }}
@@ -2289,7 +2289,7 @@ export default function LegacyLayout(props: ParentProps) {
 
             <Show when={layout.sidebar.opened()}>
               <div
-                class="hidden xl:block absolute inset-y-0 z-30 w-0 overflow-visible"
+                class="block absolute inset-y-0 z-30 w-0 overflow-visible"
                 style={{ "inset-inline-start": `${side()}px` }}
                 onPointerDown={() => setState("sizing", true)}
               >
@@ -2309,11 +2309,11 @@ export default function LegacyLayout(props: ParentProps) {
             </Show>
 
             <div
-              class="hidden xl:block pointer-events-none absolute top-0 end-0 z-0 border-t border-border-weaker-base"
+              class="hidden"
               style={{ "inset-inline-start": "calc(4rem + 12px)" }}
             />
 
-            <div class="xl:hidden">
+            <div class="hidden">
               <div
                 classList={{
                   "fixed inset-x-0 top-10 bottom-0 z-40 transition-opacity duration-200": true,
@@ -2341,7 +2341,7 @@ export default function LegacyLayout(props: ParentProps) {
             <div
               classList={{
                 "absolute inset-0": true,
-                "xl:inset-y-0 xl:end-0 xl:start-[var(--main-left)]": true,
+                "inset-y-0 end-0 start-[var(--main-left)]": true,
                 "z-20": true,
                 "transition-[inset-inline-start] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-[inset-inline-start] motion-reduce:transition-none":
                   !state.sizing,
@@ -2350,9 +2350,9 @@ export default function LegacyLayout(props: ParentProps) {
                 "--main-left": layout.sidebar.opened() ? `${side()}px` : "4rem",
               }}
             >
-              <main
+                <main
                 classList={{
-                  "size-full overflow-x-hidden flex flex-col items-start contain-strict border-t border-border-weak-base bg-background-base xl:border-s xl:rounded-ss-[12px]": true,
+                  "size-full overflow-x-hidden flex flex-col items-start contain-strict border-t border-border-weak-base bg-background-base border-s rounded-ss-[12px]": true,
                 }}
               >
                 <Show when={!autoselecting.loading} fallback={<div class="size-full" />}>
@@ -2363,7 +2363,7 @@ export default function LegacyLayout(props: ParentProps) {
 
             <div
               classList={{
-                "hidden xl:flex absolute inset-y-0 start-16 z-30": true,
+                "hidden": true,
                 "opacity-100 translate-x-0 pointer-events-auto": state.peeked && !layout.sidebar.opened(),
                 "opacity-0 ltr:-translate-x-2 rtl:translate-x-2 pointer-events-none":
                   !state.peeked || layout.sidebar.opened(),
@@ -2388,7 +2388,7 @@ export default function LegacyLayout(props: ParentProps) {
 
             <div
               classList={{
-                "hidden xl:block pointer-events-none absolute inset-y-0 end-0 z-25 overflow-hidden": true,
+                "hidden": true,
                 "opacity-100 translate-x-0": state.peeked && !layout.sidebar.opened(),
                 "opacity-0 ltr:-translate-x-2 rtl:translate-x-2": !state.peeked || layout.sidebar.opened(),
                 "transition-[opacity,transform] motion-reduce:transition-none": true,
