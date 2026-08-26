@@ -32,12 +32,8 @@ agent — that has been lovingly led out to pasture.
 
 ## 🌾 WHAT'S IN THE BARN
 
-- 🐄 **cow code branding everywhere** — pixel wordmark, window title, menu bar. No stone un-cowed.
-- 🐮 **cow emoji dev badge** — you'll know you're in dev mode because a cow tells you.
-- 🖤🤍 **cow patch theme overlay** — holstein spots, tastefully applied.
-- 📌 **pin/unpin threads** in the session sidebar. The important cud stays on top.
-- ↔️ **always-visible resizable sidebar** — at every window width. The herd is never hidden.
-- ✏️ **double-click a thread title to rename it inline.** Every cow deserves a name.
+its a bunch of heiffers. whole lotta heiffers. moooing and chewin cud and filling up
+with milk and moooing. and then moooing some more. thats the barn.
 
 ## 🚜 GET IN THE PASTURE
 
