@@ -84,6 +84,7 @@ import type { EventSource } from "./context/sdk"
 import { DialogVariant } from "./component/dialog-variant"
 import { createTuiAttention } from "./attention"
 import * as TuiAudio from "./audio"
+import mooSoundPath from "@opencode-ai/ui/audio/moo-01.mp3" with { type: "file" }
 import { win32DisableProcessedInput, win32FlushInputBuffer } from "./terminal-win32"
 import { destroyRenderer } from "./util/renderer"
 import { cliErrorMessage, errorFormat } from "./util/error"
@@ -391,6 +392,15 @@ function App(props: {
   const pluginRuntime = usePluginRuntime()
   const attention = createTuiAttention({ renderer, config: tuiConfig, kv })
   const clipboard = useClipboard()
+
+  const moo = () => {
+    toast.show({ message: "mooooo", variant: "info", duration: 2000 })
+    if (!tuiConfig.attention.enabled || !tuiConfig.attention.sound) return
+    const volume = Math.min(1, Math.max(0, tuiConfig.attention.volume))
+    void TuiAudio.loadSoundFile(mooSoundPath).then((sound) => {
+      if (sound) TuiAudio.play(sound, { volume })
+    })
+  }
 
   const api = createTuiApi(
     createTuiApiAdapters({
@@ -706,6 +716,7 @@ function App(props: {
         hidden: true,
         run: () => {
           local.agent.move(1)
+          moo()
         },
       },
       {
@@ -740,6 +751,7 @@ function App(props: {
         hidden: true,
         run: () => {
           local.agent.move(-1)
+          moo()
         },
       },
       {
