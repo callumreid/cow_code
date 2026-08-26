@@ -43,6 +43,7 @@ import { CommandProvider, useCommand, type CommandOption } from "@/context/comma
 import { useDialog } from "@opencode-ai/ui/context/dialog"
 import { DialogConnectPhone } from "@/components/dialog-connect-phone"
 import { base64Decode } from "@opencode-ai/core/util/encode"
+import { authTokenFromCredentials } from "@/utils/server"
 import { CommentsProvider } from "@/context/comments"
 import { FileProvider } from "@/context/file"
 import { ServerSDKProvider } from "@/context/server-sdk"
@@ -323,19 +324,52 @@ function ProjectsFromUrl() {
     done = true
     const params = new URLSearchParams(window.location.search)
     const values = params.getAll("project")
-    if (!values.length) return
     for (const value of values) {
       const directory = decodeProjectSlug(value)
       if (directory) server.projects.open(directory)
     }
-    params.delete("project")
-    history.replaceState(
-      null,
-      "",
-      window.location.pathname + (params.size ? `?${params}` : "") + window.location.hash,
-    )
+    if (values.length) {
+      params.delete("project")
+      history.replaceState(
+        null,
+        "",
+        window.location.pathname + (params.size ? `?${params}` : "") + window.location.hash,
+      )
+    }
+    // A client with no workspaces yet (a phone that scanned a QR) falls back
+    // to the server's own session history for its project list.
+    if (server.projects.list().length) return
+    void seedProjectsFromSessions(server)
   })
   return null
+}
+
+async function seedProjectsFromSessions(server: ReturnType<typeof useServer>) {
+  const current = server.current
+  if (!current || !("http" in current)) return
+  const headers = current.http.password
+    ? {
+        Authorization: `Basic ${authTokenFromCredentials({
+          username: current.http.username,
+          password: current.http.password,
+        })}`,
+      }
+    : undefined
+  const response = await fetch(new URL("/experimental/session?limit=100", current.http.url), { headers }).catch(
+    () => undefined,
+  )
+  if (!response?.ok) return
+  const sessions = (await response.json().catch(() => [])) as Array<{ directory?: string }>
+  const seen = new Set<string>()
+  for (const session of sessions) {
+    const directory = session.directory
+    if (!directory || !directory.startsWith("/") || directory === "/") continue
+    if (directory.startsWith("/tmp") || directory.startsWith("/private/")) continue
+    if (seen.has(directory)) continue
+    seen.add(directory)
+    server.projects.open(directory)
+    if (seen.size >= 4) break
+  }
 }
 
 function decodeProjectSlug(value: string) {
