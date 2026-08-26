@@ -10,6 +10,8 @@ export {
 } from "@opencode-ai/server/middleware/authorization"
 
 const AUTH_TOKEN_QUERY = "auth_token"
+const AUTH_COOKIE = "opencode_auth_token"
+const AUTH_COOKIE_MAX_AGE = 60 * 60 * 24 * 30
 const UNAUTHORIZED = 401
 const WWW_AUTHENTICATE = 'Basic realm="Secure Area"'
 
@@ -79,6 +81,8 @@ function credentialFromURL(url: URL, request: HttpServerRequest.HttpServerReques
   if (token) return decodeCredential(token)
   const match = /^Basic\s+(.+)$/i.exec(request.headers.authorization ?? "")
   if (match) return decodeCredential(match[1])
+  const cookie = request.cookies[AUTH_COOKIE]
+  if (cookie) return decodeCredential(cookie)
   return Effect.succeed(emptyCredential())
 }
 
@@ -108,9 +112,23 @@ export const authorizationRouterMiddleware = HttpRouter.middleware()(
         const request = yield* HttpServerRequest.HttpServerRequest
         const url = new URL(request.url, "http://localhost")
         if (isPublicUIPath(request.method, url.pathname)) return yield* effect
-        return yield* credentialFromURL(url, request).pipe(
-          Effect.flatMap((credential) => validateRawCredential(effect, credential, config)),
-        )
+        const credential = yield* credentialFromURL(url, request)
+        // A valid query token becomes a cookie so the follow-up asset requests
+        // the browser issues without credentials (script tags, fonts) stay
+        // authorized after the app strips the token from the URL.
+        const token = url.searchParams.get(AUTH_TOKEN_QUERY)
+        if (token && ServerAuth.authorized(credential, config)) {
+          yield* HttpEffect.appendPreResponseHandler((_request, response) =>
+            Effect.succeed(
+              HttpServerResponse.setHeader(
+                response,
+                "set-cookie",
+                `${AUTH_COOKIE}=${token}; Max-Age=${AUTH_COOKIE_MAX_AGE}; Path=/; HttpOnly; SameSite=Lax`,
+              ),
+            ),
+          )
+        }
+        return yield* validateRawCredential(effect, credential, config)
       })
   }),
 )

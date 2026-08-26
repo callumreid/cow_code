@@ -7,6 +7,7 @@ import { UI } from "@/cli/ui"
 import { errorMessage } from "@opencode-ai/tui/util/error"
 import { withTimeout } from "@/util/timeout"
 import { withNetworkOptions, resolveNetworkOptionsNoConfig, hasArg } from "@/cli/network"
+import { getNetworkIPs } from "@/util/network-ips"
 import { Filesystem } from "@/util/filesystem"
 import type { GlobalEvent } from "@opencode-ai/sdk/v2"
 import type { EventSource } from "@opencode-ai/tui/context/sdk"
@@ -277,6 +278,10 @@ export const TuiThreadCommand = cmd({
               const tui = writeHeapSnapshot("tui.heapsnapshot")
               const server = await client.call("snapshot", undefined)
               return [tui, server]
+            },
+            async onCompanion() {
+              const info = await client.call("companion", { cors: network.cors })
+              return { ...info, hosts: getNetworkIPs() }
             },
             config,
             pluginHost: createLegacyTuiPluginHost(),
