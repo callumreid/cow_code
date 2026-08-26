@@ -48,7 +48,6 @@ Then bring the cow home:
 ```bash
 git clone https://github.com/callumreid/cow_code.git
 cd cow_code
-git checkout feat/cow-ui    # the freshest cud is chewed here
 bun install
 ```
 
@@ -63,8 +62,8 @@ bun run dev:web         # 🌐 the web app
 ## 🥛 DRIVING THE COW
 
 - Sit on its back and shout **"giddyup, bronson!"**
-- Press <kbd>Tab</kbd> to switch between the two built-in agents:
-  **build** (full access, does the work) and **plan** (read-only, walks the fences before anything gets built).
+- Press <kbd>Tab</kbd>. it moos. out loud. a real moo, right there in your terminal,
+  and a little alert that says **mooooo**. (it also switches agents. that part is incidental.)
 
 ## 🧬 LINEAGE
 
