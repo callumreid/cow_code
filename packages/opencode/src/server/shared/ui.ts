@@ -66,13 +66,15 @@ function directoryUI() {
 }
 
 export function embeddedUI(disableEmbeddedWebUi: boolean) {
-  if (disableEmbeddedWebUi) return Promise.resolve(null)
-  return (embeddedUIPromise ??= Promise.resolve(directoryUI()).then(
-    (fromDirectory) =>
-      fromDirectory ??
-      // @ts-expect-error - generated file at build time
-      import("opencode-web-ui.gen.ts").then((module) => module.default as Record<string, string>).catch(() => null),
-  ))
+  // An explicit OPENCODE_WEB_UI_DIR wins over the desktop's blanket
+  // OPENCODE_DISABLE_EMBEDDED_WEB_UI: the desktop disables the stale embed
+  // but ships current assets in that directory.
+  return (embeddedUIPromise ??= Promise.resolve(directoryUI()).then((fromDirectory) => {
+    if (fromDirectory) return fromDirectory
+    if (disableEmbeddedWebUi) return null
+    // @ts-expect-error - generated file at build time
+    return import("opencode-web-ui.gen.ts").then((module) => module.default as Record<string, string>).catch(() => null)
+  }))
 }
 
 function notFound() {

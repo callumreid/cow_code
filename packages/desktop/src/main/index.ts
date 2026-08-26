@@ -1,5 +1,5 @@
-import { randomUUID } from "node:crypto"
-import { mkdirSync, rmSync } from "node:fs"
+import { randomBytes, randomUUID } from "node:crypto"
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import * as http from "node:http"
 import { createServer } from "node:net"
 import { homedir, tmpdir } from "node:os"
@@ -379,7 +379,7 @@ const main = Effect.gen(function* () {
     })
     const hostname = "127.0.0.1"
     const url = `http://${hostname}:${port}`
-    const password = randomUUID()
+    const password = companionPassword()
 
     logger.log("spawning sidecar", { url })
     const { listener, health } = yield* Effect.promise(() =>
@@ -427,5 +427,21 @@ const main = Effect.gen(function* () {
   const windows = restoreMainWindows()
   if (windows.length) createMenu(menuDeps)
 })
+
+// One stable password per install (mirrors the TUI companion) so phone
+// pairing links and cookies survive app restarts. Same state resolution as
+// the sidecar's Global.Path.state.
+function companionPassword() {
+  const stateDir = join(process.env.XDG_STATE_HOME ?? app.getPath("userData"), "opencode")
+  const file = join(stateDir, "companion-password")
+  try {
+    const saved = readFileSync(file, "utf8").trim()
+    if (saved) return saved
+  } catch {}
+  const generated = randomBytes(16).toString("base64url")
+  mkdirSync(stateDir, { recursive: true })
+  writeFileSync(file, generated, { mode: 0o600 })
+  return generated
+}
 
 Effect.runFork(main)
