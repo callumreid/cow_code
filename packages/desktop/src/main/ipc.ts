@@ -25,6 +25,7 @@ import { createUpdaterSubscriptions } from "./updater-subscriptions"
 import { createDesktopDraftStore } from "./draft-store"
 import { nativeT } from "./native-translations"
 import { getPrStatus } from "./pr-status"
+import { getPrDashboard, getPrMerged } from "./pr-dashboard"
 
 const pickerFilters = (ext?: string[]) => {
   if (!ext || ext.length === 0) return undefined
@@ -216,6 +217,8 @@ export function registerIpcHandlers(deps: Deps) {
   })
 
   ipcMain.handle("pr-status", (_event: IpcMainInvokeEvent, url: string) => getPrStatus(url))
+  ipcMain.handle("pr-dashboard", (_event: IpcMainInvokeEvent, force?: boolean) => getPrDashboard(force))
+  ipcMain.handle("pr-dashboard-merged", (_event: IpcMainInvokeEvent, force?: boolean) => getPrMerged(force))
 
   ipcMain.on("open-local-file", (_event: IpcMainEvent, url: string) => {
     openLocalFileURL(url)

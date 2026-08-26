@@ -214,6 +214,14 @@ const createPlatform = (windowState: DesktopWindowState): Platform => {
     prStatus(url: string) {
       return window.api.prStatus(url)
     },
+    prDashboard: {
+      fetch(force?: boolean) {
+        return window.api.prDashboard(force)
+      },
+      fetchMerged(force?: boolean) {
+        return window.api.prDashboardMerged(force)
+      },
+    },
     openLocalFile(url: string) {
       window.api.openLocalFile(url)
     },

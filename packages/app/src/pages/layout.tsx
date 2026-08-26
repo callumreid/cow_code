@@ -83,6 +83,7 @@ import {
 import { ProjectDragOverlay, SortableProject, type ProjectSidebarContext } from "./layout/sidebar-project"
 import { SidebarContent } from "./layout/sidebar-shell"
 import { AccountMenu } from "./layout/sidebar-account"
+import { SidebarPullRequests } from "./layout/sidebar-pull-requests"
 
 export default function LegacyLayout(props: ParentProps) {
   const serverSDK = useServerSDK()
@@ -2096,6 +2097,8 @@ export default function LegacyLayout(props: ParentProps) {
                   </DropdownMenu>
                 </div>
               </div>
+
+              <SidebarPullRequests />
 
               <div class="flex-1 min-h-0 flex flex-col">
                 <Show

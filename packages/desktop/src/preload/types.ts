@@ -1,4 +1,5 @@
 import type { DesktopMenuAction } from "@opencode-ai/app/desktop-menu"
+import type { PrDashboard, PrMergedHistory } from "@opencode-ai/app/pr-dashboard/types"
 import type { WslServersPlatform } from "@opencode-ai/app/wsl/types"
 import type { UpdaterState } from "@opencode-ai/app/updater"
 import type { DesktopNativeBundle } from "@opencode-ai/app/i18n/desktop-native"
@@ -91,6 +92,8 @@ export type ElectronAPI = {
   saveFilePicker: (opts?: { title?: string; defaultPath?: string }) => Promise<string | null>
   openExternal: (url: string) => void
   prStatus: (url: string) => Promise<"open" | "merged" | "closed" | null>
+  prDashboard: (force?: boolean) => Promise<PrDashboard>
+  prDashboardMerged: (force?: boolean) => Promise<PrMergedHistory>
   openLocalFile: (url: string) => void
   openPath: (path: string, app?: string) => Promise<void>
   revealPath: (path: string) => Promise<boolean>

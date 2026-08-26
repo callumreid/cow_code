@@ -1,3 +1,4 @@
+import type { PrDashboardPlatform } from "@/pr-dashboard/types"
 import { createSimpleContext } from "@opencode-ai/ui/context"
 import type { AsyncStorage, SyncStorage } from "@solid-primitives/storage"
 import type { Accessor } from "solid-js"
@@ -37,6 +38,7 @@ type PlatformBase = {
 
   /** Resolve the merge status of a GitHub pull request URL */
   prStatus?(url: string): Promise<"open" | "merged" | "closed" | null>
+  prDashboard?: PrDashboardPlatform
 
   /** Open a local path in a local app (desktop only) */
   openPath?(path: string, app?: string): Promise<void>
