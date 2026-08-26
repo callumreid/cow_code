@@ -1,129 +1,112 @@
-<p align="center">
-  <a href="https://opencode.ai">
-    <picture>
-      <source srcset="packages/console/app/src/asset/logo-ornate-dark.svg" media="(prefers-color-scheme: dark)">
-      <source srcset="packages/console/app/src/asset/logo-ornate-light.svg" media="(prefers-color-scheme: light)">
-      <img src="packages/console/app/src/asset/logo-ornate-light.svg" alt="OpenCode logo">
-    </picture>
-  </a>
-</p>
-<p align="center">The open source AI coding agent.</p>
-<p align="center">
-  <a href="https://opencode.ai/discord"><img alt="Discord" src="https://img.shields.io/discord/1391832426048651334?style=flat-square&label=discord" /></a>
-  <a href="https://www.npmjs.com/package/opencode-ai"><img alt="npm" src="https://img.shields.io/npm/v/opencode-ai?style=flat-square" /></a>
-  <a href="https://github.com/anomalyco/opencode/actions/workflows/publish.yml"><img alt="Build status" src="https://img.shields.io/github/actions/workflow/status/anomalyco/opencode/publish.yml?style=flat-square&branch=dev" /></a>
-</p>
+<div align="center">
 
-<p align="center">
-  <a href="README.md">English</a> |
-  <a href="README.zh.md">简体中文</a> |
-  <a href="README.zht.md">繁體中文</a> |
-  <a href="README.ko.md">한국어</a> |
-  <a href="README.de.md">Deutsch</a> |
-  <a href="README.es.md">Español</a> |
-  <a href="README.fr.md">Français</a> |
-  <a href="README.it.md">Italiano</a> |
-  <a href="README.da.md">Dansk</a> |
-  <a href="README.ja.md">日本語</a> |
-  <a href="README.pl.md">Polski</a> |
-  <a href="README.ru.md">Русский</a> |
-  <a href="README.bs.md">Bosanski</a> |
-  <a href="README.ar.md">العربية</a> |
-  <a href="README.no.md">Norsk</a> |
-  <a href="README.br.md">Português (Brasil)</a> |
-  <a href="README.th.md">ไทย</a> |
-  <a href="README.tr.md">Türkçe</a> |
-  <a href="README.uk.md">Українська</a> |
-  <a href="README.bn.md">বাংলা</a> |
-  <a href="README.gr.md">Ελληνικά</a> |
-  <a href="README.vi.md">Tiếng Việt</a>
-</p>
-
-[![OpenCode Terminal UI](packages/web/src/assets/lander/screenshot.png)](https://opencode.ai)
-
----
-
-### Installation
-
-```bash
-# YOLO
-curl -fsSL https://opencode.ai/install | bash
-
-# Package managers
-npm i -g opencode-ai@latest        # or bun/pnpm/yarn
-scoop install opencode             # Windows
-choco install opencode             # Windows
-brew install anomalyco/tap/opencode # macOS and Linux (recommended, always up to date)
-brew install opencode              # macOS and Linux (official brew formula, updated less)
-sudo pacman -S opencode            # Arch Linux (Stable)
-paru -S opencode-bin               # Arch Linux (Latest from AUR)
-mise use -g opencode               # Any OS
-nix run nixpkgs#opencode           # or github:anomalyco/opencode for latest dev branch
+```
+  ██████    ██████  ██      ██          ██████    ██████        ██    ██████
+██        ██    ██  ██      ██        ██        ██    ██    ██████  ██    ██
+██        ██    ██  ██  ██  ██        ██        ██    ██  ██    ██  ████████
+██        ██    ██  ██  ██  ██        ██        ██    ██  ██    ██  ██
+  ██████    ██████    ██  ██            ██████    ██████    ██████    ██████
 ```
 
-> [!TIP]
-> Remove versions older than 0.1.x before installing.
+### ｔｈｅ　ｏｐｅｎ　ｓｏｕｒｃｅ　ＡＩ　ｃｏｄｉｎｇ　ａｇｅｎｔ．　ｂｕｔ　ｃｏｗ．
 
-### Desktop App (BETA)
+<img src="https://img.shields.io/badge/MOO-100%25_GRASS_FED-ff00ff?style=for-the-badge&labelColor=000000" alt="100% grass fed" />
+<img src="https://img.shields.io/badge/VIBES-DEEP_FRIED-39ff14?style=for-the-badge&labelColor=000000" alt="deep fried" />
+<img src="https://img.shields.io/badge/BEST_VIEWED-NETSCAPE_4.0_@_800x600-00ffff?style=for-the-badge&labelColor=000000" alt="best viewed in Netscape" />
+<img src="https://img.shields.io/badge/VISITOR_No.-00042069-ff6600?style=for-the-badge&labelColor=000000" alt="visitor counter" />
 
-OpenCode is also available as a desktop application. Download directly from the [releases page](https://github.com/anomalyco/opencode/releases) or [opencode.ai/download](https://opencode.ai/download).
+🐄 🐄 🐄 🐄 🐄 🐄 🐄 🐄 🐄 🐄 🐄 🐄
 
-| Platform              | Download                           |
-| --------------------- | ---------------------------------- |
-| macOS (Apple Silicon) | `opencode-desktop-mac-arm64.dmg`   |
-| macOS (Intel)         | `opencode-desktop-mac-x64.dmg`     |
-| Windows               | `opencode-desktop-windows-x64.exe` |
-| Linux                 | `.deb`, `.rpm`, or `.AppImage`     |
+</div>
 
-```bash
-# macOS (Homebrew)
-brew install --cask opencode-desktop
-# Windows (Scoop)
-scoop bucket add extras; scoop install extras/opencode-desktop
+```
+ _______________________________________
+/ moo. i read your codebase. i write    \
+| your patches. i chew the cud on your  |
+\ merge conflicts. moo.                 /
+ ---------------------------------------
+        \   ^__^
+         \  (oo)\_______
+            (__)\       )\/\
+                ||----w |
+                ||     ||
 ```
 
-#### Installation Directory
+**cow code** is a fork of [opencode](https://github.com/anomalyco/opencode) — a full terminal + desktop AI coding
+agent — that has been lovingly led out to pasture. Same engine. Same agents. Same tools.
+Considerably more cow.
 
-The install script respects the following priority order for the installation path:
+That pixel banner up top? That's not clip art. It's the app's actual logo font, rendered in the
+same glyphs the UI draws at runtime. The cow goes all the way down.
 
-1. `$OPENCODE_INSTALL_DIR` - Custom installation directory
-2. `$XDG_BIN_DIR` - XDG Base Directory Specification compliant path
-3. `$HOME/bin` - Standard user binary directory (if it exists or can be created)
-4. `$HOME/.opencode/bin` - Default fallback
+<div align="center">
+
+`･ﾟ✧ ═══════════════════ 🐄 ═══════════════════ ✧ﾟ･`
+
+</div>
+
+## 🌾 WHAT'S IN THE BARN
+
+- 🐄 **cow code branding everywhere** — pixel wordmark, window title, menu bar. No stone un-cowed.
+- 🐮 **cow emoji dev badge** — you'll know you're in dev mode because a cow tells you.
+- 🖤🤍 **cow patch theme overlay** — holstein spots, tastefully applied.
+- 📌 **pin/unpin threads** in the session sidebar. The important cud stays on top.
+- ↔️ **always-visible resizable sidebar** — at every window width. The herd is never hidden.
+- ✏️ **double-click a thread title to rename it inline.** Every cow deserves a name.
+
+## 🚜 GET IN THE PASTURE
+
+You need [bun](https://bun.sh). The cow runs on bun.
 
 ```bash
-# Examples
-OPENCODE_INSTALL_DIR=/usr/local/bin curl -fsSL https://opencode.ai/install | bash
-XDG_BIN_DIR=$HOME/.local/bin curl -fsSL https://opencode.ai/install | bash
+curl -fsSL https://bun.sh/install | bash
 ```
 
-### Agents
+Then bring the cow home:
 
-OpenCode includes two built-in agents you can switch between with the `Tab` key.
+```bash
+git clone https://github.com/callumreid/cow_code.git
+cd cow_code
+git checkout feat/cow-ui    # the freshest cud is chewed here
+bun install
+```
 
-- **build** - Default, full-access agent for development work
-- **plan** - Read-only agent for analysis and code exploration
-  - Denies file edits by default
-  - Asks permission before running bash commands
-  - Ideal for exploring unfamiliar codebases or planning changes
+And let her rip:
 
-Also included is a **general** subagent for complex searches and multistep tasks.
-This is used internally and can be invoked using `@general` in messages.
+```bash
+bun run dev             # 📟 the TUI, right in your terminal
+bun run dev:desktop     # 🖥️ the desktop app (maximum cow)
+bun run dev:web         # 🌐 the web app
+```
 
-Learn more about [agents](https://opencode.ai/docs/agents).
+## 🥛 DRIVING THE COW
 
-### Documentation
+- Press <kbd>Tab</kbd> to switch between the two built-in agents:
+  **build** (full access, does the work) and **plan** (read-only, walks the fences before anything gets built).
+- Mention `@general` in a message to sic the general subagent on big searches and multistep chores.
+- Under the spots this is opencode, so the entire [opencode docs site](https://opencode.ai/docs)
+  applies — config, providers, keybinds, agents, all of it. The cow is opencode-shaped on the inside.
 
-For more info on how to configure OpenCode, [**head over to our docs**](https://opencode.ai/docs).
+## 🧬 LINEAGE
 
-### Contributing
+Forked with respect from [anomalyco/opencode](https://github.com/anomalyco/opencode).
+Not affiliated with, endorsed by, or milked by the opencode team.
+Go star the original — this cow stands on the shoulders of giants.
 
-If you're interested in contributing to OpenCode, please read our [contributing docs](./CONTRIBUTING.md) before submitting a pull request.
+<div align="center">
 
-### Building on OpenCode
+`･ﾟ✧ ═══════════════════ 🐄 ═══════════════════ ✧ﾟ･`
 
-If you are working on a project that's related to OpenCode and is using "opencode" as part of its name, for example "opencode-dashboard" or "opencode-mobile", please add a note to your README to clarify that it is not built by the OpenCode team and is not affiliated with us in any way.
+📖 [SIGN THE GUESTBOOK](https://github.com/callumreid/cow_code/issues) &nbsp;⋆&nbsp; 🔗 [JOIN THE WEBRING](https://github.com/anomalyco/opencode) &nbsp;⋆&nbsp; 🥛 GOT MILK?
 
----
+<sub>if this text isn't scrolling, pour one out for the <code>&lt;marquee&gt;</code> tag</sub>
 
-**Join our community** [Discord](https://discord.gg/opencode) | [X.com](https://x.com/opencode)
+<sub>© 1997–∞ cow code ⋆ no cows were harmed ⋆ several cows were emotionally enriched ⋆ this page is under construction 🚧 and always will be</sub>
+
+```
+      (__)
+      (oo)   ~ thanks for visiting my web site ~
+/------\/
+```
+
+</div>
