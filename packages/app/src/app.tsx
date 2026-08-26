@@ -42,6 +42,7 @@ import { makeEventListener } from "@solid-primitives/event-listener"
 import { CommandProvider, useCommand, type CommandOption } from "@/context/command"
 import { useDialog } from "@opencode-ai/ui/context/dialog"
 import { DialogConnectPhone } from "@/components/dialog-connect-phone"
+import { base64Decode } from "@opencode-ai/core/util/encode"
 import { CommentsProvider } from "@/context/comments"
 import { FileProvider } from "@/context/file"
 import { ServerSDKProvider } from "@/context/server-sdk"
@@ -311,6 +312,42 @@ function BodyDesignClass() {
   return null
 }
 
+// Registers workspace directories carried by a pairing link (?project=<b64url>)
+// so a fresh client — e.g. a phone that scanned a QR — lists the linked
+// workspaces immediately instead of an empty home.
+function ProjectsFromUrl() {
+  const server = useServer()
+  let done = false
+  createEffect(() => {
+    if (done || !server.ready()) return
+    done = true
+    const params = new URLSearchParams(window.location.search)
+    const values = params.getAll("project")
+    if (!values.length) return
+    for (const value of values) {
+      const directory = decodeProjectSlug(value)
+      if (directory) server.projects.open(directory)
+    }
+    params.delete("project")
+    history.replaceState(
+      null,
+      "",
+      window.location.pathname + (params.size ? `?${params}` : "") + window.location.hash,
+    )
+  })
+  return null
+}
+
+function decodeProjectSlug(value: string) {
+  try {
+    const directory = base64Decode(value)
+    if (directory.startsWith("/") || /^[A-Za-z]:[\/]/.test(directory)) return directory
+    return undefined
+  } catch {
+    return undefined
+  }
+}
+
 // Server-agnostic providers shared across every route. These live in the shared
 // shell (router root) so they stay mounted regardless of the active server/route.
 function SharedProviders(props: ParentProps) {
@@ -319,6 +356,7 @@ function SharedProviders(props: ParentProps) {
       <BodyDesignClass />
       <CommandProvider>
         <DesktopCommands />
+        <ProjectsFromUrl />
         <HighlightsProvider>{props.children}</HighlightsProvider>
       </CommandProvider>
     </>

@@ -59,7 +59,7 @@ export function DialogQr(props: { onCompanion: () => Promise<CompanionInfo> }) {
     const token = encodeURIComponent(btoa(`${current.info.username}:${current.info.password}`))
     const directory = base64Encode(project.instance.directory() || paths.cwd)
     const target = route.data.type === "session" ? `/${directory}/session/${route.data.sessionID}` : ""
-    return `http://${host}:${current.info.port}${target}?auth_token=${token}`
+    return `http://${host}:${current.info.port}${target}?auth_token=${token}&project=${directory}`
   })
 
   const lines = createMemo(() => {

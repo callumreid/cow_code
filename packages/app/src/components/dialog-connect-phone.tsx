@@ -7,6 +7,7 @@ import { useLanguage } from "@/context/language"
 import { usePlatform } from "@/context/platform"
 import { useServer } from "@/context/server"
 import { authTokenFromCredentials } from "@/utils/server"
+import { base64Encode } from "@opencode-ai/core/util/encode"
 import { showToast } from "@/utils/toast"
 
 const LOOPBACK = new Set(["127.0.0.1", "localhost", "::1", "[::1]"])
@@ -69,10 +70,15 @@ export function DialogConnectPhone() {
     const base = http()
     if (!base || !hosts().length) return ""
     const host = hosts()[hostIndex() % hosts().length]
-    const token = base.password
-      ? `?auth_token=${encodeURIComponent(authTokenFromCredentials({ username: base.username, password: base.password }))}`
-      : ""
-    return `http://${host}/${token}`
+    const params = new URLSearchParams()
+    if (base.password) {
+      params.set("auth_token", authTokenFromCredentials({ username: base.username, password: base.password }))
+    }
+    // Carry the workspace list so the phone's home shows these projects
+    // immediately (see ProjectsFromUrl).
+    for (const project of server.projects.list()) params.append("project", base64Encode(project.worktree))
+    const query = params.toString()
+    return `http://${host}/${query ? `?${query}` : ""}`
   })
 
   const copy = () => {
