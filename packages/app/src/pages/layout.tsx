@@ -82,6 +82,7 @@ import {
 } from "./layout/sidebar-workspace"
 import { ProjectDragOverlay, SortableProject, type ProjectSidebarContext } from "./layout/sidebar-project"
 import { SidebarContent } from "./layout/sidebar-shell"
+import { AccountMenu } from "./layout/sidebar-account"
 
 export default function LegacyLayout(props: ParentProps) {
   const serverSDK = useServerSDK()
@@ -2212,6 +2213,18 @@ export default function LegacyLayout(props: ParentProps) {
             </div>
           </div>
         </div>
+
+        <div class="shrink-0 -mx-3 px-2 py-2 border-t border-border-weaker-base">
+          <AccountMenu
+            name={() => serverSync().data.config.username || "user"}
+            version={() => platform.version}
+            settingsLabel={() => language.t("sidebar.settings")}
+            settingsKeybind={() => command.keybind("settings.open")}
+            onOpenSettings={openSettings}
+            helpLabel={() => language.t("sidebar.help")}
+            onOpenHelp={() => platform.openExternal("https://opencode.ai/desktop-feedback")}
+          />
+        </div>
       </div>
     )
   }
@@ -2234,11 +2247,6 @@ export default function LegacyLayout(props: ParentProps) {
       openProjectKeybind={() => command.keybind("project.open")}
       onOpenProject={chooseProject}
       renderProjectOverlay={projectOverlay}
-      settingsLabel={() => language.t("sidebar.settings")}
-      settingsKeybind={() => command.keybind("settings.open")}
-      onOpenSettings={openSettings}
-      helpLabel={() => language.t("sidebar.help")}
-      onOpenHelp={() => platform.openExternal("https://opencode.ai/desktop-feedback")}
       renderPanel={() =>
         mobile ? <SidebarPanel project={currentProject} mobile /> : <SidebarPanel project={currentProject} merged />
       }
