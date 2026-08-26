@@ -8,7 +8,7 @@
   ██████    ██████    ██  ██            ██████    ██████    ██████    ██████
 ```
 
-### ｔｈｅ　ｏｐｅｎ　ｓｏｕｒｃｅ　ＡＩ　ｃｏｄｉｎｇ　ａｇｅｎｔ．　ｂｕｔ　ｃｏｗ．
+### ｍｏｏｏｏｏｏｏｏ　ｂｒｏｎｎｙ　ｂｒｏｎｎｙ　ｍｏｏｏｏｏｏｏ
 
 🍔 🍔 <img src="https://img.shields.io/badge/MOO-100%25_GRASS_FED-ff00ff?style=for-the-badge&labelColor=000000" alt="100% grass fed" /> 🍔 🍔
 
