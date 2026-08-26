@@ -72,7 +72,6 @@ bun run dev:web         # 🌐 the web app
 
 Forked with respect from [anomalyco/opencud](https://github.com/anomalyco/opencode).
 Not affiliated with, endorsed by, or milked by the opencud team.
-Go star the original — this cow stands on the shoulders of giants.
 
 <div align="center">
 
