@@ -3,6 +3,7 @@ import { Avatar } from "@opencode-ai/ui/avatar"
 import { Icon } from "@opencode-ai/ui/icon"
 import { Icon as IconV2 } from "@opencode-ai/ui/v2/icon"
 import { Spinner } from "@opencode-ai/ui/spinner"
+import { CowReady, CowWorking } from "@/components/cow-activity"
 import { Tooltip } from "@opencode-ai/ui/tooltip"
 import { getFilename } from "@opencode-ai/core/util/path"
 import { A, useParams } from "@solidjs/router"
@@ -127,7 +128,7 @@ const SessionRow = (props: {
         >
           <Switch>
             <Match when={props.isWorking()}>
-              <Spinner class="size-[15px]" />
+              <CowWorking class="size-[19px]" title="Working" />
             </Match>
             <Match when={props.hasPermissions()}>
               <div class="size-1.5 rounded-full bg-surface-warning-strong" />
@@ -136,7 +137,7 @@ const SessionRow = (props: {
               <div class="size-1.5 rounded-full bg-text-diff-delete-base" />
             </Match>
             <Match when={props.unseenCount() > 0}>
-              <div class="size-1.5 rounded-full bg-text-interactive-base" />
+              <CowReady class="size-[19px]" title="Ready for you" />
             </Match>
           </Switch>
         </div>
