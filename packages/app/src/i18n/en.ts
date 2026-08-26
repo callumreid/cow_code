@@ -20,6 +20,18 @@ export const dict = {
   "command.category.workspace": "Workspace",
   "command.category.settings": "Settings",
   "command.logs.export": "Export logs",
+  "command.phone.connect": "Connect phone",
+
+  "dialog.phone.title": "Connect phone",
+  "dialog.phone.loading": "Preparing a network address...",
+  "dialog.phone.description": "Scan with your phone camera to open this workspace in the browser.",
+  "dialog.phone.network": "Your phone must be on the same network (Wi-Fi or tailnet).",
+  "dialog.phone.insecure": "This server has no password, so anyone on the network can connect.",
+  "dialog.phone.unavailable":
+    "This server is only reachable from this computer. Start it with a network address, or run /qr in the terminal.",
+  "dialog.phone.error": "Could not open a network address:",
+  "dialog.phone.copy": "Copy link",
+  "dialog.phone.copied": "Link copied",
 
   "theme.scheme.system": "System",
   "theme.scheme.light": "Light",

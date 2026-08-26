@@ -13,8 +13,10 @@ type SidecarMessage =
   | { type: "ready" }
   | { type: "stopped" }
   | { type: "error"; error: { message: string; stack?: string } }
+  | { type: "exposed"; port: number }
+  | { type: "expose-error"; error: { message: string; stack?: string } }
 
-export type SidecarListener = { stop: () => Promise<void> }
+export type SidecarListener = { stop: () => Promise<void>; expose: () => Promise<number> }
 
 const SIDECAR_SERVICE_NAME = "opencode server"
 const SIDECAR_START_STALL_TIMEOUT = 60_000
@@ -163,9 +165,40 @@ export async function spawnLocalServer(
   })()
 
   let stopping: Promise<void> | undefined
+  let exposing: Promise<number> | undefined
+
+  const expose = () => {
+    exposing ??= new Promise<number>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        cleanup()
+        reject(new Error("Sidecar did not expose a network listener within 10s"))
+      }, 10_000)
+      const onMessage = (message: SidecarMessage) => {
+        if (message.type === "exposed") {
+          cleanup()
+          resolve(message.port)
+        }
+        if (message.type === "expose-error") {
+          cleanup()
+          reject(Object.assign(new Error(message.error.message), { stack: message.error.stack }))
+        }
+      }
+      const cleanup = () => {
+        clearTimeout(timeout)
+        child.off("message", onMessage)
+      }
+      child.on("message", onMessage)
+      child.postMessage({ type: "expose" })
+    }).catch((error) => {
+      exposing = undefined
+      throw error
+    })
+    return exposing
+  }
 
   return {
     listener: {
+      expose,
       stop: () => {
         if (stopping) return stopping
         if (exited) return Promise.resolve()

@@ -119,6 +119,9 @@ type PlatformBase = {
   /** Export collected diagnostic logs (desktop only) */
   exportDebugLogs?(): Promise<string>
 
+  /** Expose the local server on the network and report reachable addresses (desktop only) */
+  companionInfo?(): Promise<{ port: number; hosts: string[] }>
+
   /** Force focus styles on interactive elements through desktop devtools (desktop only) */
   setForceFocus?(enabled: boolean): Promise<void>
 

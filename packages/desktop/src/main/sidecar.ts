@@ -19,12 +19,15 @@ type StartCommand = {
 }
 
 type StopCommand = { type: "stop" }
-type SidecarCommand = StartCommand | StopCommand
+type ExposeCommand = { type: "expose" }
+type SidecarCommand = StartCommand | StopCommand | ExposeCommand
 
 type SidecarMessage =
   | { type: "ready" }
   | { type: "stopped" }
   | { type: "error"; error: { message: string; stack?: string } }
+  | { type: "exposed"; port: number }
+  | { type: "expose-error"; error: { message: string; stack?: string } }
 
 type ParentPort = {
   postMessage(message: SidecarMessage): void
@@ -37,12 +40,17 @@ type Listener = {
 
 const parentPort = getParentPort()
 let listener: Listener | undefined
+let exposed: { listener: Listener; port: number } | undefined
 
 parentPort.on("message", (event) => {
   const command = parseCommand(event.data)
   if (!command) return
   if (command.type === "stop") {
     void stop()
+    return
+  }
+  if (command.type === "expose") {
+    void expose()
     return
   }
   void start(command)
@@ -70,8 +78,28 @@ async function start(command: StartCommand) {
   }
 }
 
+// Adds a LAN-reachable listener next to the loopback one so phones can
+// connect; auth comes from the same env password `start` installed.
+async function expose() {
+  try {
+    if (!exposed) {
+      const { Server } = await import("virtual:opencode-server")
+      const lan = await Server.listen({
+        port: 0,
+        hostname: "0.0.0.0",
+        cors: ["oc://renderer"],
+      })
+      exposed = { listener: lan, port: lan.port }
+    }
+    parentPort.postMessage({ type: "exposed", port: exposed.port })
+  } catch (error) {
+    parentPort.postMessage({ type: "expose-error", error: serializeError(error) })
+  }
+}
+
 async function stop() {
   try {
+    await exposed?.listener.stop()
     await listener?.stop()
   } finally {
     listener = undefined
@@ -129,8 +157,9 @@ function useEnvProxy() {
 
 function parseCommand(value: unknown): SidecarCommand | undefined {
   if (!value || typeof value !== "object") return
-  const command = value as Partial<StartCommand | StopCommand>
+  const command = value as Partial<SidecarCommand>
   if (command.type === "stop") return { type: "stop" }
+  if (command.type === "expose") return { type: "expose" }
   if (command.type !== "start") return
   if (typeof command.hostname !== "string") return
   if (typeof command.port !== "number") return

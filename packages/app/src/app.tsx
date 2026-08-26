@@ -40,6 +40,8 @@ import {
 import { Dynamic } from "solid-js/web"
 import { makeEventListener } from "@solid-primitives/event-listener"
 import { CommandProvider, useCommand, type CommandOption } from "@/context/command"
+import { useDialog } from "@opencode-ai/ui/context/dialog"
+import { DialogConnectPhone } from "@/components/dialog-connect-phone"
 import { CommentsProvider } from "@/context/comments"
 import { FileProvider } from "@/context/file"
 import { ServerSDKProvider } from "@/context/server-sdk"
@@ -327,6 +329,7 @@ function DesktopCommands() {
   const command = useCommand()
   const language = useLanguage()
   const platform = usePlatform()
+  const dialog = useDialog()
 
   command.register("desktop", () => {
     const commands: CommandOption[] = []
@@ -340,6 +343,12 @@ function DesktopCommands() {
         },
       })
     }
+    commands.push({
+      id: "phone.connect",
+      title: language.t("command.phone.connect"),
+      category: language.t("command.category.server"),
+      onSelect: () => dialog.show(() => <DialogConnectPhone />),
+    })
     return commands
   })
 
