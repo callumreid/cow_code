@@ -27,18 +27,8 @@
                 ||     ||
 ```
 
-**cow code** is a fork of [opencode](https://github.com/anomalyco/opencode) — a full terminal + desktop AI coding
-agent — that has been lovingly led out to pasture. Same engine. Same agents. Same tools.
-Considerably more cow.
-
-That pixel banner up top? That's not clip art. It's the app's actual logo font, rendered in the
-same glyphs the UI draws at runtime. The cow goes all the way down.
-
-<div align="center">
-
-`･ﾟ✧ ═══════════════════ 🐄 ═══════════════════ ✧ﾟ･`
-
-</div>
+**cow code** is a fork of [opencud](https://github.com/anomalyco/opencode) — a full terminal + desktop AI coding
+agent — that has been lovingly led out to pasture.
 
 ## 🌾 WHAT'S IN THE BARN
 
@@ -79,13 +69,13 @@ bun run dev:web         # 🌐 the web app
 - Press <kbd>Tab</kbd> to switch between the two built-in agents:
   **build** (full access, does the work) and **plan** (read-only, walks the fences before anything gets built).
 - Mention `@general` in a message to sic the general subagent on big searches and multistep chores.
-- Under the spots this is opencode, so the entire [opencode docs site](https://opencode.ai/docs)
-  applies — config, providers, keybinds, agents, all of it. The cow is opencode-shaped on the inside.
+- Under the spots this is opencud, so the entire [opencud docs site](https://opencode.ai/docs)
+  applies — config, providers, keybinds, agents, all of it. The cow is opencud-shaped on the inside.
 
 ## 🧬 LINEAGE
 
-Forked with respect from [anomalyco/opencode](https://github.com/anomalyco/opencode).
-Not affiliated with, endorsed by, or milked by the opencode team.
+Forked with respect from [anomalyco/opencud](https://github.com/anomalyco/opencode).
+Not affiliated with, endorsed by, or milked by the opencud team.
 Go star the original — this cow stands on the shoulders of giants.
 
 <div align="center">
