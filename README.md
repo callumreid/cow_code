@@ -62,11 +62,9 @@ bun run dev:web         # 🌐 the web app
 
 ## 🥛 DRIVING THE COW
 
+- Sit on its back and shout **"giddyup, bronson!"**
 - Press <kbd>Tab</kbd> to switch between the two built-in agents:
   **build** (full access, does the work) and **plan** (read-only, walks the fences before anything gets built).
-- Mention `@general` in a message to sic the general subagent on big searches and multistep chores.
-- Under the spots this is opencud, so the entire [opencud docs site](https://opencode.ai/docs)
-  applies — config, providers, keybinds, agents, all of it. The cow is opencud-shaped on the inside.
 
 ## 🧬 LINEAGE
 
@@ -81,7 +79,7 @@ Not affiliated with, endorsed by, or milked by the opencud team.
 
 <sub>if this text isn't scrolling, pour one out for the <code>&lt;marquee&gt;</code> tag</sub>
 
-<sub>© 1997–∞ cow code ⋆ no cows were harmed ⋆ several cows were emotionally enriched ⋆ this page is under construction 🚧 and always will be</sub>
+<sub>© 1997–∞ cow code ⋆ no cows were harmed ⋆ several cows were emotionally enriched</sub>
 
 ```
       (__)
