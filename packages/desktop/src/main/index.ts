@@ -391,6 +391,9 @@ const main = Effect.gen(function* () {
       }),
     )
     server = listener
+    // Companion listener up-front so phone pairing links (stable password,
+    // port 4096 when free) work without opening the Connect phone dialog.
+    listener.expose().catch((error) => logger.error("companion expose failed", error))
     yield* Deferred.succeed(serverReady, {
       url,
       username: "opencode",
