@@ -71,6 +71,12 @@ const getBase = (appId: string): Configuration => ({
       to: "native/",
       filter: ["index.js", "index.d.ts", "build/Release/mac_window.node", "swift-build/**"],
     },
+    // Built web app served to browsers by the sidecar (see OPENCODE_WEB_UI_DIR).
+    // Run `bun run --cwd ../app build` before packaging so this exists.
+    {
+      from: "../app/dist",
+      to: "web-ui",
+    },
   ],
   mac: {
     category: "public.app-category.developer-tools",

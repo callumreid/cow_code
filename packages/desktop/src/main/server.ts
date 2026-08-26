@@ -249,6 +249,9 @@ function createSidecarEnv(): Record<string, string> {
   )
   delete env.DEBUG
   if (process.platform === "linux") delete env.LD_PRELOAD
+  // Serve our own built web app to browsers (phones pairing via QR) instead
+  // of proxying upstream; the assets ship via extraResources as web-ui/.
+  if (app.isPackaged) env.OPENCODE_WEB_UI_DIR ??= join(process.resourcesPath, "web-ui")
   return env
 }
 

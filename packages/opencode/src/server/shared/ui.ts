@@ -2,6 +2,8 @@ import { FSUtil } from "@opencode-ai/core/fs-util"
 import { Effect, Stream } from "effect"
 import { HttpBody, HttpClient, HttpClientRequest, HttpServerRequest, HttpServerResponse } from "effect/unstable/http"
 import { createHash } from "node:crypto"
+import { readdirSync, statSync } from "node:fs"
+import { isAbsolute, join } from "node:path"
 import { ProxyUtil } from "../proxy-util"
 
 let embeddedUIPromise: Promise<Record<string, string> | null> | undefined
@@ -41,11 +43,36 @@ export function upstreamURL(path: string) {
   return new URL(path, UI_UPSTREAM).toString()
 }
 
+// Serves the web UI from a directory of built app assets. The Electron
+// sidecar is re-bundled by rollup, so compile-time file embedding cannot
+// survive it; the desktop ships packages/app/dist as an extra resource and
+// points OPENCODE_WEB_UI_DIR here instead.
+function directoryUI() {
+  const dir = process.env.OPENCODE_WEB_UI_DIR
+  if (!dir || !isAbsolute(dir)) return null
+  try {
+    const map: Record<string, string> = {}
+    for (const entry of readdirSync(dir, { recursive: true }) as string[]) {
+      const rel = entry.replaceAll("\\", "/")
+      if (rel.endsWith(".map")) continue
+      const file = join(dir, entry)
+      if (!statSync(file).isFile()) continue
+      map[rel] = file
+    }
+    return Object.keys(map).length ? map : null
+  } catch {
+    return null
+  }
+}
+
 export function embeddedUI(disableEmbeddedWebUi: boolean) {
   if (disableEmbeddedWebUi) return Promise.resolve(null)
-  return (embeddedUIPromise ??=
-    // @ts-expect-error - generated file at build time
-    import("opencode-web-ui.gen.ts").then((module) => module.default as Record<string, string>).catch(() => null))
+  return (embeddedUIPromise ??= Promise.resolve(directoryUI()).then(
+    (fromDirectory) =>
+      fromDirectory ??
+      // @ts-expect-error - generated file at build time
+      import("opencode-web-ui.gen.ts").then((module) => module.default as Record<string, string>).catch(() => null),
+  ))
 }
 
 function notFound() {
