@@ -10,21 +10,16 @@
 
 ### ｔｈｅ　ｏｐｅｎ　ｓｏｕｒｃｅ　ＡＩ　ｃｏｄｉｎｇ　ａｇｅｎｔ．　ｂｕｔ　ｃｏｗ．
 
-<img src="https://img.shields.io/badge/MOO-100%25_GRASS_FED-ff00ff?style=for-the-badge&labelColor=000000" alt="100% grass fed" />
-<img src="https://img.shields.io/badge/VIBES-DEEP_FRIED-39ff14?style=for-the-badge&labelColor=000000" alt="deep fried" />
-<img src="https://img.shields.io/badge/BEST_VIEWED-NETSCAPE_4.0_@_800x600-00ffff?style=for-the-badge&labelColor=000000" alt="best viewed in Netscape" />
-<img src="https://img.shields.io/badge/VISITOR_No.-00042069-ff6600?style=for-the-badge&labelColor=000000" alt="visitor counter" />
+🍔 🍔 <img src="https://img.shields.io/badge/MOO-100%25_GRASS_FED-ff00ff?style=for-the-badge&labelColor=000000" alt="100% grass fed" /> 🍔 🍔
 
 🐄 🐄 🐄 🐄 🐄 🐄 🐄 🐄 🐄 🐄 🐄 🐄
 
 </div>
 
 ```
- _______________________________________
-/ moo. i read your codebase. i write    \
-| your patches. i chew the cud on your  |
-\ merge conflicts. moo.                 /
- ---------------------------------------
+ _____________
+< moooooooooo >
+ -------------
         \   ^__^
          \  (oo)\_______
             (__)\       )\/\
