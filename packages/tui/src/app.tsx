@@ -116,6 +116,7 @@ const appBindingCommands = [
   "mcp.list",
   "agent.cycle",
   "agent.cycle.reverse",
+  "cow.moo",
   "variant.cycle",
   "variant.list",
   "provider.connect",
@@ -716,7 +717,6 @@ function App(props: {
         hidden: true,
         run: () => {
           local.agent.move(1)
-          moo()
         },
       },
       {
@@ -751,7 +751,6 @@ function App(props: {
         hidden: true,
         run: () => {
           local.agent.move(-1)
-          moo()
         },
       },
       {
@@ -846,6 +845,15 @@ function App(props: {
           dialog.replace(() => <DialogQr onCompanion={onCompanion} />)
         },
         category: "System",
+      },
+      {
+        name: "cow.moo",
+        title: "Moo",
+        category: "System",
+        slashName: "moo",
+        run: () => {
+          moo()
+        },
       },
       {
         name: "docs.open",

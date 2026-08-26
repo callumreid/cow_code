@@ -63,7 +63,10 @@ bun run dev:web         # 🌐 the web app
 
 - Sit on its back and shout **"giddyup, bronson!"**
 - Press <kbd>Tab</kbd>. it moos. out loud. a real moo, right there in your terminal,
-  and a little alert that says **mooooo**. (it also switches agents. that part is incidental.)
+  and a little alert that says **mooooo**. thats the whole job. it used to switch your
+  agent on the way past, which meant the moo button was quietly swapping your model out
+  from under you, which is a rude thing for a moo button to do. it doesnt anymore. if you
+  actually want a different agent, `/agents`.
 
 ## 🏠 THE PEN GOT REMODELED
 
