@@ -3,15 +3,9 @@ import { useLanguage } from "@/context/language"
 import { useLocal, type ModelSelection } from "@/context/local"
 import { useDialog } from "@opencode-ai/ui/context/dialog"
 import { getCursorPosition, setCursorPosition } from "@/components/prompt-input/editor-dom"
-import { showToast } from "@/utils/toast"
-import { playSoundById } from "@/utils/sound"
+import { moo } from "@/utils/moo"
 import { useSessionLayout } from "./session-layout"
 import { createSessionOwnership } from "./session-ownership"
-
-const moo = () => {
-  showToast("mooooo")
-  void playSoundById("moo-01")
-}
 
 const withCategory = (category: string) => {
   return (option: Omit<CommandOption, "category">): CommandOption => ({
