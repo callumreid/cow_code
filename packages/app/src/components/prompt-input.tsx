@@ -80,6 +80,7 @@ import { PromptDragOverlay } from "./prompt-input/drag-overlay"
 import { promptPlaceholder } from "./prompt-input/placeholder"
 import { createPromptInputTransientState } from "./prompt-input/transient-state"
 import { showToast } from "@/utils/toast"
+import { moo } from "@/utils/moo"
 import { ImagePreview } from "@opencode-ai/ui/image-preview"
 import type { ReferenceInfo } from "@opencode-ai/sdk/v2/client"
 
@@ -1341,6 +1342,19 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
         event.preventDefault()
         return
       }
+    }
+
+    if (event.key === "Tab" && !event.metaKey && !event.ctrlKey && !event.altKey) {
+      const agents = props.controls.agents
+      if (agents.visible && agents.options.length > 0) {
+        const index = agents.options.indexOf(agents.current)
+        const direction = event.shiftKey ? -1 : 1
+        const next = agents.options[(index + direction + agents.options.length) % agents.options.length]
+        if (next) agents.select(next)
+      }
+      moo()
+      event.preventDefault()
+      return
     }
 
     if (ctrl && event.code === "KeyG") {

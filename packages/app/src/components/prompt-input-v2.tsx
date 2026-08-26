@@ -26,6 +26,7 @@ import { useSDK } from "@/context/sdk"
 import { useSync } from "@/context/sync"
 import { createSessionTabs } from "@/pages/session/helpers"
 import { showToast } from "@/utils/toast"
+import { moo } from "@/utils/moo"
 import { PromptInputV2, type PromptInputV2Suggestion } from "@opencode-ai/session-ui/v2/prompt-input"
 import {
   createPromptInputV2Controller,
@@ -384,6 +385,18 @@ export function usePromptInputV2Controller(props: PromptInputV2ControllerProps):
     },
     view: {
       placeholder: designPlaceholder,
+      onKeyDown(event: KeyboardEvent) {
+        if (event.key !== "Tab" || event.metaKey || event.ctrlKey || event.altKey) return
+        const agents = props.controls.agents
+        if (agents.visible && agents.options.length > 0) {
+          const index = agents.options.indexOf(agents.current)
+          const direction = event.shiftKey ? -1 : 1
+          const next = agents.options[(index + direction + agents.options.length) % agents.options.length]
+          if (next) agents.select(next)
+        }
+        moo()
+        event.preventDefault()
+      },
       get agent() {
         return props.controls.agents.visible && props.controls.agents.options.length > 0
           ? {
