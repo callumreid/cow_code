@@ -3,14 +3,16 @@
 import numpy as np, wave, sys, os
 
 SR = 48000
-DUR = 34.133
+DUR = 39.633
 N = int(SR * DUR)
 t = np.arange(N) / SR
 S = os.path.dirname(os.path.abspath(__file__))
 A = os.path.join(S, 'audio')
 
 # ---- section marks (video-locked) ----
-S01, S02, S03, S04, S05, S06, S07, S08, S09, END = 0.0, 2.7, 5.5, 11.1, 12.3, 15.633, 19.633, 24.567, 28.133, 34.133
+S01, S02, S03, S04, S05, S06, S07 = 0.0, 2.7, 5.5, 11.1, 12.3, 15.633, 19.633
+S07B = 24.567              # john pork is calling
+S08, S09, END = 30.067, 33.633, 39.633
 BOOM = S08 + 2.71          # chungus explosion
 BPM = 132.0
 BEAT = 60.0 / BPM
@@ -39,8 +41,8 @@ kick4 = (kick_body + kick_click) * 0.95
 # half-time kick (beats 1&3)
 ph2 = np.mod(t, 2 * BEAT)
 kick_half = (np.sin(2 * np.pi * (38 + 85 * np.exp(-ph2 * 28)) * ph2) * np.exp(-9 * ph2)) * 0.95
-kick_gate = sec(S03, S04) + sec(S05, S07) + sec(S07 + 1.8, BOOM)
-kick_half_gate = sec(S02, S03) * 0.8 + sec(S07, S07 + 1.8) + sec(S09 + 0.3, END - 0.6) * 0.55
+kick_gate = sec(S03, S04) + sec(S05, S07) + sec(S07 + 1.8, S07B) + sec(S08, BOOM)
+kick_half_gate = sec(S02, S03) * 0.8 + sec(S07, S07 + 1.8) + sec(S07B, S08) * 0.75 + sec(S09 + 0.3, END - 0.6) * 0.55
 KICK = kick4 * kick_gate + kick_half * kick_half_gate
 kickenv = np.exp(-10 * ph)  # for sidechain
 
@@ -51,12 +53,12 @@ hat_env = env_per(BEAT, 55, phase=BEAT / 2)
 hat = noise * hat_env
 # crude high-pass: differentiate
 hat = np.diff(hat, prepend=0.0) * 6.0
-HATS = hat * 0.30 * (sec(S03, S04) + sec(S05, S07) + sec(S07 + 1.8, BOOM))
+HATS = hat * 0.30 * (sec(S03, S04) + sec(S05, S07) + sec(S07 + 1.8, S07B) + sec(S08, BOOM))
 
 # ---- CLAP on beats 2 & 4 ----
 clap_env = env_per(2 * BEAT, 40, phase=BEAT)
 clap = np.diff(noise * clap_env, prepend=0.0) * 4.0
-CLAP = clap * 0.35 * (sec(S03, S04) + sec(S05, BOOM))
+CLAP = clap * 0.35 * (sec(S03, S04) + sec(S05, S07B) + sec(S08, BOOM))
 
 # ---- BASS: 8th-note A-minor stomp, sidechained ----
 bar = 4 * BEAT
@@ -70,7 +72,7 @@ sq = np.sign(np.sin(phase_acc))
 bass_raw = (0.6 * saw + 0.4 * sq)
 gate8 = env_per(eighth, 14)
 duck = 1 - 0.6 * kickenv
-BASS = bass_raw * gate8 * duck * 0.34 * (sec(S03, S04) + sec(S05, S07) + sec(S07 + 1.8, BOOM))
+BASS = bass_raw * gate8 * duck * 0.34 * (sec(S03, S04) + sec(S05, S07) + sec(S07 + 1.8, S07B) + sec(S08, BOOM))
 # rising madness through chungus: pitch LFO adds mania
 mania = 1 + 0.15 * np.clip((t - S08) / (BOOM - S08), 0, 1) * np.sin(2 * np.pi * 6 * t)
 BASS *= np.where((t > S08) & (t < BOOM), mania, 1.0)
@@ -92,7 +94,41 @@ y = np.zeros(N); acc = 0.0
 for i in range(N):
     acc += 0.045 * (pad[i] - acc)
     y[i] = acc
-PAD = y * 0.30 * (sec(0.9, S03) + sec(S09, END - 0.3) * 0.8)
+PAD = y * 0.30 * (sec(0.9, S03) + sec(S07B, S08) * 0.6 + sec(S09, END - 0.3) * 0.8)
+
+# ---- SAX-ish sexy lead for the phone segment ----
+sax_rel = t - S07B
+sax_notes = [(0.30, 220.0), (0.75, 261.63), (1.20, 329.63), (1.85, 293.66),
+             (2.45, 329.63), (2.95, 392.0), (3.45, 349.23)]
+sf = np.full(N, 220.0)
+for i, (st_, f_) in enumerate(sax_notes):
+    en_ = sax_notes[i + 1][0] if i + 1 < len(sax_notes) else 3.85
+    sf = np.where((sax_rel >= st_) & (sax_rel < en_), f_, sf)
+# portamento: smooth the freq track
+sfs = np.copy(sf); acc2 = sf[0]
+for i in range(N):
+    acc2 += 0.0011 * (sf[i] - acc2)
+    sfs[i] = acc2
+vib = 1 + 0.016 * np.sin(2 * np.pi * 5.3 * t)
+sax_ph = np.cumsum(2 * np.pi * sfs * vib / SR)
+sax_raw = (np.mod(sax_ph / (2 * np.pi), 1) - 0.5) + 0.4 * np.sin(sax_ph)
+ya = np.zeros(N); acc3 = 0.0
+for i in range(N):
+    acc3 += 0.12 * (sax_raw[i] - acc3)
+    ya[i] = acc3
+sax_env = np.clip(np.minimum(sax_rel - 0.25, 3.9 - sax_rel) * 2.2, 0, 1) * (sax_rel > 0)
+SAX = ya * sax_env * 0.34
+# breathy edge
+SAX += np.random.default_rng(23).standard_normal(N) * 0.012 * sax_env
+
+# ---- ringtone arp (marimba-ish) for call phases ----
+ring_notes = [659.25, 523.25, 440.0, 659.25]
+rstep = np.floor(np.mod(t, 0.6) / 0.15).astype(int) % 4
+rfreq = np.array(ring_notes)[rstep]
+rph = np.cumsum(2 * np.pi * rfreq / SR)
+ring_env = env_per(0.15, 26)
+ring_gate = sec(S07B + 0.05, S07B + 1.7) + sec(S07B + 3.95, S07B + 5.35)
+RING = np.sin(rph) * ring_env * 0.16 * ring_gate
 
 # ---- BRAAM at 0 ----
 braam_t = np.clip(t, 0, 2.2)
@@ -121,7 +157,7 @@ def riser(a, b, f0=180, f1=1400, g=0.30):
     f = f0 + (f1 - f0) * u * u
     x = np.sin(np.cumsum(2 * np.pi * f / SR)) + 0.5 * rng.standard_normal(N) * u
     return x * m * g * u
-RISERS = riser(4.7, S03) + riser(S06 - 1.0, S06, g=0.22) + riser(23.4, S08, g=0.34) + riser(BOOM - 1.6, BOOM, f0=120, f1=2000, g=0.30)
+RISERS = riser(4.7, S03) + riser(S06 - 1.0, S06, g=0.22) + riser(S07B - 1.15, S07B, g=0.26) + riser(S08 - 1.15, S08, g=0.34) + riser(BOOM - 1.6, BOOM, f0=120, f1=2000, g=0.30)
 
 # ---- snare roll into chungus ----
 roll_env = env_per(BEAT / 4, 70)
@@ -136,7 +172,7 @@ BOOMS = ((np.sin(2 * np.pi * (24 + 70 * np.exp(-bt * 6)) * bt) * np.exp(-2.2 * b
 BOOMS *= 0.9
 
 # ---- assemble music bed (mono) ----
-bed = KICK + HATS + CLAP + BASS + PAD + BRAAM + IMPACT + SCRATCH + alarm + RISERS + ROLL + roll2 + BOOMS
+bed = KICK + HATS + CLAP + BASS + PAD + BRAAM + IMPACT + SCRATCH + alarm + RISERS + ROLL + roll2 + BOOMS + SAX + RING
 
 # ---- overlay samples ----
 def load(name):
@@ -163,8 +199,11 @@ place(VOICES, load('v_you.wav'), 11.12, 2.0)
 place(VOICES, load('v_spins.wav'), 13.15, 1.9)
 place(VOICES, load('v_prs.wav'), 15.75, 1.8, speed=1.18)
 place(VOICES, load('v_tab.wav'), 19.80, 2.0)
-place(VOICES, load('v_song.wav'), 28.40, 1.7, speed=1.15)
-place(VOICES, load('moo_real.wav'), 32.30, 1.6, speed=0.82)
+place(VOICES, load('v_phone.wav'), S07B + 0.30, 2.3)
+place(VOICES, load('v_pork.wav'), S07B + 3.95, 2.3)
+place(VOICES, load('v_oink.wav'), S07B + 4.95, 1.5, speed=0.8)
+place(VOICES, load('v_song.wav'), S09 + 0.27, 1.7, speed=1.15)
+place(VOICES, load('moo_real.wav'), S09 + 4.20, 1.6, speed=0.82)
 
 BEDS = np.zeros(N)
 place(BEDS, load('tabmoo_bed.wav'), S07, 1.0)
@@ -176,7 +215,7 @@ mix = bed * 0.55 + VOICES * 0.95 + BEDS * 0.9
 mix = np.tanh(mix * 1.25) * 0.9
 # end fade
 fade = np.ones(N)
-fs = int(33.5 * SR)
+fs = int((END - 0.65) * SR)
 fade[fs:] = np.linspace(1, 0, N - fs)
 mix *= fade
 mix = mix / np.max(np.abs(mix)) * 0.92
