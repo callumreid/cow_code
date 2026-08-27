@@ -4,6 +4,7 @@ import { TabsV2 } from "@opencode-ai/ui/v2/tabs-v2"
 import { Icon } from "@opencode-ai/ui/icon"
 import { useLanguage } from "@/context/language"
 import { usePlatform } from "@/context/platform"
+import { SettingsBigDog } from "../settings-big-dog"
 import { SettingsGeneralV2 } from "./general"
 import { SettingsKeybinds } from "../settings-keybinds"
 import { SettingsProvidersV2 } from "./providers"
@@ -65,6 +66,10 @@ export const DialogSettings: Component<{
                       <Icon name="keyboard" />
                       {language.t("settings.tab.shortcuts")}
                     </TabsV2.Trigger>
+                    <TabsV2.Trigger value="big-dog">
+                      <Icon name="speech-bubble" />
+                      big dogging
+                    </TabsV2.Trigger>
                   </div>
                 </div>
 
@@ -107,6 +112,9 @@ export const DialogSettings: Component<{
         </TabsV2.Content>
         <TabsV2.Content value="models" class="settings-v2-panel">
           <SettingsModelsV2 />
+        </TabsV2.Content>
+        <TabsV2.Content value="big-dog" class="settings-v2-panel">
+          <SettingsBigDog />
         </TabsV2.Content>
       </TabsV2>
     </Dialog>
