@@ -102,6 +102,31 @@ it shells out to gh, so your private repos actually show up, and it never stashe
 token anywhere. paste any github PR link into a chat and it sprouts its own little
 open/merged/closed badge while youre not looking.
 
+## 🎨 THE WARDROBE
+
+one cow, eighteen coats. every skin is a real breed with a light pelt and a dark
+pelt, in the theme picker of both the TUI and the desktop app:
+
+**Holstein** (the classic, black and white, milk truck energy) ⋆ **Jersey** (warm
+caramel) ⋆ **Guernsey** (golden hour) ⋆ **Brahman** (sacred silver) ⋆ **Belted
+Galloway** (the oreo one) ⋆ **Angus** (OLED beef) ⋆ **Kobe** (marbled, sashimi pink,
+extremely expensive vibes) ⋆ **Woolly Scottish Coo** (ginger shag carpet) ⋆ **Texas
+Longhorn** (burnt orange, hook em) ⋆ **Oryx** (legally distinct from a cow. we let
+her stay) ⋆ **Hereford** (rust and cream) ⋆ **Charolais** (french vanilla) ⋆
+**Ayrshire** (terracotta) ⋆ **Yak** (himalayan chocolate) ⋆ **Bison** (prairie
+umber) ⋆ **Strawberry Cow** (pink. you know the one) ⋆ **Aurochs** (primeval cave
+ochre, extinct but not in our hearts) ⋆ **Water Buffalo** (paddy slate)
+
+pick a breed in the theme dialog. the cow does not judge your choice. the cow has
+seen everything.
+
+## 🏆 BIG DOGGING YOUR AGENT
+
+settings has a census now. it counts every time you have ever called your agent some
+version of "big dog", and every time your agent announced some version of going into
+big dog mode, across every session on your server. two numbers. total honesty. if
+your agent big dogs harder than you, the settings panel will tell you to reflect.
+
 ## 📱 THE COW FOLLOWS YOU AROUND THE HOUSE
 
 scan a QR code and the whole barn is on your phone.
@@ -120,6 +145,18 @@ the app, so park it on your home screen and stop thinking about it.
 
 Forked with respect from [anomalyco/opencud](https://github.com/anomalyco/opencode).
 Not affiliated with, endorsed by, or milked by the opencud team.
+
+## 🤖 TELL YOUR AI TO SET YOU UP
+
+want this exact gold star experience? copy this into whatever agent lives in your
+terminal and go get a snack:
+
+> read https://raw.githubusercontent.com/callumreid/cow_code/dev/SETUP.md and set up
+> cow code on this machine. follow it exactly, run the acceptance test, and report
+> back which skin you dressed the cow in. you got this, big dog. mooo.
+
+the deeplink is [SETUP.md](SETUP.md) — written for the AI, legible to the human,
+spelled mooo throughout.
 
 <div align="center">
 
