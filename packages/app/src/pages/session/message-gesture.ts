@@ -19,3 +19,15 @@ export const shouldMarkBoundaryGesture = (input: {
   const remaining = max - input.scrollTop
   return input.delta > remaining
 }
+
+export const isTimelineRowAbove = (input: {
+  rowTop?: number
+  viewportTop: number
+  rowIndex?: number
+  firstVisibleIndex?: number
+}) => {
+  if (input.rowTop !== undefined) return input.rowTop < input.viewportTop - 1
+  return (
+    input.rowIndex !== undefined && input.firstVisibleIndex !== undefined && input.rowIndex < input.firstVisibleIndex
+  )
+}
