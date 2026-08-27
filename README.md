@@ -76,6 +76,18 @@ bun run dev:web         # 🌐 the web app
 Forked with respect from [anomalyco/opencud](https://github.com/anomalyco/opencode).
 Not affiliated with, endorsed by, or milked by the opencud team.
 
+## 🤖 TELL YOUR AI TO SET YOU UP
+
+want the full gold star experience? copy this into whatever agent lives in your
+terminal and go get a snack:
+
+> read https://raw.githubusercontent.com/callumreid/cow_code/dev/SETUP.md and set up
+> cow code on this machine. follow it exactly, run the acceptance test, and report
+> back which skin you dressed the cow in. you got this, big dog. mooo.
+
+the deeplink is [SETUP.md](SETUP.md) — written for the AI, legible to the human,
+spelled mooo throughout.
+
 <div align="center">
 
 `･ﾟ✧ ═══════════════════ 🐄 ═══════════════════ ✧ﾟ･`
