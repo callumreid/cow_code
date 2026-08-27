@@ -32,6 +32,24 @@ import tokyonight from "./assets/tokyonight.json" with { type: "json" }
 import vercel from "./assets/vercel.json" with { type: "json" }
 import vesper from "./assets/vesper.json" with { type: "json" }
 import zenburn from "./assets/zenburn.json" with { type: "json" }
+import holstein from "./assets/holstein.json" with { type: "json" }
+import jersey from "./assets/jersey.json" with { type: "json" }
+import guernsey from "./assets/guernsey.json" with { type: "json" }
+import brahman from "./assets/brahman.json" with { type: "json" }
+import beltedGalloway from "./assets/belted-galloway.json" with { type: "json" }
+import angus from "./assets/angus.json" with { type: "json" }
+import kobe from "./assets/kobe.json" with { type: "json" }
+import highlandCoo from "./assets/highland-coo.json" with { type: "json" }
+import texasLonghorn from "./assets/texas-longhorn.json" with { type: "json" }
+import oryx from "./assets/oryx.json" with { type: "json" }
+import hereford from "./assets/hereford.json" with { type: "json" }
+import charolais from "./assets/charolais.json" with { type: "json" }
+import ayrshire from "./assets/ayrshire.json" with { type: "json" }
+import yak from "./assets/yak.json" with { type: "json" }
+import bison from "./assets/bison.json" with { type: "json" }
+import strawberryCow from "./assets/strawberry-cow.json" with { type: "json" }
+import aurochs from "./assets/aurochs.json" with { type: "json" }
+import waterBuffalo from "./assets/water-buffalo.json" with { type: "json" }
 
 export type Theme = {
   readonly primary: RGBA
@@ -161,6 +179,24 @@ export const DEFAULT_THEMES: Record<string, ThemeJson> = {
   vercel,
   zenburn,
   carbonfox,
+  holstein,
+  jersey,
+  guernsey,
+  brahman,
+  ["belted-galloway"]: beltedGalloway,
+  angus,
+  kobe,
+  ["highland-coo"]: highlandCoo,
+  ["texas-longhorn"]: texasLonghorn,
+  oryx,
+  hereford,
+  charolais,
+  ayrshire,
+  yak,
+  bison,
+  ["strawberry-cow"]: strawberryCow,
+  aurochs,
+  ["water-buffalo"]: waterBuffalo,
 }
 
 const pluginThemes: Record<string, ThemeJson> = {}

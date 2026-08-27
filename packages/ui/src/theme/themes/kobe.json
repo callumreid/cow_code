@@ -1,0 +1,33 @@
+{
+  "$schema": "https://opencode.ai/desktop-theme.json",
+  "name": "Kobe",
+  "id": "kobe",
+  "light": {
+    "palette": {
+      "neutral": "#fdf3f5",
+      "ink": "#3c2228",
+      "primary": "#c4556e",
+      "accent": "#e08d9d",
+      "success": "#4f885a",
+      "warning": "#c07634",
+      "error": "#c23e41",
+      "info": "#467b95",
+      "diffAdd": "#4f885a",
+      "diffDelete": "#c23e41"
+    }
+  },
+  "dark": {
+    "palette": {
+      "neutral": "#1d1417",
+      "ink": "#f7e9ec",
+      "primary": "#ef8fa3",
+      "accent": "#f5d9de",
+      "success": "#8ac290",
+      "warning": "#e69950",
+      "error": "#e26b75",
+      "info": "#76b0c2",
+      "diffAdd": "#8ac290",
+      "diffDelete": "#e26b75"
+    }
+  }
+}

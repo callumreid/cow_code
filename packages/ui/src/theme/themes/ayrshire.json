@@ -1,0 +1,33 @@
+{
+  "$schema": "https://opencode.ai/desktop-theme.json",
+  "name": "Ayrshire",
+  "id": "ayrshire",
+  "light": {
+    "palette": {
+      "neutral": "#fbf7f4",
+      "ink": "#38201a",
+      "primary": "#b04a30",
+      "accent": "#d98a6d",
+      "success": "#4d8752",
+      "warning": "#be742c",
+      "error": "#c03d3a",
+      "info": "#447a8d",
+      "diffAdd": "#4d8752",
+      "diffDelete": "#c03d3a"
+    }
+  },
+  "dark": {
+    "palette": {
+      "neutral": "#1e100c",
+      "ink": "#f5e9e4",
+      "primary": "#d97a5c",
+      "accent": "#e8a68e",
+      "success": "#87c087",
+      "warning": "#e49648",
+      "error": "#df686d",
+      "info": "#74aeb9",
+      "diffAdd": "#87c087",
+      "diffDelete": "#df686d"
+    }
+  }
+}

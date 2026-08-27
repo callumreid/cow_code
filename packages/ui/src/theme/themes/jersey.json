@@ -1,0 +1,33 @@
+{
+  "$schema": "https://opencode.ai/desktop-theme.json",
+  "name": "Jersey",
+  "id": "jersey",
+  "light": {
+    "palette": {
+      "neutral": "#faf5ec",
+      "ink": "#3a2a1c",
+      "primary": "#a5692f",
+      "accent": "#d9a566",
+      "success": "#4b8a52",
+      "warning": "#bd782c",
+      "error": "#bf413a",
+      "info": "#427d8d",
+      "diffAdd": "#4b8a52",
+      "diffDelete": "#bf413a"
+    }
+  },
+  "dark": {
+    "palette": {
+      "neutral": "#221609",
+      "ink": "#f3e7d4",
+      "primary": "#d9a566",
+      "accent": "#eec089",
+      "success": "#87c588",
+      "warning": "#e49b49",
+      "error": "#df6e6e",
+      "info": "#74b3ba",
+      "diffAdd": "#87c588",
+      "diffDelete": "#df6e6e"
+    }
+  }
+}

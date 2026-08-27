@@ -1,0 +1,33 @@
+{
+  "$schema": "https://opencode.ai/desktop-theme.json",
+  "name": "Holstein",
+  "id": "holstein",
+  "light": {
+    "palette": {
+      "neutral": "#fbfaf7",
+      "ink": "#16151a",
+      "primary": "#2b2a31",
+      "accent": "#e58aa4",
+      "success": "#3d8352",
+      "warning": "#ae702d",
+      "error": "#b0393a",
+      "info": "#34768d",
+      "diffAdd": "#3d8352",
+      "diffDelete": "#b0393a"
+    }
+  },
+  "dark": {
+    "palette": {
+      "neutral": "#101013",
+      "ink": "#f2f1ec",
+      "primary": "#f2f1ec",
+      "accent": "#f099b4",
+      "success": "#8ace98",
+      "warning": "#e7a459",
+      "error": "#e2777e",
+      "info": "#77bccb",
+      "diffAdd": "#8ace98",
+      "diffDelete": "#e2777e"
+    }
+  }
+}

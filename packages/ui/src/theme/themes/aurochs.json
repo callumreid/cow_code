@@ -1,0 +1,33 @@
+{
+  "$schema": "https://opencode.ai/desktop-theme.json",
+  "name": "Aurochs",
+  "id": "aurochs",
+  "light": {
+    "palette": {
+      "neutral": "#f6f0e6",
+      "ink": "#2c241c",
+      "primary": "#9a5a24",
+      "accent": "#b8a284",
+      "success": "#4a8951",
+      "warning": "#bb762b",
+      "error": "#bd3f38",
+      "info": "#417b8c",
+      "diffAdd": "#4a8951",
+      "diffDelete": "#bd3f38"
+    }
+  },
+  "dark": {
+    "palette": {
+      "neutral": "#14100c",
+      "ink": "#e9ded0",
+      "primary": "#c47b3a",
+      "accent": "#d6b08a",
+      "success": "#85c083",
+      "warning": "#e19644",
+      "error": "#dd6969",
+      "info": "#71aeb5",
+      "diffAdd": "#85c083",
+      "diffDelete": "#dd6969"
+    }
+  }
+}

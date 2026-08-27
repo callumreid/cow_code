@@ -1,0 +1,33 @@
+{
+  "$schema": "https://opencode.ai/desktop-theme.json",
+  "name": "Guernsey",
+  "id": "guernsey",
+  "light": {
+    "palette": {
+      "neutral": "#fdf8ee",
+      "ink": "#40301e",
+      "primary": "#c07a2c",
+      "accent": "#e0b25c",
+      "success": "#4e8c52",
+      "warning": "#c07a2c",
+      "error": "#c24339",
+      "info": "#467f8d",
+      "diffAdd": "#4e8c52",
+      "diffDelete": "#c24339"
+    }
+  },
+  "dark": {
+    "palette": {
+      "neutral": "#241705",
+      "ink": "#f6ecd8",
+      "primary": "#e6a94f",
+      "accent": "#f0c987",
+      "success": "#89c586",
+      "warning": "#e59c46",
+      "error": "#e16e6b",
+      "info": "#75b4b8",
+      "diffAdd": "#89c586",
+      "diffDelete": "#e16e6b"
+    }
+  }
+}

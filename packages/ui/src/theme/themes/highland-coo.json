@@ -1,0 +1,33 @@
+{
+  "$schema": "https://opencode.ai/desktop-theme.json",
+  "name": "Woolly Scottish Coo",
+  "id": "highland-coo",
+  "light": {
+    "palette": {
+      "neutral": "#faf3e9",
+      "ink": "#3d2413",
+      "primary": "#c4632a",
+      "accent": "#e08f4f",
+      "success": "#4f8a52",
+      "warning": "#c0772c",
+      "error": "#c24039",
+      "info": "#467d8d",
+      "diffAdd": "#4f8a52",
+      "diffDelete": "#c24039"
+    }
+  },
+  "dark": {
+    "palette": {
+      "neutral": "#24140a",
+      "ink": "#f6e8d9",
+      "primary": "#e0813f",
+      "accent": "#edaa6c",
+      "success": "#88c084",
+      "warning": "#e49744",
+      "error": "#e06969",
+      "info": "#75afb6",
+      "diffAdd": "#88c084",
+      "diffDelete": "#e06969"
+    }
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "$schema": "https://opencode.ai/desktop-theme.json",
+  "name": "Hereford",
+  "id": "hereford",
+  "light": {
+    "palette": {
+      "neutral": "#fcf7f2",
+      "ink": "#401f14",
+      "primary": "#a33b23",
+      "accent": "#cf7a5c",
+      "success": "#4b8551",
+      "warning": "#bd722b",
+      "error": "#be3b38",
+      "info": "#42788c",
+      "diffAdd": "#4b8551",
+      "diffDelete": "#be3b38"
+    }
+  },
+  "dark": {
+    "palette": {
+      "neutral": "#23100a",
+      "ink": "#f7e9e2",
+      "primary": "#d1654a",
+      "accent": "#e39a80",
+      "success": "#86bd85",
+      "warning": "#e39446",
+      "error": "#de666b",
+      "info": "#73abb7",
+      "diffAdd": "#86bd85",
+      "diffDelete": "#de666b"
+    }
+  }
+}

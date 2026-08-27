@@ -1,0 +1,33 @@
+{
+  "$schema": "https://opencode.ai/desktop-theme.json",
+  "name": "Texas Longhorn",
+  "id": "texas-longhorn",
+  "light": {
+    "palette": {
+      "neutral": "#fbf6ec",
+      "ink": "#3b2517",
+      "primary": "#bf5700",
+      "accent": "#d8a35f",
+      "success": "#4e884d",
+      "warning": "#c07627",
+      "error": "#c23e34",
+      "info": "#467b88",
+      "diffAdd": "#4e884d",
+      "diffDelete": "#c23e34"
+    }
+  },
+  "dark": {
+    "palette": {
+      "neutral": "#1f1209",
+      "ink": "#f4ead9",
+      "primary": "#e07b28",
+      "accent": "#ddb277",
+      "success": "#88c081",
+      "warning": "#e49642",
+      "error": "#e06966",
+      "info": "#75aeb3",
+      "diffAdd": "#88c081",
+      "diffDelete": "#e06966"
+    }
+  }
+}

@@ -36,6 +36,24 @@ import tokyonightThemeJson from "./themes/tokyonight.json"
 import vercelThemeJson from "./themes/vercel.json"
 import vesperThemeJson from "./themes/vesper.json"
 import zenburnThemeJson from "./themes/zenburn.json"
+import holsteinThemeJson from "./themes/holstein.json"
+import jerseyThemeJson from "./themes/jersey.json"
+import guernseyThemeJson from "./themes/guernsey.json"
+import brahmanThemeJson from "./themes/brahman.json"
+import beltedGallowayThemeJson from "./themes/belted-galloway.json"
+import angusThemeJson from "./themes/angus.json"
+import kobeThemeJson from "./themes/kobe.json"
+import highlandCooThemeJson from "./themes/highland-coo.json"
+import texasLonghornThemeJson from "./themes/texas-longhorn.json"
+import oryxThemeJson from "./themes/oryx.json"
+import herefordThemeJson from "./themes/hereford.json"
+import charolaisThemeJson from "./themes/charolais.json"
+import ayrshireThemeJson from "./themes/ayrshire.json"
+import yakThemeJson from "./themes/yak.json"
+import bisonThemeJson from "./themes/bison.json"
+import strawberryCowThemeJson from "./themes/strawberry-cow.json"
+import aurochsThemeJson from "./themes/aurochs.json"
+import waterBuffaloThemeJson from "./themes/water-buffalo.json"
 
 export const oc2Theme = oc2ThemeJson as DesktopTheme
 export const amoledTheme = amoledThemeJson as DesktopTheme
@@ -75,6 +93,26 @@ export const vercelTheme = vercelThemeJson as DesktopTheme
 export const vesperTheme = vesperThemeJson as DesktopTheme
 export const zenburnTheme = zenburnThemeJson as DesktopTheme
 
+// the herd
+export const holsteinTheme = holsteinThemeJson as DesktopTheme
+export const jerseyTheme = jerseyThemeJson as DesktopTheme
+export const guernseyTheme = guernseyThemeJson as DesktopTheme
+export const brahmanTheme = brahmanThemeJson as DesktopTheme
+export const beltedGallowayTheme = beltedGallowayThemeJson as DesktopTheme
+export const angusTheme = angusThemeJson as DesktopTheme
+export const kobeTheme = kobeThemeJson as DesktopTheme
+export const highlandCooTheme = highlandCooThemeJson as DesktopTheme
+export const texasLonghornTheme = texasLonghornThemeJson as DesktopTheme
+export const oryxTheme = oryxThemeJson as DesktopTheme
+export const herefordTheme = herefordThemeJson as DesktopTheme
+export const charolaisTheme = charolaisThemeJson as DesktopTheme
+export const ayrshireTheme = ayrshireThemeJson as DesktopTheme
+export const yakTheme = yakThemeJson as DesktopTheme
+export const bisonTheme = bisonThemeJson as DesktopTheme
+export const strawberryCowTheme = strawberryCowThemeJson as DesktopTheme
+export const aurochsTheme = aurochsThemeJson as DesktopTheme
+export const waterBuffaloTheme = waterBuffaloThemeJson as DesktopTheme
+
 export const DEFAULT_THEMES: Record<string, DesktopTheme> = {
   "oc-2": oc2Theme,
   amoled: amoledTheme,
@@ -113,4 +151,22 @@ export const DEFAULT_THEMES: Record<string, DesktopTheme> = {
   vercel: vercelTheme,
   vesper: vesperTheme,
   zenburn: zenburnTheme,
+  holstein: holsteinTheme,
+  jersey: jerseyTheme,
+  guernsey: guernseyTheme,
+  brahman: brahmanTheme,
+  "belted-galloway": beltedGallowayTheme,
+  angus: angusTheme,
+  kobe: kobeTheme,
+  "highland-coo": highlandCooTheme,
+  "texas-longhorn": texasLonghornTheme,
+  oryx: oryxTheme,
+  hereford: herefordTheme,
+  charolais: charolaisTheme,
+  ayrshire: ayrshireTheme,
+  yak: yakTheme,
+  bison: bisonTheme,
+  "strawberry-cow": strawberryCowTheme,
+  aurochs: aurochsTheme,
+  "water-buffalo": waterBuffaloTheme,
 }

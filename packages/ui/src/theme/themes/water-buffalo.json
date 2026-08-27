@@ -1,0 +1,33 @@
+{
+  "$schema": "https://opencode.ai/desktop-theme.json",
+  "name": "Water Buffalo",
+  "id": "water-buffalo",
+  "light": {
+    "palette": {
+      "neutral": "#f2f6f7",
+      "ink": "#1e282e",
+      "primary": "#40758c",
+      "accent": "#88a895",
+      "success": "#4b8f5e",
+      "warning": "#b17938",
+      "error": "#b24245",
+      "info": "#367f98",
+      "diffAdd": "#4b8f5e",
+      "diffDelete": "#b24245"
+    }
+  },
+  "dark": {
+    "palette": {
+      "neutral": "#101417",
+      "ink": "#e5ecef",
+      "primary": "#7fa8b8",
+      "accent": "#9fc0a8",
+      "success": "#7fbf94",
+      "warning": "#d99c53",
+      "error": "#d46e78",
+      "info": "#69b3c4",
+      "diffAdd": "#7fbf94",
+      "diffDelete": "#d46e78"
+    }
+  }
+}

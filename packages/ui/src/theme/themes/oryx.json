@@ -1,0 +1,33 @@
+{
+  "$schema": "https://opencode.ai/desktop-theme.json",
+  "name": "Oryx",
+  "id": "oryx",
+  "light": {
+    "palette": {
+      "neutral": "#f9f5ec",
+      "ink": "#241f1a",
+      "primary": "#8a6f4d",
+      "accent": "#b59670",
+      "success": "#488b56",
+      "warning": "#ba7930",
+      "error": "#bb413d",
+      "info": "#3f7e91",
+      "diffAdd": "#488b56",
+      "diffDelete": "#bb413d"
+    }
+  },
+  "dark": {
+    "palette": {
+      "neutral": "#191510",
+      "ink": "#efe8db",
+      "primary": "#cdb190",
+      "accent": "#8e8477",
+      "success": "#86c68d",
+      "warning": "#e29d4e",
+      "error": "#de6f73",
+      "info": "#72b5c0",
+      "diffAdd": "#86c68d",
+      "diffDelete": "#de6f73"
+    }
+  }
+}
