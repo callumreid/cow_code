@@ -40,7 +40,7 @@ ffmpeg -hide_banner -loglevel error -y \
 curves=preset=vintage,noise=alls=14:allf=t+u,vignette=PI/4.5,\
 drawbox=c=black@1:t=fill:w=iw:h=110:x=0:y=0,drawbox=c=black@1:t=fill:w=iw:h=110:x=0:y=ih-110,\
 drawtext=fontfile=$IMP:text='IN A WORLD OF TERMINALS…':fontsize=78:fontcolor=white:borderw=8:bordercolor=black:x=(w-text_w)/2+3*sin(n*7):y=h-280:enable='between(t,0.15,1.35)',\
-drawtext=fontfile=$IMP:text='ONE HEIFER DARED TO MOO':fontsize=78:fontcolor=0xFFDD00:borderw=8:bordercolor=black:x=(w-text_w)/2+3*sin(n*7):y=h-280:enable='gte(t,1.45)'" \
+drawtext=fontfile=$IMP:text='ONE HEIFER DARED TO MOOO':fontsize=78:fontcolor=0xFFDD00:borderw=8:bordercolor=black:x=(w-text_w)/2+3*sin(n*7):y=h-280:enable='gte(t,1.45)'" \
   -t 2.8 $ENC "$O/s02.mp4"
 
 echo '=== S03 supreme montage'
@@ -121,7 +121,7 @@ drawtext=fontfile=$IMP:text='BLESSED.':fontsize=54:fontcolor=0xFFDD00:borderw=7:
 drawtext=fontfile=$IMP:text='APPROVED.':fontsize=54:fontcolor=0xFFDD00:borderw=7:bordercolor=black:x=w-text_w-140:y=h-120:enable='gte(t,2.85)'" \
   -t 4.0 $ENC "$O/s06.mp4"
 
-echo '=== S07 tab to moo'
+echo '=== S07 tab to mooo'
 ffmpeg -hide_banner -loglevel error -y \
   -ss 0 -t 3.14 -i "$TAB" -ss 3.14 -t 2.36 -i "$TAB" -ss 5.5 -t 3.1 -i "$TAB" \
   -filter_complex "\
@@ -136,7 +136,7 @@ ffmpeg -hide_banner -loglevel error -y \
 [c1]scale=-2:1080[cfg];[cbg][cfg]overlay=(W-w)/2:(H-h)/2[segC];\
 [segA][segB][segC]concat=n=3:v=1:a=0[cat];\
 [cat]drawtext=fontfile=$IMP:text='PRESS TAB.':fontsize=110:fontcolor=white:borderw=10:bordercolor=black:x=(w-text_w)/2:y=80:enable='between(t,0.25,1.60)',\
-drawtext=fontfile=$IMP:text='IT MOOS.':fontsize=150:fontcolor=0xFFDD00:borderw=12:bordercolor=black:x=(w-text_w)/2:y=90+8*sin(n*9):enable='between(t,1.85,3.05)',\
+drawtext=fontfile=$IMP:text='IT MOOOS.':fontsize=150:fontcolor=0xFFDD00:borderw=12:bordercolor=black:x=(w-text_w)/2:y=90+8*sin(n*9):enable='between(t,1.85,3.05)',\
 drawtext=fontfile=$IMP:text='THAT’S IT. THAT’S THE FEATURE.':fontsize=64:fontcolor=white:borderw=8:bordercolor=black:x=(w-text_w)/2:y=90:enable='gte(t,3.25)'" \
   -t 4.92 $ENC "$O/s07.mp4"
 
@@ -176,8 +176,8 @@ ffmpeg -hide_banner -loglevel error -y \
 [o5][cow]overlay=x=(W-w)/2:y='(H-h)/2-30+14*sin(t*2.6)'[oc];\
 [oc]drawtext=fontfile=$IMP:text='COW CODE':fontsize=175:fontcolor=0xFF00AA:x=(w-text_w)/2+6:y=66,\
 drawtext=fontfile=$IMP:text='COW CODE':fontsize=175:fontcolor=white:borderw=12:bordercolor=black:x=(w-text_w)/2:y=60,\
-drawtext=fontfile=$IMP:text='git clone · bun install · moo':fontsize=54:fontcolor=white:borderw=7:bordercolor=black:x=(w-text_w)/2:y=h-220:enable='gte(t,0.6)',\
-drawtext=fontfile=$IMP:text='MOO RESPONSIBLY':fontsize=48:fontcolor=0xFFDD00:borderw=7:bordercolor=black:x=(w-text_w)/2:y=h-130:enable='gte(t,2.8)',\
+drawtext=fontfile=$IMP:text='git clone · bun install · mooo':fontsize=54:fontcolor=white:borderw=7:bordercolor=black:x=(w-text_w)/2:y=h-220:enable='gte(t,0.6)',\
+drawtext=fontfile=$IMP:text='MOOO RESPONSIBLY':fontsize=48:fontcolor=0xFFDD00:borderw=7:bordercolor=black:x=(w-text_w)/2:y=h-130:enable='gte(t,2.8)',\
 noise=alls=7:allf=t,vignette=PI/5,fade=t=out:st=5.5:d=0.5" \
   -t 6 $ENC "$O/s09.mp4"
 

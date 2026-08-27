@@ -4,7 +4,7 @@
 
 ### 🔊 [WATCH THE HYPE FILM WITH SOUND](https://cdn.jsdelivr.net/gh/callumreid/cow_code@dev/artifacts/hype-video/cowcode-hype.mp4) 🔊
 
-*the audio is load-bearing. cellos were involved. tab was pressed. a real moo was harvested.*
+*the audio is load-bearing. cellos were involved. tab was pressed. a real mooo was harvested.*
 
 ```
   ██████    ██████  ██      ██          ██████    ██████        ██    ██████
@@ -16,7 +16,7 @@
 
 ### ｍｏｏｏｏｏｏｏｏ　ｂｒｏｎｎｙ　ｂｒｏｎｎｙ　ｍｏｏｏｏｏｏｏ
 
-🍔 🍔 <img src="https://img.shields.io/badge/MOO-100%25_GRASS_FED-ff00ff?style=for-the-badge&labelColor=000000" alt="100% grass fed" /> 🍔 🍔
+🍔 🍔 <img src="https://img.shields.io/badge/MOOO-100%25_GRASS_FED-ff00ff?style=for-the-badge&labelColor=000000" alt="100% grass fed" /> 🍔 🍔
 
 🐄 🐄 🐄 🐄 🐄 🐄 🐄 🐄 🐄 🐄 🐄 🐄
 
@@ -68,7 +68,7 @@ bun run dev:web         # 🌐 the web app
 ## 🥛 DRIVING THE COW
 
 - Sit on its back and shout **"giddyup, bronson!"**
-- Press <kbd>Tab</kbd>. it moos. out loud. a real moo, right there in your terminal,
+- Press <kbd>Tab</kbd>. it mooos. out loud. a real mooo, right there in your terminal,
   and a little alert that says **mooooo**. (it also switches agents. that part is incidental.)
 
 ## 🧬 LINEAGE
