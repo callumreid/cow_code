@@ -848,9 +848,9 @@ function App(props: {
       },
       {
         name: "cow.moo",
-        title: "Moo",
+        title: "Mooo",
         category: "System",
-        slashName: "moo",
+        slashName: "mooo",
         run: () => {
           moo()
         },

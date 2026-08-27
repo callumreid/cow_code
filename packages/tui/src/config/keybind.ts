@@ -129,7 +129,7 @@ export const Definitions = {
   agent_list: keybind("<leader>a", "List agents"),
   agent_cycle: keybind("none", "Next agent"),
   agent_cycle_reverse: keybind("none", "Previous agent"),
-  moo: keybind("tab,shift+tab", "Moo"),
+  mooo: keybind("tab,shift+tab", "Mooo"),
   variant_cycle: keybind("ctrl+t", "Cycle model variants"),
   variant_list: keybind("none", "List model variants"),
 
@@ -336,7 +336,7 @@ export const CommandMap = {
   agent_list: "agent.list",
   agent_cycle: "agent.cycle",
   agent_cycle_reverse: "agent.cycle.reverse",
-  moo: "cow.moo",
+  mooo: "cow.moo",
   variant_cycle: "variant.cycle",
   variant_list: "variant.list",
   messages_page_up: "session.page.up",
