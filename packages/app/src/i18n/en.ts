@@ -263,8 +263,8 @@ export const dict = {
   "common.attachment": "attachment",
 
   "prompt.placeholder.shell": "Enter shell command... {{example}}",
-  "prompt.placeholder.normal": 'Ask anything... "{{example}}"',
-  "prompt.placeholder.simple": "Ask anything...",
+  "prompt.placeholder.normal": 'you got this, big dog... "{{example}}"',
+  "prompt.placeholder.simple": "you got this, big dog...",
   "prompt.placeholder.summarizeComments": "Summarize comments…",
   "prompt.placeholder.summarizeComment": "Summarize comment…",
   "prompt.mode.shell": "Shell",
