@@ -140,6 +140,44 @@ drawtext=fontfile=$IMP:text='IT MOOOS.':fontsize=150:fontcolor=0xFFDD00:borderw=
 drawtext=fontfile=$IMP:text='THAT’S IT. THAT’S THE FEATURE.':fontsize=64:fontcolor=white:borderw=8:bordercolor=black:x=(w-text_w)/2:y=90:enable='gte(t,3.25)'" \
   -t 4.92 $ENC "$O/s07.mp4"
 
+echo '=== S07b john pork calling (15 percent sexier)'
+ffmpeg -hide_banner -loglevel error -y \
+  -f lavfi -i "gradients=s=1920x1080:c0=0x1a0016:c1=0xb0135f:c2=0x2a0530:nb_colors=3:speed=0.08:rate=30:duration=5.5" \
+  -loop 1 -t 5.5 -i "$P/p06.png" \
+  -loop 1 -t 5.5 -i "$P/circle.png" \
+  -loop 1 -t 5.5 -i "$P/fakeqr.png" \
+  -loop 1 -t 5.5 -i "$P/pic10.png" \
+  -filter_complex "\
+[2]split[ci1][ci2];\
+[ci1]colorchannelmixer=aa=0.25,scale=w='340+760*mod(t,0.8)/0.8':h=-1:eval=frame[ring1];\
+[ci2]colorchannelmixer=aa=0.18,scale=w='340+760*mod(t+0.4,0.8)/0.8':h=-1:eval=frame[ring2];\
+[0][ring1]overlay=x=(W-w)/2:y=340-h/2:enable='lt(t,3.9)'[r1];\
+[r1][ring2]overlay=x=(W-w)/2:y=340-h/2:enable='lt(t,3.9)'[r2];\
+[1]rotate=a='0.05*sin(t*24)':ow='hypot(iw,ih)':oh='hypot(iw,ih)':c=none,scale=-1:400[cow];\
+[r2][cow]overlay=x='if(lt(t,2.2),(W-w)/2,max(380,(W-w)/2-(t-2.2)*900))':y=340-h/2:enable='lt(t,3.9)'[wc];\
+[3]rotate=a='0.06*sin(t*11)':ow='hypot(iw,ih)':oh='hypot(iw,ih)':c=none[qrot];\
+[qrot]scale=w='min(430,1+2900*max(0,t-2.25))':h=-1:eval=frame:flags=neighbor[qr];\
+[wc][qr]overlay=x=W-w-360:y=250:enable='between(t,2.25,3.9)'[wq];\
+[4]rotate=a='0.07*sin(t*13)':ow='hypot(iw,ih)':oh='hypot(iw,ih)':c=none[prot];\
+[prot]scale=w='min(500,1+3200*max(0,t-3.9))':h=-1:eval=frame:flags=neighbor[pork];\
+[wq][pork]overlay=x=(W-w)/2:y=300-h/2:enable='gte(t,3.9)'[wp];\
+[2]split[gci1][gci2];\
+[gci1]lutrgb=r=val*0.10:g=val*0.80:b=val*0.28,scale=140:140[grn];\
+[gci2]lutrgb=r=val*0.90:g=val*0.15:b=val*0.15,scale=140:140[red];\
+[wp][grn]overlay=x=740:y=800:enable='gte(t,4.15)'[wg];\
+[wg][red]overlay=x=1040:y=800:enable='gte(t,4.15)'[wr];\
+[wr]split[m1][m2];[m2]gblur=sigma=18[gl];[m1][gl]blend=all_mode=screen:all_opacity=0.35,\
+hue=h=-8:s=1.15,\
+drawtext=fontfile=$IMP:text='cow code mobile':fontsize=46:fontcolor=0xFFB0E0:borderw=5:bordercolor=black:x=(w-text_w)/2:y=64,\
+drawtext=fontfile=$IMP:text='THE BARN IS CALLING':fontsize=96:fontcolor=white:borderw=10:bordercolor=black:x=(w-text_w)/2:y=640:enable='between(t,0.20,2.15)',\
+drawtext=fontfile=$IMP:text='real sessions. on your phone. right now.':fontsize=46:fontcolor=0xFFB0E0:borderw=6:bordercolor=black:x=(w-text_w)/2:y=780:enable='between(t,0.90,2.15)',\
+drawtext=fontfile=$IMP:text='SCAN A QR':fontsize=96:fontcolor=0x00FFCC:borderw=10:bordercolor=black:x=(w-text_w)/2:y=640:enable='between(t,2.30,3.85)',\
+drawtext=fontfile=$IMP:text='COUCH. KITCHEN. YARD. THE COFFEE LINE.':fontsize=54:fontcolor=white:borderw=7:bordercolor=black:x=(w-text_w)/2:y=780:enable='between(t,2.80,3.85)',\
+drawtext=fontfile=$IMP:text='JOHN PORK IS CALLING…':fontsize=92:fontcolor=0xFFDD00:borderw=10:bordercolor=black:x=(w-text_w)/2:y=610:enable='gte(t,3.95)',\
+drawtext=fontfile=$IMP:text='answer the cow.':fontsize=50:fontcolor=0xFF9ED2:borderw=6:bordercolor=black:x=(w-text_w)/2:y=980:enable='gte(t,4.40)',\
+noise=alls=7:allf=t,vignette=PI/4.6" \
+  -t 5.5 $ENC "$O/s07b.mp4"
+
 echo '=== S08 chungus'
 ffmpeg -hide_banner -loglevel error -y \
   -i "$CHU" \
@@ -184,8 +222,8 @@ noise=alls=7:allf=t,vignette=PI/5,fade=t=out:st=5.5:d=0.5" \
 echo '=== concat (re-encode, normalized SAR)'
 cd "$O"
 ffmpeg -hide_banner -loglevel error -y \
-  -i s01.mp4 -i s02.mp4 -i s03.mp4 -i s04.mp4 -i s05.mp4 -i s06.mp4 -i s07.mp4 -i s08.mp4 -i s09.mp4 \
-  -filter_complex "[0][1][2][3][4][5][6][7][8]concat=n=9:v=1:a=0,setsar=1" \
+  -i s01.mp4 -i s02.mp4 -i s03.mp4 -i s04.mp4 -i s05.mp4 -i s06.mp4 -i s07.mp4 -i s07b.mp4 -i s08.mp4 -i s09.mp4 \
+  -filter_complex "[0][1][2][3][4][5][6][7][8][9]concat=n=10:v=1:a=0,setsar=1" \
   -r 30 -pix_fmt yuv420p -c:v libx264 -preset veryfast -crf 18 -an "$S/video_silent.mp4"
 ffprobe -v error -show_entries format=duration -of csv=p=0 "$S/video_silent.mp4"
 for i in 01 02 03 04 05 06 07 08 09; do d=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "s$i.mp4"); echo "s$i $d"; done
