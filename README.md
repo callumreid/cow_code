@@ -1,5 +1,11 @@
 <div align="center">
 
+<img src="artifacts/hype-video/cowcode-hype.gif" alt="THE COW CODE HYPE FILM — 34 seconds of pure bovine cinema" width="840" />
+
+### 🔊 [WATCH THE HYPE FILM WITH SOUND](artifacts/hype-video/cowcode-hype.mp4) 🔊
+
+*the audio is load-bearing. cellos were involved. tab was pressed. a real moo was harvested.*
+
 ```
   ██████    ██████  ██      ██          ██████    ██████        ██    ██████
 ██        ██    ██  ██      ██        ██        ██    ██    ██████  ██    ██
