@@ -392,13 +392,6 @@ export function usePromptInputV2Controller(props: PromptInputV2ControllerProps):
       placeholder: designPlaceholder,
       onKeyDown(event: KeyboardEvent) {
         if (event.key !== "Tab" || event.metaKey || event.ctrlKey || event.altKey) return
-        const agents = props.controls.agents
-        if (agents.visible && agents.options.length > 0) {
-          const index = agents.options.indexOf(agents.current)
-          const direction = event.shiftKey ? -1 : 1
-          const next = agents.options[(index + direction + agents.options.length) % agents.options.length]
-          if (next) agents.select(next)
-        }
         moo()
         event.preventDefault()
       },

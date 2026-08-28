@@ -1345,15 +1345,21 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     }
 
     if (event.key === "Tab" && !event.metaKey && !event.ctrlKey && !event.altKey) {
-      const agents = props.controls.agents
-      if (agents.visible && agents.options.length > 0) {
-        const index = agents.options.indexOf(agents.current)
-        const direction = event.shiftKey ? -1 : 1
-        const next = agents.options[(index + direction + agents.options.length) % agents.options.length]
-        if (next) agents.select(next)
-      }
       moo()
       event.preventDefault()
+      // An empty composer is offering an example. Take it, so the suggestion is
+      // something you can send rather than something you have to retype.
+      if (suggest() && promptLength(prompt.current()) === 0) {
+        const example = store.mode === "shell" ? "git status" : language.t(EXAMPLES[store.placeholder])
+        if (example) {
+          prompt.set([{ type: "text", content: example, start: 0, end: example.length }], example.length)
+          requestAnimationFrame(() => {
+            editorRef.focus()
+            setCursorPosition(editorRef, example.length)
+            queueScroll()
+          })
+        }
+      }
       return
     }
 
