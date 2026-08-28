@@ -996,6 +996,7 @@ export const dict = {
   "settings.updates.toast.latest.title": "You're up to date",
   "settings.updates.toast.latest.description": "You're running the latest version of OpenCode.",
   "sound.option.none": "None",
+  "sound.option.moo01": "Moo",
   "sound.option.alert01": "Alert 01",
   "sound.option.alert02": "Alert 02",
   "sound.option.alert03": "Alert 03",

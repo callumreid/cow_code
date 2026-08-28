@@ -11,6 +11,7 @@ function getFiles() {
 }
 
 export const SOUND_OPTIONS = [
+  { id: "moo-01", label: "sound.option.moo01" },
   { id: "alert-01", label: "sound.option.alert01" },
   { id: "alert-02", label: "sound.option.alert02" },
   { id: "alert-03", label: "sound.option.alert03" },

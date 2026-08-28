@@ -39,6 +39,7 @@ export interface Settings {
     agentVisibilityInitialized?: boolean
     newInterfaceNoticeDismissed?: boolean
     shouldDisplayTabsToast?: boolean
+    mooAgentSoundApplied?: boolean
   }
   appearance: {
     fontSize: number
@@ -213,7 +214,8 @@ const defaultSettings: Settings = {
   },
   sounds: {
     agentEnabled: true,
-    agent: "staplebops-01",
+    // A finished thread moos, same as Tab.
+    agent: "moo-01",
     permissionsEnabled: true,
     permissions: "staplebops-02",
     errorsEnabled: true,
@@ -341,6 +343,18 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
       if (!ready() || !oldInterfaceRetired()) return
       if (store.general?.newLayoutDesigns === true) return
       setStore("general", "newLayoutDesigns", true)
+    })
+
+    // The whole settings object is persisted on first run, so changing the
+    // default alone would never reach an existing install. Move anyone still
+    // sitting on the previous default over to the moo, once — after this runs,
+    // picking Staplebops 01 back deliberately sticks.
+    createEffect(() => {
+      if (!ready() || store.general?.mooAgentSoundApplied) return
+      batch(() => {
+        setStore("general", "mooAgentSoundApplied", true)
+        if (store.sounds?.agent === "staplebops-01") setStore("sounds", "agent", "moo-01")
+      })
     })
 
     createEffect(() => {
