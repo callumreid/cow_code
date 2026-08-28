@@ -155,6 +155,7 @@ const SessionRow = (props: {
 
 export const SessionItem = (props: SessionItemProps): JSX.Element => {
   const params = useParams()
+  const language = useLanguage()
   const layout = useLayout()
   const notification = useNotification()
   const permission = usePermission()
@@ -263,26 +264,45 @@ export const SessionItem = (props: SessionItemProps): JSX.Element => {
 
           <Show when={!props.level || pinned()}>
             <div
-              class="shrink-0 overflow-hidden transition-[width,opacity]"
+              class="shrink-0 flex items-center overflow-hidden transition-[width,opacity]"
               classList={{
-                "w-6 opacity-100 pointer-events-auto": !!props.mobile || pinned(),
+                "w-12 opacity-100 pointer-events-auto": !!props.mobile,
+                "w-6 opacity-100 pointer-events-auto": !props.mobile && pinned(),
                 "w-0 opacity-0 pointer-events-none": !props.mobile && !pinned(),
-                "group-hover/session:w-6 group-hover/session:opacity-100 group-hover/session:pointer-events-auto": true,
-                "group-focus-within/session:w-6 group-focus-within/session:opacity-100 group-focus-within/session:pointer-events-auto": true,
+                "group-hover/session:w-12 group-hover/session:opacity-100 group-hover/session:pointer-events-auto": true,
+                "group-focus-within/session:w-12 group-focus-within/session:opacity-100 group-focus-within/session:pointer-events-auto": true,
               }}
             >
-              <Tooltip value={pinned() ? "Unpin" : "Pin"} placement="top">
+              <Tooltip
+                value={pinned() ? language.t("sidebar.session.bell.off") : language.t("sidebar.session.bell.on")}
+                placement="top"
+              >
                 <button
                   type="button"
-                  class="size-6 rounded-md flex items-center justify-center text-[13px] leading-none cursor-pointer hover:bg-surface-raised-base-hover"
-                  aria-label={pinned() ? "Unpin" : "Pin"}
+                  class="size-6 shrink-0 rounded-md flex items-center justify-center text-[13px] leading-none cursor-pointer hover:bg-surface-raised-base-hover"
+                  classList={{ "opacity-100": pinned(), "opacity-45": !pinned() }}
+                  aria-label={pinned() ? language.t("sidebar.session.bell.off") : language.t("sidebar.session.bell.on")}
                   onClick={(event) => {
                     event.preventDefault()
                     event.stopPropagation()
                     layout.pins.toggle(props.session.id)
                   }}
                 >
-                  📌
+                  🔔
+                </button>
+              </Tooltip>
+              <Tooltip value={language.t("sidebar.session.pasture")} placement="top">
+                <button
+                  type="button"
+                  class="size-6 shrink-0 rounded-md flex items-center justify-center text-[13px] leading-none cursor-pointer opacity-45 hover:opacity-100 hover:bg-surface-raised-base-hover"
+                  aria-label={language.t("sidebar.session.pasture")}
+                  onClick={(event) => {
+                    event.preventDefault()
+                    event.stopPropagation()
+                    void props.archiveSession(props.session)
+                  }}
+                >
+                  🌾
                 </button>
               </Tooltip>
             </div>

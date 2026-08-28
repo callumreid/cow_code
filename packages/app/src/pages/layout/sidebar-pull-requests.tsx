@@ -171,7 +171,7 @@ export const SidebarPullRequests = (): JSX.Element => {
               </Show>
             }
           >
-            <div class="flex flex-col gap-2">
+            <div class="flex flex-col gap-2 max-h-80 overflow-y-auto">
               <For each={data()!.groups}>
                 {(group) => (
                   <div class="flex flex-col">

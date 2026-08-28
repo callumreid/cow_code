@@ -22,6 +22,10 @@ export const dict = {
   "command.logs.export": "Export logs",
   "command.phone.connect": "Connect phone",
 
+  "sidebar.session.bell.on": "Put the bell on",
+  "sidebar.session.bell.off": "Take the bell off",
+  "sidebar.session.pasture": "Out to pasture",
+
   "dialog.phone.title": "Connect phone",
   "dialog.phone.loading": "Preparing a network address...",
   "dialog.phone.description": "Scan with your phone camera to open this workspace in the browser.",
