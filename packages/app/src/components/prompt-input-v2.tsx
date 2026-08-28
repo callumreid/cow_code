@@ -12,7 +12,7 @@ import { DialogSelectModelUnpaidV2 } from "@/components/dialog-select-model-unpa
 import type { PromptInputProps } from "@/components/prompt-input/contracts"
 import { normalizePromptHistoryEntry, promptLength, type PromptHistoryComment } from "@/components/prompt-input/history"
 import { createPersistedPromptInputHistory } from "@/components/prompt-input/history-store"
-import { promptDesignPlaceholder, promptPlaceholder } from "@/components/prompt-input/placeholder"
+import { pickBigDogPlaceholder, promptDesignPlaceholder, promptPlaceholder } from "@/components/prompt-input/placeholder"
 import { createPromptSubmit } from "@/components/prompt-input/submit"
 import { selectionFromLines, type SelectedLineRange, useFile } from "@/context/file"
 import { useComments } from "@/context/comments"
@@ -138,9 +138,14 @@ export function usePromptInputV2Controller(props: PromptInputV2ControllerProps):
       t: (key, params) => language.t(key as Parameters<typeof language.t>[0], params as never),
     }),
   )
+  // Chosen once per mount so the line does not shuffle underneath the cursor.
+  const bigDogPlaceholder = pickBigDogPlaceholder()
   const designPlaceholder = () =>
-    promptDesignPlaceholder(mode(), placeholder(), (key, params) =>
-      language.t(key as Parameters<typeof language.t>[0], params as never),
+    promptDesignPlaceholder(
+      mode(),
+      placeholder(),
+      (key, params) => language.t(key as Parameters<typeof language.t>[0], params as never),
+      bigDogPlaceholder,
     )
 
   const historyComments = () => {

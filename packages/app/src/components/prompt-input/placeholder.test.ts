@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { promptDesignPlaceholder, promptPlaceholder } from "./placeholder"
+import { pickBigDogPlaceholder, promptDesignPlaceholder, promptPlaceholder } from "./placeholder"
 
 describe("promptPlaceholder", () => {
   const t = (key: string, params?: Record<string, string>) => `${key}${params?.example ? `:${params.example}` : ""}`
@@ -59,5 +59,19 @@ describe("promptDesignPlaceholder", () => {
 
   test("preserves the shell placeholder", () => {
     expect(promptDesignPlaceholder("shell", "Enter shell command...", t)).toBe("Enter shell command...")
+  })
+})
+
+describe("pickBigDogPlaceholder", () => {
+  test("every variation is a real key and they are all distinct", () => {
+    const keys = new Set<string>()
+    for (let n = 0; n < 12; n++) keys.add(pickBigDogPlaceholder(n / 12))
+    expect(keys.size).toBe(12)
+    for (const key of keys) expect(key.startsWith("ui.promptInput.placeholder.")).toBe(true)
+  })
+
+  test("stays in range at the extremes", () => {
+    expect(pickBigDogPlaceholder(0)).toBe("ui.promptInput.placeholder.normal")
+    expect(pickBigDogPlaceholder(0.999999)).toBe("ui.promptInput.placeholder.bigdog.12")
   })
 })
