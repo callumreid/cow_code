@@ -42,6 +42,7 @@ import { makeEventListener } from "@solid-primitives/event-listener"
 import { CommandProvider, useCommand, type CommandOption } from "@/context/command"
 import { useDialog } from "@opencode-ai/ui/context/dialog"
 import { DialogConnectPhone } from "@/components/dialog-connect-phone"
+import { PrHoverCard } from "@/components/pr-hover-card"
 import { base64Decode } from "@opencode-ai/core/util/encode"
 import { authTokenFromCredentials } from "@/utils/server"
 import { CommentsProvider } from "@/context/comments"
@@ -507,6 +508,7 @@ export function AppBaseProviders(
               <QueryProvider>
                 <WslServersProvider>
                   <DialogProvider>
+                    <PrHoverCard />
                     <FileComponentProvider component={File}>{props.children}</FileComponentProvider>
                   </DialogProvider>
                 </WslServersProvider>

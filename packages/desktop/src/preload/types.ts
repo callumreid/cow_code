@@ -17,6 +17,20 @@ export type {
   WslServersState,
 } from "@opencode-ai/app/wsl/types"
 
+export type PrDetails = {
+  owner: string
+  repo: string
+  number: number
+  title: string
+  state: "open" | "draft" | "merged" | "closed"
+  author: string | null
+  avatarUrl: string | null
+  additions: number
+  deletions: number
+  changedFiles: number
+  timestamp: number | null
+}
+
 export type ServerReadyData = {
   url: string
   username: string | null
@@ -115,6 +129,7 @@ export type ElectronAPI = {
   setBackgroundColor: (color: string) => Promise<void>
   exportDebugLogs: () => Promise<string>
   companionInfo: () => Promise<{ port: number; hosts: string[] }>
+  prDetails: (url: string) => Promise<PrDetails | null>
   setForceFocus: (enabled: boolean) => Promise<void>
   recordFatalRendererError: (error: FatalRendererError) => Promise<void>
   setNativeTranslations: (bundle: DesktopNativeBundle) => Promise<void>

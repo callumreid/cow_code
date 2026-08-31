@@ -22,6 +22,13 @@ export const dict = {
   "command.logs.export": "Export logs",
   "command.phone.connect": "Connect phone",
 
+  "pr.hover.state.open": "Open",
+  "pr.hover.state.draft": "Draft",
+  "pr.hover.state.merged": "Merged",
+  "pr.hover.state.closed": "Closed",
+  "pr.hover.files.one": "{{count}} file",
+  "pr.hover.files.other": "{{count}} files",
+
   "sidebar.session.bell.on": "Put the bell on",
   "sidebar.session.bell.off": "Take the bell off",
   "sidebar.session.pasture": "Out to pasture",

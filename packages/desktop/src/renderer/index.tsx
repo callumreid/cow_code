@@ -255,6 +255,8 @@ const createPlatform = (windowState: DesktopWindowState): Platform => {
 
     companionInfo: () => window.api.companionInfo(),
 
+    prDetails: (url: string) => window.api.prDetails(url),
+
     setForceFocus: (enabled) => window.api.setForceFocus(enabled),
 
     recordFatalRendererError: (error) => window.api.recordFatalRendererError(error),

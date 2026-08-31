@@ -53,6 +53,7 @@ type Deps = {
   setBackgroundColor: (color: string) => void
   exportDebugLogs: () => Promise<string>
   companionInfo: () => Promise<{ port: number; hosts: string[] }>
+  prDetails: (url: string) => Promise<unknown>
   recordFatalRendererError: (error: FatalRendererError) => Promise<void> | void
   setNativeTranslations: (bundle: DesktopNativeBundle) => void
 }
@@ -100,6 +101,7 @@ export function registerIpcHandlers(deps: Deps) {
   ipcMain.handle("set-background-color", (_event: IpcMainInvokeEvent, color: string) => deps.setBackgroundColor(color))
   ipcMain.handle("export-debug-logs", () => deps.exportDebugLogs())
   ipcMain.handle("companion-info", () => deps.companionInfo())
+  ipcMain.handle("pr-details", (_event: IpcMainInvokeEvent, url: string) => deps.prDetails(url))
   ipcMain.handle("set-force-focus", (event: IpcMainInvokeEvent, enabled: boolean) =>
     setForceFocus(event.sender, enabled),
   )

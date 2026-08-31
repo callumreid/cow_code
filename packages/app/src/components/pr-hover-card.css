@@ -1,0 +1,145 @@
+/* Matches the floating-panel family shared by hover-card/popover/dropdown-menu. */
+.pr-hover-card {
+  position: fixed;
+  z-index: 60;
+  width: 320px;
+  max-width: calc(100vw - 16px);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background-color: var(--surface-raised-stronger-non-alpha);
+  border: 1px solid color-mix(in oklch, var(--border-base) 50%, transparent);
+  background-clip: padding-box;
+  box-shadow: var(--shadow-md);
+  border-radius: var(--radius-md, 8px);
+  /* Only the transform animates. Fading in via keyframes leaves the card
+     invisible wherever animations are throttled (a backgrounded window), and
+     an unreadable card is worse than an unanimated one. */
+  animation: pr-hover-card-in 0.12s ease-out;
+}
+
+@keyframes pr-hover-card-in {
+  from {
+    transform: scale(0.96);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pr-hover-card {
+    animation: none;
+  }
+}
+
+.pr-hover-card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.pr-hover-card-state {
+  flex-shrink: 0;
+  padding: 0 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  line-height: 18px;
+  font-weight: 500;
+  user-select: none;
+}
+
+/* Same tones the inline PR badge uses, so the two never disagree. */
+.pr-hover-card-state[data-pr-state="open"] {
+  color: var(--v2-state-fg-success);
+  background-color: var(--v2-state-bg-success);
+}
+
+.pr-hover-card-state[data-pr-state="closed"] {
+  color: var(--v2-state-fg-danger);
+  background-color: var(--v2-state-bg-danger);
+}
+
+.pr-hover-card-state[data-pr-state="merged"] {
+  color: var(--v2-agent-writer-solid);
+  background-color: color-mix(in oklch, var(--v2-agent-writer-solid) 12%, transparent);
+}
+
+.pr-hover-card-state[data-pr-state="draft"] {
+  color: var(--text-base);
+  background-color: color-mix(in oklch, var(--border-base) 40%, transparent);
+}
+
+.pr-hover-card-repo {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--font-size-small, 12px);
+  color: var(--text-base);
+}
+
+.pr-hover-card-age {
+  flex-shrink: 0;
+  font-size: var(--font-size-small, 12px);
+  color: var(--text-base);
+}
+
+.pr-hover-card-title {
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: var(--font-weight-medium, 500);
+  color: var(--text-strong);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.pr-hover-card-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: var(--font-size-small, 12px);
+  color: var(--text-base);
+}
+
+.pr-hover-card-avatar {
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  flex-shrink: 0;
+  object-fit: cover;
+}
+
+.pr-hover-card-author {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pr-hover-card-diff {
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.pr-hover-card-added {
+  color: var(--v2-state-fg-success, var(--text-strong));
+}
+
+.pr-hover-card-removed {
+  color: var(--v2-state-fg-danger, var(--text-strong));
+}
+
+.pr-hover-card-files {
+  flex-shrink: 0;
+  padding: 0 5px;
+  border-radius: 4px;
+  background-color: color-mix(in oklch, var(--border-base) 35%, transparent);
+}

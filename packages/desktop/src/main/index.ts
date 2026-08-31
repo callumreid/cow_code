@@ -16,6 +16,7 @@ import { checkAppExists, resolveAppPath } from "./apps"
 import { CHANNEL } from "./constants"
 import { registerIpcHandlers, sendDeepLinks, sendMenuCommand } from "./ipc"
 import { getNetworkIPs } from "./network-ips"
+import { getPrDetails } from "./pr-details"
 import { forwardInitializationFailure } from "./initialization"
 import { exportDebugLogs, initCrashReporter, initLogging, startNetLog, write as writeLog } from "./logging"
 import { createMenu } from "./menu"
@@ -307,6 +308,7 @@ const main = Effect.gen(function* () {
     showUpdater: () => showUpdaterDialog(updater, true),
     setBackgroundColor: (color) => setBackgroundColor(color),
     exportDebugLogs: () => exportDebugLogs(),
+    prDetails: (url) => getPrDetails(url),
     companionInfo: async () => {
       const current = server
       if (!current) throw new Error("The local server is not managed by this window")
