@@ -22,6 +22,20 @@ export const dict = {
   "command.logs.export": "Export logs",
   "command.phone.connect": "Connect phone",
 
+  "settings.connectors.title": "Connectors",
+  "settings.connectors.description":
+    "MCP servers this machine can reach. Connectors are saved to your opencode config, so they come back after a restart.",
+  "settings.connectors.empty": "No connectors yet.",
+  "settings.connectors.presets": "Quick add:",
+  "settings.connectors.add.title": "Add a connector",
+  "settings.connectors.add.action": "Add connector",
+  "settings.connectors.added": "Added {{name}}",
+  "settings.connectors.field.name": "Name",
+  "settings.connectors.field.url": "Server URL",
+  "settings.connectors.field.token": "Bearer token (optional)",
+  "settings.connectors.hint.oneleet":
+    "Create a service key in Oneleet under Settings → API → Manage API keys. It is shown only once.",
+
   "pr.hover.state.open": "Open",
   "pr.hover.state.draft": "Draft",
   "pr.hover.state.merged": "Merged",
