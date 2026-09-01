@@ -40,6 +40,7 @@ export interface Settings {
     newInterfaceNoticeDismissed?: boolean
     shouldDisplayTabsToast?: boolean
     mooAgentSoundApplied?: boolean
+    mooPermissionSoundApplied?: boolean
   }
   appearance: {
     fontSize: number
@@ -217,7 +218,8 @@ const defaultSettings: Settings = {
     // A finished thread moos, same as Tab.
     agent: "moo-01",
     permissionsEnabled: true,
-    permissions: "staplebops-02",
+    // Needing your attention moos too.
+    permissions: "moo-01",
     errorsEnabled: true,
     errors: "nope-03",
   },
@@ -354,6 +356,15 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
       batch(() => {
         setStore("general", "mooAgentSoundApplied", true)
         if (store.sounds?.agent === "staplebops-01") setStore("sounds", "agent", "moo-01")
+      })
+    })
+
+    // Same one-time move for the permission sound.
+    createEffect(() => {
+      if (!ready() || store.general?.mooPermissionSoundApplied) return
+      batch(() => {
+        setStore("general", "mooPermissionSoundApplied", true)
+        if (store.sounds?.permissions === "staplebops-02") setStore("sounds", "permissions", "moo-01")
       })
     })
 
