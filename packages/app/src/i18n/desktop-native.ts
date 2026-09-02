@@ -202,7 +202,7 @@ export function detectDesktopNativeLocale(languages: readonly string[]): Desktop
     if (["no", "nb", "nn"].includes(source.language)) return "no"
     const match = DESKTOP_NATIVE_LOCALES.find((candidate) => {
       const target = locale(DESKTOP_NATIVE_LOCALE_TAGS[candidate])
-      return target?.language === source.language && target.script === source.script
+      return target?.language === source.language && script(target) === script(source)
     })
     if (match) return match
   }
@@ -219,6 +219,14 @@ function locale(value: string) {
   } catch {
     return undefined
   }
+}
+
+// CLDR maximizes pa-PK and ur-PK to Aran, the Nastaliq style of Arab, while the
+// pa bundle is tagged pa-Arab-PK. They are the same script and the same text, so
+// comparing them raw sends every Punjabi (Pakistan) reader to English.
+function script(value: Intl.Locale) {
+  if (value.script === "Aran") return "Arab"
+  return value.script
 }
 
 export const DESKTOP_NATIVE_ENGLISH = {
