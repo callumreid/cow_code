@@ -12,7 +12,7 @@ import {
   type Accessor,
 } from "solid-js"
 import { makeEventListener } from "@solid-primitives/event-listener"
-import { useNavigate, useParams } from "@solidjs/router"
+import { useLocation, useNavigate, useParams } from "@solidjs/router"
 import { useLayout, LocalProject } from "@/context/layout"
 import { useServerSync } from "@/context/server-sync"
 import { Persist, persisted } from "@/utils/persist"
@@ -84,6 +84,8 @@ import { ProjectDragOverlay, SortableProject, type ProjectSidebarContext } from 
 import { SidebarContent } from "./layout/sidebar-shell"
 import { AccountMenu } from "./layout/sidebar-account"
 import { SidebarPullRequests } from "./layout/sidebar-pull-requests"
+import { PullRequestsPanel } from "./layout/pull-requests-panel"
+import { createPrDashboardStore } from "@/pr-dashboard/store"
 
 export default function LegacyLayout(props: ParentProps) {
   const serverSDK = useServerSDK()
@@ -156,9 +158,16 @@ export default function LegacyLayout(props: ParentProps) {
     sortNow: Date.now(),
     sizing: false,
     peek: undefined as string | undefined,
+    pullRequests: false,
     peeked: false,
     debugTools: true,
   })
+
+  const pullRequests = createPrDashboardStore(() => platform.prDashboard)
+  const location = useLocation()
+  // Opening a session has to reveal it, so the panel gives the main area back.
+  // `navigateWithSidebarReset` covers the same-route cases this effect cannot see.
+  createEffect(on(() => location.pathname, () => setState("pullRequests", false), { defer: true }))
 
   const updateVersion = () => {
     const state = platform.updater?.state()
@@ -326,6 +335,7 @@ export default function LegacyLayout(props: ParentProps) {
 
   const navigateWithSidebarReset = (href: string) => {
     clearSidebarHoverState()
+    setState("pullRequests", false)
     navigate(href)
     layout.mobileSidebar.hide()
   }
@@ -1017,6 +1027,14 @@ export default function LegacyLayout(props: ParentProps) {
         onSelect: () => cycleTheme(1),
       },
     ]
+
+    if (platform.prDashboard)
+      commands.push({
+        id: "pullrequests.open",
+        title: "Pull requests",
+        category: language.t("command.category.view"),
+        onSelect: () => setState("pullRequests", true),
+      })
 
     Array.from({ length: 9 }, (_, i) => {
       const index = i
@@ -2098,7 +2116,11 @@ export default function LegacyLayout(props: ParentProps) {
                 </div>
               </div>
 
-              <SidebarPullRequests />
+              <SidebarPullRequests
+                store={pullRequests}
+                active={state.pullRequests}
+                onOpen={() => setState("pullRequests", true)}
+              />
 
               <div class="flex-1 min-h-0 flex flex-col">
                 <Show
@@ -2370,6 +2392,11 @@ export default function LegacyLayout(props: ParentProps) {
                   {props.children}
                 </Show>
               </main>
+              <Show when={state.pullRequests}>
+                <div class="absolute inset-0 z-10 overflow-hidden rounded-ss-[12px] border-t border-s border-border-weak-base bg-background-base">
+                  <PullRequestsPanel store={pullRequests} onClose={() => setState("pullRequests", false)} />
+                </div>
+              </Show>
             </div>
 
             <div
