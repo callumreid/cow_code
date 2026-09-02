@@ -247,7 +247,18 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
       },
     }
 
+    // The model the user chose for this session, whether or not it resolves
+    // right now. current() below can land somewhere else — the agent's pinned
+    // model, the global default — so anything that writes a selection back has
+    // to tell a real choice apart from a resolved one.
+    const picked = () => scope()?.model
+
     const current = () => {
+      // Session picks load asynchronously. Resolving before they arrive shows
+      // the agent's model or the global default, and the session effect then
+      // copies that substitute into the prompt store, where it comes back on a
+      // later visit as if the user had picked it.
+      if (id() && !savedReady()) return
       const item = firstModel(
         () => scope()?.model,
         sessionModel,
@@ -298,6 +309,7 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
     const model = {
       ready: models.ready,
       current,
+      picked,
       recent,
       list: models.list,
       cycle(direction: 1 | -1) {

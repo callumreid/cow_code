@@ -53,6 +53,11 @@ export function createPromptModelSelection(input: { agent: () => { model?: Model
   const selection = {
     ready: models.ready,
     current,
+    picked() {
+      const model = prompt.model.current()
+      if (!model) return
+      return { providerID: model.providerID, modelID: model.modelID }
+    },
     recent: recentModels,
     list: models.list,
     cycle(direction: 1 | -1) {

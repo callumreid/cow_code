@@ -59,6 +59,7 @@ describe("syncPromptModel", () => {
       {
         model: {
           current: () => ({ id: "claude-sonnet-4", provider: { id: "anthropic" } }),
+          picked: () => undefined,
           set() {},
           variant: { current: () => "high", set() {} },
         },
@@ -82,6 +83,7 @@ describe("syncPromptModel", () => {
       {
         model: {
           current: () => ({ id: model.modelID, provider: { id: model.providerID } }),
+          picked: () => undefined,
           set() {},
           variant: { current: () => model.variant, set() {} },
         },
@@ -105,6 +107,7 @@ describe("restorePromptModel", () => {
       {
         model: {
           current: () => ({ id: "gpt", provider: { id: "openai" } }),
+          picked: () => undefined,
           set: (model) => calls.push(model),
           variant: {
             current: () => undefined,
@@ -130,6 +133,7 @@ describe("restorePromptModel", () => {
       {
         model: {
           current: () => ({ id: "gpt", provider: { id: "openai" } }),
+          picked: () => undefined,
           set: (model) => calls.push(model),
           variant: {
             current: () => undefined,
@@ -146,6 +150,34 @@ describe("restorePromptModel", () => {
     )
 
     expect(restored).toBe(false)
+    expect(calls).toEqual([])
+  })
+})
+
+describe("restorePromptModel with a session pick", () => {
+  test("leaves a session that already has a pick alone", () => {
+    const calls: unknown[] = []
+    const restored = restorePromptModel(
+      {
+        model: {
+          current: () => ({ id: "qwen3.8:q6-xl", provider: { id: "ollama" } }),
+          picked: () => ({ providerID: "ollama", modelID: "qwen3.8:q6-xl" }),
+          set: (model) => calls.push(model),
+          variant: {
+            current: () => undefined,
+            set: (variant) => calls.push(variant),
+          },
+        },
+      },
+      {
+        model: {
+          current: () => ({ providerID: "local", modelID: "qwen3-coder-30b-a3b" }),
+          set() {},
+        },
+      },
+    )
+
+    expect(restored).toBe(true)
     expect(calls).toEqual([])
   })
 })
