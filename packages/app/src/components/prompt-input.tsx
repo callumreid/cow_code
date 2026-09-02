@@ -285,12 +285,31 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     return text.trim().length === 0 && imageAttachments().length === 0 && commentCount() === 0
   })
   const stopping = createMemo(() => working() && blank())
+  const steerable = createMemo(() => working() && !blank() && store.mode === "normal" && !!props.shouldQueue?.())
   const tip = () => {
     if (stopping()) {
       return (
         <div class="flex items-center gap-2">
           <span>{language.t("prompt.action.stop")}</span>
           <span class="text-icon-base text-12-medium text-[10px]!">{language.t("common.key.esc")}</span>
+        </div>
+      )
+    }
+
+    if (steerable()) {
+      return (
+        <div class="flex flex-col gap-1">
+          <div class="flex items-center justify-between gap-2">
+            <span>{language.t("settings.general.row.followup.option.queue")}</span>
+            <Icon name="enter" size="small" class="text-icon-base" />
+          </div>
+          <div class="flex items-center justify-between gap-2">
+            <span>{language.t("settings.general.row.followup.option.steer")}</span>
+            <span class="flex items-center gap-1 text-icon-base text-12-medium text-[10px]!">
+              <span>⌘</span>
+              <Icon name="enter" size="small" class="text-icon-base" />
+            </span>
+          </div>
         </div>
       )
     }
@@ -1305,8 +1324,21 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
       }
     }
 
+    if (
+      event.key === "Enter" &&
+      (event.metaKey || event.ctrlKey) &&
+      !event.altKey &&
+      !event.shiftKey &&
+      !isImeComposing(event)
+    ) {
+      event.preventDefault()
+      if (event.repeat || blank()) return
+      void handleSubmit(event, { steer: true })
+      return
+    }
+
     // Handle Shift+Enter BEFORE IME check - Shift+Enter is never used for IME input
-    // and should always insert a newline regardless of composition state
+    // and should always insert a newline regardless of composition state.
     if (event.key === "Enter" && event.shiftKey) {
       addPart({ type: "text", content: "\n", start: 0, end: 0 })
       event.preventDefault()
@@ -1598,13 +1630,27 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
               <Tooltip placement="top" inactive={!working() && blank()} value={tip()}>
                 <IconButton
                   data-action="prompt-submit"
-                  type="submit"
+                  type="button"
                   disabled={!working() && blank()}
                   tabIndex={store.mode === "normal" ? undefined : -1}
                   icon={stopping() ? "stop" : store.mode === "shell" ? "arrow-undo-down" : "arrow-up"}
                   variant="primary"
                   class="size-8"
-                  aria-label={stopping() ? language.t("prompt.action.stop") : language.t("prompt.action.send")}
+                  aria-label={
+                    stopping()
+                      ? language.t("prompt.action.stop")
+                      : steerable()
+                        ? language.t("settings.general.row.followup.option.steer")
+                        : language.t("prompt.action.send")
+                  }
+                  onClick={(event) => {
+                    event.preventDefault()
+                    if (stopping()) {
+                      void abort()
+                      return
+                    }
+                    void handleSubmit(event, { steer: true })
+                  }}
                 />
               </Tooltip>
             </div>

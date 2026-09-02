@@ -37,7 +37,7 @@ export type PromptInputV2ViewConfig = {
   submit: {
     stopping: Accessor<boolean>
     working?: Accessor<boolean>
-    onSubmit: () => void
+    onSubmit: (opts?: { steer?: boolean }) => void
     onStop: () => void
   }
   shell?: {
@@ -195,6 +195,21 @@ export function createPromptInputV2Controller(input: {
     ) {
       event.preventDefault()
       attach()
+      return true
+    }
+    if (
+      state.mode === "normal" &&
+      event.key === "Enter" &&
+      (event.metaKey || event.ctrlKey) &&
+      !event.altKey &&
+      !event.shiftKey &&
+      !event.isComposing
+    ) {
+      event.preventDefault()
+      if (!event.repeat) {
+        input.view.submit.onSubmit({ steer: true })
+        dispatch({ type: "popover.close" })
+      }
       return true
     }
     const handled = dispatch({
@@ -357,8 +372,8 @@ export function createPromptInputV2Controller(input: {
     closeShell() {
       dispatch({ type: "mode.normal" })
     },
-    submit() {
-      input.view.submit.onSubmit()
+    submit(opts?: { steer?: boolean }) {
+      input.view.submit.onSubmit(opts)
       dispatch({ type: "popover.close" })
     },
     stop() {

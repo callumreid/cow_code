@@ -12,7 +12,11 @@ import { DialogSelectModelUnpaidV2 } from "@/components/dialog-select-model-unpa
 import type { PromptInputProps } from "@/components/prompt-input/contracts"
 import { normalizePromptHistoryEntry, promptLength, type PromptHistoryComment } from "@/components/prompt-input/history"
 import { createPersistedPromptInputHistory } from "@/components/prompt-input/history-store"
-import { pickBigDogPlaceholder, promptDesignPlaceholder, promptPlaceholder } from "@/components/prompt-input/placeholder"
+import {
+  pickBigDogPlaceholder,
+  promptDesignPlaceholder,
+  promptPlaceholder,
+} from "@/components/prompt-input/placeholder"
 import { createPromptSubmit } from "@/components/prompt-input/submit"
 import { selectionFromLines, type SelectedLineRange, useFile } from "@/context/file"
 import { useComments } from "@/context/comments"
@@ -414,7 +418,7 @@ export function usePromptInputV2Controller(props: PromptInputV2ControllerProps):
       submit: {
         stopping,
         working,
-        onSubmit: () => void submission.handleSubmit(new Event("submit")),
+        onSubmit: (opts) => void submission.handleSubmit(new Event("submit"), opts),
         onStop: () => void submission.abort(),
       },
     },
