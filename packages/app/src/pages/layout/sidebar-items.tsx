@@ -15,6 +15,7 @@ import { useNotification } from "@/context/notification"
 import { usePermission } from "@/context/permission"
 import { messageAgentColor } from "@/utils/agent"
 import { sessionTitle } from "@/utils/session-title"
+import { officeOpen } from "@/office/presence"
 import { sessionPermissionRequest } from "../session/composer/session-request-tree"
 import { useServerSDK } from "@/context/server-sdk"
 import { childSessionOnPath, getProjectAvatarSource, hasProjectPermissions } from "./helpers"
@@ -240,7 +241,8 @@ export const SessionItem = (props: SessionItemProps): JSX.Element => {
     <>
       <div
         data-session-id={props.session.id}
-        class="group/session relative w-full min-w-0 rounded-md cursor-default pr-3 transition-colors hover:bg-surface-raised-base-hover [&:has(:focus-visible)]:bg-surface-raised-base-hover has-[[data-expanded]]:bg-surface-raised-base-hover has-[.active]:bg-surface-base-active"
+        class="group/session relative w-full min-w-0 rounded-md cursor-default pr-3 transition-colors hover:bg-surface-raised-base-hover [&:has(:focus-visible)]:bg-surface-raised-base-hover has-[[data-expanded]]:bg-surface-raised-base-hover"
+        classList={{ "has-[.active]:bg-surface-base-active": !officeOpen() }}
         style={{ "padding-left": `${8 + (props.level ?? 0) * 16}px` }}
       >
         <div class="flex min-w-0 items-center gap-1">
@@ -349,7 +351,10 @@ export const NewSessionItem = (props: {
   )
 
   return (
-    <div class="group/session relative w-full min-w-0 rounded-md cursor-default transition-colors pl-2 pr-3 hover:bg-surface-raised-base-hover [&:has(:focus-visible)]:bg-surface-raised-base-hover has-[.active]:bg-surface-base-active">
+    <div
+      class="group/session relative w-full min-w-0 rounded-md cursor-default transition-colors pl-2 pr-3 hover:bg-surface-raised-base-hover [&:has(:focus-visible)]:bg-surface-raised-base-hover"
+      classList={{ "has-[.active]:bg-surface-base-active": !officeOpen() }}
+    >
       <Show
         when={!tooltip()}
         fallback={
