@@ -1,11 +1,11 @@
-import type { FilePart, Part, ToolPart } from "@opencode-ai/sdk/v2/client"
+import type { Part, ToolPart } from "@opencode-ai/sdk/v2/client"
 
 export type ToolSurface = "browser" | "slack" | "integration"
 
 export type SurfacePreview = {
   part: ToolPart
   surface: ToolSurface
-  image?: FilePart
+  image?: { url: string }
 }
 
 const LOCAL_TOOLS = new Set([
@@ -42,9 +42,26 @@ export function toolSurface(part: ToolPart): ToolSurface | undefined {
   return undefined
 }
 
-function imageAttachment(part: ToolPart): FilePart | undefined {
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null
+}
+
+function codeModeContent(part: ToolPart): unknown[] {
+  if (!("metadata" in part.state) || !isRecord(part.state.metadata)) return []
+  const content = part.state.metadata.content
+  return Array.isArray(content) ? content : []
+}
+
+function imageAttachment(part: ToolPart): { url: string } | undefined {
   if (part.state.status !== "completed") return undefined
-  return part.state.attachments?.find((item) => item.mime.startsWith("image/"))
+  const attachment = part.state.attachments?.find((item) => item.mime.startsWith("image/"))
+  if (attachment) return { url: attachment.url }
+
+  const file = codeModeContent(part).find(
+    (item) =>
+      isRecord(item) && item.type === "file" && typeof item.uri === "string" && item.uri.startsWith("data:image/"),
+  )
+  return isRecord(file) && typeof file.uri === "string" ? { url: file.uri } : undefined
 }
 
 export function activeSurfacePreview(
@@ -81,7 +98,11 @@ export function activeSurfacePreview(
 }
 
 export function toolAction(part: ToolPart) {
-  return part.tool
+  const details = "metadata" in part.state && isRecord(part.state.metadata) ? part.state.metadata.metadata : undefined
+  const calls = isRecord(details) && Array.isArray(details.toolCalls) ? details.toolCalls : []
+  const nested = calls.findLast((item) => isRecord(item) && typeof item.tool === "string")
+  const name = isRecord(nested) && typeof nested.tool === "string" ? nested.tool.split(".").at(-1)! : part.tool
+  return name
     .replace(/^playwright_/, "")
     .replace(/^browser_/, "")
     .replaceAll("_", " ")
