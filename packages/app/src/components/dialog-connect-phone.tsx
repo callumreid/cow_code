@@ -16,7 +16,7 @@ type State =
   | { status: "loading" }
   | { status: "unavailable" }
   | { status: "error"; message: string }
-  | { status: "ready"; hosts: string[] }
+  | { status: "ready"; origins: string[] }
 
 function QrSvg(props: { text: string }) {
   const qr = createMemo(() => encode(props.text, { ecc: "L", border: 2 }))
@@ -43,7 +43,7 @@ export function DialogConnectPhone() {
   const platform = usePlatform()
   const server = useServer()
   const [state, setState] = createStore<{ value: State }>({ value: { status: "loading" } })
-  const [hostIndex, setHostIndex] = createSignal(0)
+  const [originIndex, setOriginIndex] = createSignal(0)
 
   const http = createMemo(() => {
     const current = server.current
@@ -54,22 +54,27 @@ export function DialogConnectPhone() {
     const base = http()
     if (!base) return setState("value", { status: "unavailable" })
     const parsed = new URL(base.url)
-    if (!LOOPBACK.has(parsed.hostname)) return setState("value", { status: "ready", hosts: [parsed.host] })
+    if (!LOOPBACK.has(parsed.hostname)) return setState("value", { status: "ready", origins: [parsed.origin] })
     if (!platform.companionInfo) return setState("value", { status: "unavailable" })
     try {
       const info = await platform.companionInfo()
-      const hosts = (info.hosts.length ? info.hosts : [parsed.hostname]).map((host) => `${host}:${info.port}`)
-      setState("value", { status: "ready", hosts })
+      const insecureOrigins = (info.hosts.length ? info.hosts : [parsed.hostname]).map(
+        (host) => `http://${host}:${info.port}/`,
+      )
+      const origins = [...new Set([...(info.secureOrigins ?? []), ...insecureOrigins])]
+      setState("value", { status: "ready", origins })
     } catch (error) {
       setState("value", { status: "error", message: error instanceof Error ? error.message : String(error) })
     }
   })
 
-  const hosts = createMemo(() => (state.value.status === "ready" ? state.value.hosts : []))
+  const origins = createMemo(() => (state.value.status === "ready" ? state.value.origins : []))
+  const selectedOrigin = createMemo(() => origins()[originIndex() % origins().length])
+  const secure = createMemo(() => selectedOrigin()?.startsWith("https://") ?? false)
   const url = createMemo(() => {
     const base = http()
-    if (!base || !hosts().length) return ""
-    const host = hosts()[hostIndex() % hosts().length]
+    const origin = selectedOrigin()
+    if (!base || !origin) return ""
     const params = new URLSearchParams()
     if (base.password) {
       params.set("auth_token", authTokenFromCredentials({ username: base.username, password: base.password }))
@@ -77,8 +82,9 @@ export function DialogConnectPhone() {
     // Carry the workspace list so the phone's home shows these projects
     // immediately (see ProjectsFromUrl).
     for (const project of server.projects.list()) params.append("project", base64Encode(project.worktree))
-    const query = params.toString()
-    return `http://${host}/${query ? `?${query}` : ""}`
+    const target = new URL(origin)
+    target.search = params.toString()
+    return target.toString()
   })
 
   const copy = () => {
@@ -101,8 +107,7 @@ export function DialogConnectPhone() {
           </Match>
           <Match when={state.value.status === "error"}>
             <p class="text-14-regular text-text-weak break-all">
-              {language.t("dialog.phone.error")}{" "}
-              {state.value.status === "error" ? state.value.message : ""}
+              {language.t("dialog.phone.error")} {state.value.status === "error" ? state.value.message : ""}
             </p>
           </Match>
           <Match when={state.value.status === "ready"}>
@@ -110,24 +115,27 @@ export function DialogConnectPhone() {
             <div class="flex flex-col gap-1 items-center">
               <p class="text-14-regular text-text-base text-center">{language.t("dialog.phone.description")}</p>
               <p class="text-12-regular text-text-weak text-center">{language.t("dialog.phone.network")}</p>
+              <p class="text-12-regular text-text-weak text-center">
+                {language.t(secure() ? "dialog.phone.voiceSecure" : "dialog.phone.voiceNeedsHttps")}
+              </p>
               {!http()?.password && (
                 <p class="text-12-regular text-text-weak text-center">{language.t("dialog.phone.insecure")}</p>
               )}
             </div>
-            {hosts().length > 1 && (
+            {origins().length > 1 && (
               <div class="flex flex-wrap gap-2 justify-center">
-                <For each={hosts()}>
-                  {(host, index) => (
+                <For each={origins()}>
+                  {(origin, index) => (
                     <button
                       type="button"
                       class="px-2 py-0.5 rounded-md text-12-regular border"
                       classList={{
-                        "border-border-strong text-text-base": index() === hostIndex() % hosts().length,
-                        "border-border-base text-text-weak": index() !== hostIndex() % hosts().length,
+                        "border-border-strong text-text-base": index() === originIndex() % origins().length,
+                        "border-border-base text-text-weak": index() !== originIndex() % origins().length,
                       }}
-                      onClick={() => setHostIndex(index())}
+                      onClick={() => setOriginIndex(index())}
                     >
-                      {host}
+                      {new URL(origin).host}
                     </button>
                   )}
                 </For>

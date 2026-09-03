@@ -136,7 +136,7 @@ type PlatformBase = {
   exportDebugLogs?(): Promise<string>
 
   /** Expose the local server on the network and report reachable addresses (desktop only) */
-  companionInfo?(): Promise<{ port: number; hosts: string[] }>
+  companionInfo?(): Promise<{ port: number; hosts: string[]; secureOrigins?: string[] }>
 
   /** Rich metadata for a GitHub pull request URL, for the hover card (desktop only) */
   prDetails?(url: string): Promise<PrDetails | null>

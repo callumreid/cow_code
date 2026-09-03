@@ -16,6 +16,7 @@ import { checkAppExists, resolveAppPath } from "./apps"
 import { CHANNEL } from "./constants"
 import { registerIpcHandlers, sendDeepLinks, sendMenuCommand } from "./ipc"
 import { getNetworkIPs } from "./network-ips"
+import { getTailscaleServeOrigins } from "./tailscale-serve"
 import { getPrDetails } from "./pr-details"
 import { forwardInitializationFailure } from "./initialization"
 import { exportDebugLogs, initCrashReporter, initLogging, startNetLog, write as writeLog } from "./logging"
@@ -313,7 +314,7 @@ const main = Effect.gen(function* () {
       const current = server
       if (!current) throw new Error("The local server is not managed by this window")
       const port = await current.expose()
-      return { port, hosts: getNetworkIPs() }
+      return { port, hosts: getNetworkIPs(), secureOrigins: await getTailscaleServeOrigins(port) }
     },
     recordFatalRendererError: (error) => writeLog("renderer", "fatal renderer error", { ...error }, "error"),
     setNativeTranslations: (bundle) => {
