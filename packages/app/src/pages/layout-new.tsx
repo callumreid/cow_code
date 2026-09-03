@@ -1,13 +1,18 @@
-import { createEffect, Suspense, type ParentProps } from "solid-js"
+import { createEffect, Show, Suspense, type ParentProps } from "solid-js"
 import { createStore } from "solid-js/store"
+import { useNavigate } from "@solidjs/router"
 import { DebugBar } from "@/components/debug-bar"
 import { TabsInfoPopup } from "@/components/help-button"
 import { Titlebar, type TitlebarUpdate } from "@/components/titlebar"
 import { usePlatform } from "@/context/platform"
+import { useOffice } from "@/office/context"
+import { OfficePanel } from "@/pages/layout/office-panel"
 import { setV2Toast, ToastRegion } from "@/utils/toast"
 
 export default function NewLayout(props: ParentProps) {
   const platform = usePlatform()
+  const office = useOffice()
+  const navigate = useNavigate()
   const [state, setState] = createStore({ debugTools: true })
 
   createEffect(() => setV2Toast(true))
@@ -32,6 +37,10 @@ export default function NewLayout(props: ParentProps) {
     >
       <Titlebar
         update={update}
+        office={{
+          opened: office.opened,
+          toggle: () => (office.opened() ? office.close() : office.open()),
+        }}
         debugTools={
           import.meta.env.DEV
             ? { visible: state.debugTools, toggle: () => setState("debugTools", (value) => !value) }
@@ -41,6 +50,17 @@ export default function NewLayout(props: ParentProps) {
       <main class="flex-1 min-h-0 min-w-0 overflow-x-hidden flex flex-col items-start contain-strict">
         <Suspense>{props.children}</Suspense>
       </main>
+      <Show when={office.opened()}>
+        <div class="absolute inset-x-0 top-9 bottom-0 z-50 overflow-hidden bg-v2-background-bg-base">
+          <OfficePanel
+            onClose={() => office.close()}
+            onNavigate={(href) => {
+              office.close()
+              navigate(href)
+            }}
+          />
+        </div>
+      </Show>
       {import.meta.env.DEV && state.debugTools && <DebugBar inline />}
       <TabsInfoPopup />
       <ToastRegion v2 />

@@ -458,7 +458,9 @@ function NewAppLayout(props: ParentProps<{ serverScoped?: JSX.Element }>) {
   return (
     <SelectedServerProviders>
       <ServerScopedProviders serverScoped={props.serverScoped}>
-        <NewLayout>{props.children}</NewLayout>
+        <OfficeProvider>
+          <NewLayout>{props.children}</NewLayout>
+        </OfficeProvider>
       </ServerScopedProviders>
     </SelectedServerProviders>
   )

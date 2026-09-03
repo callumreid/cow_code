@@ -61,7 +61,11 @@ export function useTitlebarRightMount() {
   return mount
 }
 
-export function Titlebar(props: { update?: TitlebarUpdate; debugTools?: { visible: boolean; toggle: () => void } }) {
+export function Titlebar(props: {
+  update?: TitlebarUpdate
+  debugTools?: { visible: boolean; toggle: () => void }
+  office?: { opened: () => boolean; toggle: () => void }
+}) {
   const layout = useLayout()
   const platform = usePlatform()
   const command = useCommand()
@@ -394,6 +398,24 @@ export function Titlebar(props: { update?: TitlebarUpdate; debugTools?: { visibl
                     aria-pressed={layout.route().type === "home"}
                   />
                 </TooltipV2>
+
+                <Show when={props.office} keyed>
+                  {(office) => (
+                    <TooltipV2 placement="bottom" value="Farmer's Office" class="shrink-0">
+                      <IconButtonV2
+                        type="button"
+                        variant="ghost-muted"
+                        size="large"
+                        class="!w-9 shrink-0"
+                        icon={<Icon name="eye" />}
+                        state={office.opened() ? "pressed" : undefined}
+                        onClick={office.toggle}
+                        aria-label="Farmer's Office"
+                        aria-pressed={office.opened()}
+                      />
+                    </TooltipV2>
+                  )}
+                </Show>
 
                 <TitlebarTabStrip
                   tabs={tabsStore}

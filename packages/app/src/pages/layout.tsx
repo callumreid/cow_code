@@ -187,10 +187,12 @@ export default function LegacyLayout(props: ParentProps) {
   const openPullRequests = () => {
     office.close()
     setState("pullRequests", true)
+    layout.mobileSidebar.hide()
   }
   const openOffice = () => {
     setState("pullRequests", false)
     office.open()
+    layout.mobileSidebar.hide()
   }
 
   const updateVersion = () => {
@@ -2406,7 +2408,7 @@ export default function LegacyLayout(props: ParentProps) {
               style={{ "inset-inline-start": "calc(4rem + 12px)" }}
             />
 
-            <div class="hidden">
+            <div class="xl:hidden">
               <div
                 classList={{
                   "fixed inset-x-0 top-10 bottom-0 z-40 transition-opacity duration-200": true,
