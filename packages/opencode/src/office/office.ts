@@ -16,6 +16,8 @@ import { Question } from "@/question"
 import { Session } from "@/session/session"
 import { SessionID } from "@/session/schema"
 import { Context, Effect, Layer, Schema, Scope } from "effect"
+import { execFile } from "child_process"
+import fs from "fs/promises"
 import path from "path"
 import { classify, type Autonomy } from "./policy"
 
@@ -248,19 +250,20 @@ const layer = Layer.effect(
     const settingsFile = path.join(directory, "settings.json")
     let seq = 0
 
+    // The packaged sidecar runs under Node, so only Node APIs may be used here.
     const persist = () =>
-      Effect.promise(() =>
-        Bun.write(
+      Effect.tryPromise(() =>
+        fs.writeFile(
           settingsFile,
           JSON.stringify({ autonomy: settings.autonomy, overseer: settings.overseer, marks: [...marks] }, null, 2),
         ),
       ).pipe(Effect.ignore)
 
     const restore = Effect.gen(function* () {
-      yield* Effect.promise(() => Bun.$`mkdir -p ${directory}`.quiet().nothrow()).pipe(Effect.ignore)
-      const file = Bun.file(settingsFile)
-      if (!(yield* Effect.promise(() => file.exists()))) return
-      const data = yield* Effect.promise(() => file.json()).pipe(Effect.orElseSucceed(() => undefined))
+      yield* Effect.tryPromise(() => fs.mkdir(directory, { recursive: true })).pipe(Effect.ignore)
+      const data: unknown = yield* Effect.tryPromise(() => fs.readFile(settingsFile, "utf8").then(JSON.parse)).pipe(
+        Effect.orElseSucceed(() => undefined),
+      )
       if (!data || typeof data !== "object") return
       const stored = data as { autonomy?: Autonomy; overseer?: OverseerRef; marks?: [string, Row][] }
       if (stored.autonomy === "brief" || stored.autonomy === "act") settings.autonomy = stored.autonomy
@@ -607,12 +610,15 @@ const layer = Layer.effect(
     // lists live processes but not their state, so they always read as working.
     const claude = new Map<string, Row>()
     const claudeTick = Effect.gen(function* () {
-      const proc = Bun.spawn(["claude", "agents", "--json"], { stdout: "pipe", stderr: "ignore" })
-      const text = yield* Effect.promise(() => new Response(proc.stdout).text()).pipe(
-        Effect.timeout("10 seconds"),
-        Effect.orElseSucceed(() => ""),
-        Effect.ensuring(Effect.sync(() => proc.kill())),
-      )
+      const text = yield* Effect.tryPromise(
+        () =>
+          new Promise<string>((resolve, reject) => {
+            execFile("claude", ["agents", "--json"], { timeout: 10_000, maxBuffer: 4 * 1024 * 1024 }, (error, stdout) => {
+              if (error) return reject(error)
+              resolve(stdout)
+            })
+          }),
+      ).pipe(Effect.orElseSucceed(() => ""))
       const parsed: unknown = text.trim() ? JSON.parse(text) : []
       if (!Array.isArray(parsed)) return
       const now = Date.now()
