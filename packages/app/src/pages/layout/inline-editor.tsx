@@ -91,6 +91,7 @@ export function createInlineEditorController() {
               frame = undefined
               if (!el.isConnected) return
               el.focus()
+              el.select()
             })
           }}
           value={editorValue()}
