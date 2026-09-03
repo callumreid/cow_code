@@ -5,7 +5,14 @@ import { Effect } from "effect"
 import { HttpServerResponse } from "effect/unstable/http"
 import { HttpApiBuilder } from "effect/unstable/httpapi"
 import { RootHttpApi } from "../api"
-import type { AskInput, AutonomyInput, ThreadMarkInput, ThreadPromptInput, VoiceTokenInput } from "../groups/office"
+import type {
+  AskInput,
+  AutonomyInput,
+  BriefInput,
+  ThreadMarkInput,
+  ThreadPromptInput,
+  VoiceTokenInput,
+} from "../groups/office"
 
 const DEFAULT_VOICE_MODEL = "gpt-realtime-2.1"
 const DEFAULT_VOICE = "marin"
@@ -64,6 +71,10 @@ export const officeHandlers = HttpApiBuilder.group(RootHttpApi, "office", (handl
 
     const ask = Effect.fn("OfficeHttpApi.ask")(function* (ctx: { payload: typeof AskInput.Type }) {
       return yield* driver.ask(ctx.payload)
+    })
+
+    const brief = Effect.fn("OfficeHttpApi.brief")(function* (ctx: { payload: typeof BriefInput.Type }) {
+      return yield* driver.brief(ctx.payload)
     })
 
     const threadPrompt = Effect.fn("OfficeHttpApi.threadPrompt")(function* (ctx: {
@@ -132,6 +143,7 @@ export const officeHandlers = HttpApiBuilder.group(RootHttpApi, "office", (handl
       .handle("state", state)
       .handle("overseer", overseer)
       .handle("ask", ask)
+      .handle("brief", brief)
       .handle("threadPrompt", threadPrompt)
       .handle("threadAnswer", threadAnswer)
       .handle("threadMark", threadMark)

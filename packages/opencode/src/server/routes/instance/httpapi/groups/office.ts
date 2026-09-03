@@ -12,6 +12,10 @@ export const AskInput = Schema.Struct({
 
 export const AskResult = Schema.Struct({ text: Schema.String, sessionID: Schema.String })
 
+export const BriefInput = Schema.Struct({ since: Schema.Finite })
+
+export const BriefResult = Schema.Struct({ text: Schema.String, sessionID: Schema.String, skipped: Schema.Boolean })
+
 export const ThreadPromptInput = Schema.Struct({
   sessionID: Schema.String,
   text: Schema.String,
@@ -45,6 +49,7 @@ export const OfficePaths = {
   state: "/global/office/state",
   overseer: "/global/office/overseer",
   ask: "/global/office/ask",
+  brief: "/global/office/brief",
   threadPrompt: "/global/office/thread/prompt",
   threadAnswer: "/global/office/thread/answer",
   threadMark: "/global/office/thread/mark",
@@ -65,6 +70,10 @@ export const OfficeApi = HttpApi.make("office").add(
         payload: AskInput,
         success: described(AskResult, "The farmer's reply"),
       }).annotateMerge(OpenApi.annotations({ identifier: "office.ask", summary: "Ask the farmer" })),
+      HttpApiEndpoint.post("brief", OfficePaths.brief, {
+        payload: BriefInput,
+        success: described(BriefResult, "What changed since Callum last looked"),
+      }).annotateMerge(OpenApi.annotations({ identifier: "office.brief", summary: "Brief on what changed since a time" })),
       HttpApiEndpoint.post("threadPrompt", OfficePaths.threadPrompt, {
         payload: ThreadPromptInput,
         success: Ok,

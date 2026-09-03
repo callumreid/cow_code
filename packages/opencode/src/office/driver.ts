@@ -12,6 +12,7 @@ import { Office } from "./office"
 export interface Interface {
   readonly ensureOverseer: () => Effect.Effect<Office.OverseerRef>
   readonly ask: (input: { text: string; source?: "text" | "voice" }) => Effect.Effect<{ text: string; sessionID: string }>
+  readonly brief: (input: { since: number }) => Effect.Effect<{ text: string; sessionID: string; skipped: boolean }>
   readonly promptThread: (input: {
     sessionID: string
     text: string
@@ -27,15 +28,19 @@ export interface Interface {
 
 export class Service extends Context.Service<Service, Interface>()("@opencode/OfficeDriver") {}
 
-const COALESCE_MS = 12_000
-const URGENT = new Set<Office.ReportKind>(["permission", "question", "error"])
+// Silence by default: a plain finish is a card and nothing more. Review-ready
+// threads batch into one digest per DIGEST_MS; anything that needs a decision
+// or is broken wakes the farmer at once.
+const DIGEST_MS = 10 * 60_000
+const URGENT = new Set<Office.ReportKind>(["permission", "question", "error", "stalled"])
+const QUIET = new Set<Office.ReportKind>(["finished", "auto_allowed"])
 
 function renderReports(reports: Office.Report[]) {
   const lines = reports.map((report) => `- ${report.kind} · "${report.title}": ${report.summary}`)
   const urgent = reports.some((report) => URGENT.has(report.kind))
   const instruction = urgent
-    ? "Handle what is yours to handle first (tier farmer permissions, questions whose answer is in the thread), then brief Callum on what needs him. Decisions get at most three options and a recommended default."
-    : "Brief Callum in one or two sentences per item. If a finished thread named an obvious next step, send it with office_prompt and say so. If nothing needs him, say so in one line."
+    ? "Handle what is yours to handle first (tier farmer permissions, questions whose answer is in the thread, a stalled thread you can nudge), then brief Callum only on what needs him. Decisions get at most three options and a recommended default. One or two sentences per item; skip items that need nothing."
+    : "These threads are ready for review. One sentence each, exact facts from the summary, nothing else. If a thread named an obvious next step, send it with office_prompt and say so in the same sentence."
   return ["<office_reports>", ...lines, "</office_reports>", instruction].join("\n")
 }
 
@@ -107,7 +112,7 @@ const layer = Layer.effect(
 
     const handleReport = (report: Office.Report) =>
       Effect.gen(function* () {
-        if (report.kind === "auto_allowed") return
+        if (QUIET.has(report.kind)) return
         if (report.kind === "permission") {
           const thread = yield* office.thread(report.sessionID)
           const waiting = thread?.waiting
@@ -137,7 +142,7 @@ const layer = Layer.effect(
 
     const tick = Effect.gen(function* () {
       if (pending.length === 0) return
-      if (!clock.urgent && Date.now() - clock.first < COALESCE_MS) return
+      if (!clock.urgent && Date.now() - clock.first < DIGEST_MS) return
       yield* flush
     })
     yield* Effect.forever(Effect.sleep("2 seconds").pipe(Effect.andThen(tick))).pipe(
@@ -160,6 +165,27 @@ const layer = Layer.effect(
     const ask = Effect.fn("OfficeDriver.ask")(function* (input: { text: string; source?: "text" | "voice" }) {
       const text = input.source === "voice" ? `(spoken, from voice — keep the reply under forty words)\n${input.text}` : input.text
       return yield* turn({ text, synthetic: false }).pipe(Effect.orDie)
+    })
+
+    // "Since you last looked": one short brief when Callum opens the office, and
+    // no model call at all when nothing happened.
+    const brief = Effect.fn("OfficeDriver.brief")(function* (input: { since: number }) {
+      const state = yield* office.state()
+      const since = state.reports.filter((report) => report.time > input.since && report.kind !== "auto_allowed")
+      const needs = state.threads.filter((thread) => thread.bucket === "needs_you" || thread.bucket === "failed")
+      if (since.length === 0 && needs.length === 0) {
+        const ref = yield* ensureOverseer()
+        return { text: "", sessionID: ref.sessionID, skipped: true }
+      }
+      const lines = since.map((report) => `- ${report.kind} · "${report.title}": ${report.summary}`)
+      const text = [
+        "<office_since_last_look>",
+        ...(lines.length ? lines : ["- nothing new was reported"]),
+        "</office_since_last_look>",
+        `Callum just opened the office. In at most three sentences, tell him what changed since he last looked and what needs him now (${needs.length} thread${needs.length === 1 ? "" : "s"} need a decision or failed). Lead with what needs him. Do not repeat anything you already told him unless it still needs him.`,
+      ].join("\n")
+      const result = yield* turn({ text, synthetic: true }).pipe(Effect.orDie)
+      return { ...result, skipped: false }
     })
 
     const directoryOf = Effect.fn("OfficeDriver.directoryOf")(function* (sessionID: string) {
@@ -205,7 +231,7 @@ const layer = Layer.effect(
       return { sessionID: created.id }
     })
 
-    return Service.of({ ensureOverseer, ask, promptThread, dispatch })
+    return Service.of({ ensureOverseer, ask, brief, promptThread, dispatch })
   }),
 )
 
