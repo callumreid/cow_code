@@ -28,19 +28,28 @@ export interface Interface {
 
 export class Service extends Context.Service<Service, Interface>()("@opencode/OfficeDriver") {}
 
-// Silence by default: a plain finish is a card and nothing more. Review-ready
-// threads batch into one digest per DIGEST_MS; anything that needs a decision
-// or is broken wakes the farmer at once.
-const DIGEST_MS = 10 * 60_000
+// Every report worth a look wakes the farmer, coalesced over a few seconds so a
+// burst becomes one turn. Finishes get an outcome read (what was done, what it
+// means, what is next) rather than a status line; auto-allowed permissions stay quiet.
+const DIGEST_MS = 8_000
 const URGENT = new Set<Office.ReportKind>(["permission", "question", "error", "stalled"])
-const QUIET = new Set<Office.ReportKind>(["finished", "auto_allowed"])
+const QUIET = new Set<Office.ReportKind>(["auto_allowed"])
 
 function renderReports(reports: Office.Report[]) {
-  const lines = reports.map((report) => `- ${report.kind} · "${report.title}": ${report.summary}`)
+  const lines = reports.map((report) => `- ${report.kind} · [${report.sessionID}] "${report.title}": ${report.summary}`)
   const urgent = reports.some((report) => URGENT.has(report.kind))
   const instruction = urgent
-    ? "Handle what is yours to handle first (tier farmer permissions, questions whose answer is in the thread, a stalled thread you can nudge), then brief Callum only on what needs him. Decisions get at most three options and a recommended default. One or two sentences per item; skip items that need nothing."
-    : "These threads are ready for review. One sentence each, exact facts from the summary, nothing else. If a thread named an obvious next step, send it with office_prompt and say so in the same sentence."
+    ? [
+        "Handle what is yours to handle first, then brief Callum only on what needs him.",
+        "A question is answered with office_answer(question_id, answers=[[exact option label]]) — office_prompt does not unblock it. Tier farmer permissions you may answer; tier callum you present with at most three options and a recommended default.",
+        "For any finished thread in this batch, read it with office_read and give the outcome: what it did, what that means, and the next step, in two to four sentences.",
+        "Never open with a status line; skip anything that needs nothing.",
+      ].join(" ")
+    : [
+        "These threads finished. For each, call office_read, then tell Callum the outcome in two to four sentences: what was done (exact numbers, file counts, PR links), what it means for him, and the recommended next step.",
+        "If the thread stopped short of its goal or left something for him to decide, say so plainly and offer at most three options. If the obvious next step is safe and clearly what he wanted, send it with office_prompt and say that you did.",
+        "Do not write status lines like 'nothing needs you'; if there is genuinely nothing to add, one short sentence on what finished is enough.",
+      ].join(" ")
   return ["<office_reports>", ...lines, "</office_reports>", instruction].join("\n")
 }
 

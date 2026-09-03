@@ -18,6 +18,7 @@ import { SessionID } from "@/session/schema"
 import { Context, Effect, Layer, Schema, Scope } from "effect"
 import { execFile } from "child_process"
 import fs from "fs/promises"
+import os from "os"
 import path from "path"
 import { classify, type Autonomy } from "./policy"
 
@@ -67,7 +68,7 @@ export const Thread = Schema.Struct({
   pr: Schema.optional(Schema.String),
   pinned: Schema.Boolean,
   muted: Schema.Boolean,
-  source: Schema.Literals(["cow", "claude"]),
+  source: Schema.Literals(["cow", "claude", "codex"]),
   time: Schema.Struct({
     created: Schema.Finite,
     updated: Schema.Finite,
@@ -226,6 +227,23 @@ function describeWaiting(waiting: Waiting | undefined) {
   }
   if (waiting.kind === "question") return `question: ${trim(waiting.questions[0]?.question, 160) ?? ""}`
   return `error: ${trim(waiting.message, 160) ?? ""}`
+}
+
+// The farmer needs the ids and the exact option labels to answer with office_answer;
+// a steer through office_prompt does not unblock a pending question or permission.
+function describeWaitingForFarmer(waiting: Waiting | undefined) {
+  if (!waiting) return ""
+  if (waiting.kind === "permission") return `${describeWaiting(waiting)} · permission_id ${waiting.id}`
+  if (waiting.kind === "question") {
+    const questions = waiting.questions
+      .map((question, index) => {
+        const options = question.options.map((option) => `"${option.label}"`).join(" | ")
+        return `q${index + 1} "${trim(question.question, 200)}" options: ${options}${question.multiple ? " (multiple)" : ""}${question.custom === false ? "" : " (custom text allowed)"}`
+      })
+      .join("; ")
+    return `question_id ${waiting.id} · ${questions} — answer with office_answer(question_id, answers=[[label], …]); a steer will NOT unblock it`
+  }
+  return describeWaiting(waiting)
 }
 
 const layer = Layer.effect(
@@ -392,8 +410,11 @@ const layer = Layer.effect(
           const row = yield* resolve(payload.sessionID)
           if (!row) return
           if (payload.status.type === "busy") {
-            row.bucket = "working"
-            row.waiting = undefined
+            // A pending permission or question survives busy: the run is still
+            // in progress while it waits, and only a reply clears it.
+            const blocked = row.waiting?.kind === "permission" || row.waiting?.kind === "question"
+            row.bucket = blocked ? "needs_you" : "working"
+            if (!blocked) row.waiting = undefined
             row.stalled = false
             row.lastPartAt = Date.now()
             row.summary = summarize(row)
@@ -456,7 +477,7 @@ const layer = Layer.effect(
             sessionID: row.sessionID,
             directory: row.directory,
             title: row.title,
-            summary: row.summary,
+            summary: describeWaitingForFarmer(row.waiting),
           })
           return
         }
@@ -496,7 +517,7 @@ const layer = Layer.effect(
             sessionID: row.sessionID,
             directory: row.directory,
             title: row.title,
-            summary: row.summary,
+            summary: describeWaitingForFarmer(row.waiting),
           })
           return
         }
@@ -597,14 +618,180 @@ const layer = Layer.effect(
       emit("office.seeded", { threads: rows.size })
     }).pipe(Effect.catchCause((cause) => Effect.logWarning("office seed failed", { cause })))
 
+    const find = (id: string) => rows.get(id) ?? claude.get(id) ?? codex.get(id)
+
     const flush = Effect.sync(() => {
       if (dirty.size === 0) return
       for (const id of dirty) {
-        const row = rows.get(id) ?? claude.get(id)
+        const row = find(id)
         if (row) emit("office.thread", publicThread(row))
       }
       dirty.clear()
     })
+
+    // Codex threads from the ChatGPT desktop app, read-only: every thread is a
+    // JSONL rollout under ~/.codex/sessions/YYYY/MM/DD. The head carries the
+    // session meta and the first user message; the tail says whether a turn is
+    // open (task_started after the last task_complete) and what was last said.
+    const codex = new Map<string, Row>()
+    const codexRoot = path.join(os.homedir(), ".codex", "sessions")
+    const codexSeen = new Map<string, { mtime: number; title: string; id: string; cwd: string; created: number }>()
+    const CODEX_HEAD = 512 * 1024
+    const CODEX_TAIL = 96 * 1024
+
+    const readSlice = (file: string, start: number, length: number) =>
+      Effect.tryPromise(async () => {
+        const handle = await fs.open(file, "r")
+        try {
+          const buffer = Buffer.alloc(length)
+          const result = await handle.read(buffer, 0, length, start)
+          return buffer.subarray(0, result.bytesRead).toString("utf8")
+        } finally {
+          await handle.close()
+        }
+      })
+
+    const parseLines = (text: string) =>
+      text
+        .split("\n")
+        .flatMap((line) => {
+          if (!line.startsWith("{")) return []
+          try {
+            return [JSON.parse(line) as { type?: string; timestamp?: string; ordinal?: number; payload?: Record<string, unknown> }]
+          } catch {
+            return []
+          }
+        })
+
+    const userText = (payload: Record<string, unknown>) => {
+      const item = payload.item as { type?: string; content?: Array<{ type?: string; text?: string }> } | undefined
+      if (item?.type !== "UserMessage") return undefined
+      const text = item.content?.find((part) => typeof part.text === "string")?.text ?? ""
+      const clean = text.replace(/<[^>]+>[\s\S]*?<\/[^>]+>/g, " ").replace(/\s+/g, " ").trim()
+      return clean || undefined
+    }
+
+    const codexTick = Effect.gen(function* () {
+      const now = Date.now()
+      const days = [0, 1, 2].map((offset) => {
+        const date = new Date(now - offset * 86_400_000)
+        return path.join(
+          codexRoot,
+          String(date.getFullYear()),
+          String(date.getMonth() + 1).padStart(2, "0"),
+          String(date.getDate()).padStart(2, "0"),
+        )
+      })
+      const files: string[] = []
+      for (const dir of days) {
+        const names = yield* Effect.tryPromise(() => fs.readdir(dir)).pipe(Effect.orElseSucceed(() => [] as string[]))
+        files.push(...names.filter((name) => name.endsWith(".jsonl")).map((name) => path.join(dir, name)))
+      }
+      const present = new Set<string>()
+      for (const file of files) {
+        const stat = yield* Effect.tryPromise(() => fs.stat(file)).pipe(Effect.orElseSucceed(() => undefined))
+        if (!stat) continue
+        if (now - stat.mtimeMs > RECENT_MS) continue
+        const cached = codexSeen.get(file)
+        const meta =
+          cached ??
+          (yield* Effect.gen(function* () {
+            const head = parseLines(yield* readSlice(file, 0, CODEX_HEAD))
+            const session = head.find((record) => record.type === "session_meta")?.payload as
+              | { id?: string; session_id?: string; cwd?: string; timestamp?: string; thread_source?: string }
+              | undefined
+            const id = session?.session_id ?? session?.id
+            if (!id) return undefined
+            // Codex automations (scheduled runs) are not Callum's threads; skip them.
+            if (session?.thread_source && session.thread_source !== "user") return undefined
+            const first = head
+              .filter((record) => record.type === "event_msg" && record.payload?.type === "item_completed")
+              .map((record) => userText(record.payload ?? {}))
+              .find((text) => text)
+            return {
+              mtime: 0,
+              id,
+              cwd: session?.cwd ?? os.homedir(),
+              title: trim(first, 80) ?? "Codex thread",
+              created: session?.timestamp ? Date.parse(session.timestamp) : stat.birthtimeMs,
+            }
+          }).pipe(Effect.orElseSucceed(() => undefined)))
+        if (!meta) continue
+        const rowID = `codex:${meta.id}`
+        present.add(rowID)
+        if (cached && cached.mtime === stat.mtimeMs) continue
+        codexSeen.set(file, { ...meta, mtime: stat.mtimeMs })
+        const tail = parseLines(yield* readSlice(file, Math.max(0, stat.size - CODEX_TAIL), CODEX_TAIL).pipe(Effect.orElseSucceed(() => "")))
+        let started = -1
+        let complete = -1
+        let last: string | undefined
+        let lastUser: string | undefined
+        let cwd = meta.cwd
+        for (const record of tail) {
+          const payload = record.payload ?? {}
+          const ordinal = record.ordinal ?? 0
+          if (record.type === "turn_context" && typeof payload.cwd === "string") cwd = payload.cwd
+          if (record.type !== "event_msg") continue
+          if (payload.type === "task_started") started = Math.max(started, ordinal)
+          if (payload.type === "task_complete") {
+            complete = Math.max(complete, ordinal)
+            if (typeof payload.last_agent_message === "string") last = payload.last_agent_message
+          }
+          if (payload.type === "item_completed") lastUser = userText(payload) ?? lastUser
+        }
+        const working = started > complete || (started < 0 && complete < 0 && now - stat.mtimeMs < 120_000)
+        const existing = codex.get(rowID)
+        const row: Row = existing ?? {
+          sessionID: rowID,
+          directory: cwd,
+          projectID: "codex",
+          projectName: "codex",
+          title: meta.title,
+          agent: "codex",
+          bucket: "done",
+          summary: "",
+          pinned: marks.get(rowID)?.pinned ?? false,
+          muted: marks.get(rowID)?.muted ?? true,
+          source: "codex",
+          time: { created: meta.created, updated: stat.mtimeMs },
+          roles: new Map(),
+          edited: false,
+          lastPartAt: stat.mtimeMs,
+          stalled: true,
+        }
+        const wasWorking = existing?.bucket === "working"
+        row.directory = cwd
+        row.title = meta.title === "Codex thread" && lastUser ? trim(lastUser, 80) ?? meta.title : meta.title
+        row.lastText = trim(last, 600)
+        const link = last?.match(PR_LINK)
+        if (link) row.pr = link[0]
+        row.bucket = working ? "working" : row.pr ? "review" : "done"
+        row.summary = working
+          ? `Codex is working${lastUser ? ` on: ${trim(lastUser, 100)}` : ""}`
+          : row.lastText
+            ? firstLine(row.lastText)
+            : "Codex thread"
+        row.time = { ...row.time, updated: stat.mtimeMs }
+        row.lastPartAt = stat.mtimeMs
+        codex.set(rowID, row)
+        dirty.add(rowID)
+        if (wasWorking && !working && !row.muted) {
+          note({
+            kind: row.pr ? "pr" : "finished",
+            sessionID: rowID,
+            directory: cwd,
+            title: `${row.title} (Codex)`,
+            summary: row.pr ? `${row.summary} · ${row.pr}` : row.summary,
+          })
+        }
+      }
+      for (const id of [...codex.keys()]) {
+        if (present.has(id)) continue
+        const row = codex.get(id)
+        codex.delete(id)
+        if (row) emit("office.thread", { ...publicThread(row), bucket: "done" })
+      }
+    }).pipe(Effect.catchCause(() => Effect.void))
 
     // Claude Code sessions on this machine, read-only: `claude agents --json`
     // lists live processes but not their state, so they always read as working.
@@ -689,9 +876,12 @@ const layer = Layer.effect(
     yield* Effect.forever(claudeTick.pipe(Effect.andThen(Effect.sleep("30 seconds")))).pipe(
       Effect.forkIn(scope, { startImmediately: true }),
     )
+    yield* Effect.forever(codexTick.pipe(Effect.andThen(Effect.sleep("20 seconds")))).pipe(
+      Effect.forkIn(scope, { startImmediately: true }),
+    )
 
     const threads = () =>
-      [...rows.values(), ...claude.values()]
+      [...rows.values(), ...claude.values(), ...codex.values()]
         .map(publicThread)
         .sort((a, b) => Number(b.pinned) - Number(a.pinned) || b.time.updated - a.time.updated)
 
@@ -711,7 +901,7 @@ const layer = Layer.effect(
     })
 
     const thread = Effect.fn("Office.thread")(function* (sessionID: string) {
-      const row = rows.get(sessionID)
+      const row = find(sessionID)
       return row ? publicThread(row) : undefined
     })
 
@@ -722,7 +912,7 @@ const layer = Layer.effect(
         muted: input.muted ?? current.muted,
       }
       marks.set(input.sessionID, next)
-      const row = rows.get(input.sessionID)
+      const row = find(input.sessionID)
       if (row) {
         row.pinned = next.pinned ?? false
         row.muted = next.muted ?? false
@@ -771,7 +961,7 @@ const layer = Layer.effect(
       const list = threads()
       const by = (bucket: Bucket) => list.filter((thread) => thread.bucket === bucket)
       const line = (thread: Thread) =>
-        `- [${thread.sessionID}] "${thread.title}" (${thread.projectName ?? path.basename(thread.directory)}) — ${thread.summary} · updated ${age(now, thread.time.updated)}${thread.muted ? " · muted" : ""}${thread.pinned ? " · pinned" : ""}`
+        `- [${thread.sessionID}] "${thread.title}" (${thread.projectName ?? path.basename(thread.directory)}) — ${thread.waiting ? describeWaitingForFarmer(thread.waiting) : thread.summary} · updated ${age(now, thread.time.updated)}${thread.muted ? " · muted" : ""}${thread.pinned ? " · pinned" : ""}${thread.source !== "cow" ? ` · ${thread.source}, read-only` : ""}`
       const section = (label: string, items: Thread[], max = 12) =>
         items.length === 0
           ? [`${label}: none`]
