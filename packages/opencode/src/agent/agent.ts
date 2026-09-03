@@ -12,6 +12,7 @@ import { ProviderTransform } from "@/provider/transform"
 import PROMPT_GENERATE from "./generate.txt"
 import PROMPT_COMPACTION from "./prompt/compaction.txt"
 import PROMPT_EXPLORE from "./prompt/explore.txt"
+import PROMPT_FARMER from "./prompt/farmer.txt"
 import PROMPT_SUMMARY from "./prompt/summary.txt"
 import PROMPT_TITLE from "./prompt/title.txt"
 import { Permission } from "@/permission"
@@ -119,6 +120,8 @@ const layer = Layer.effect(
         const defaults = Permission.fromConfig({
           "*": "allow",
           doom_loop: "ask",
+          // Only the farmer may reach into other threads.
+          "office_*": "deny",
           external_directory: {
             "*": "ask",
             ...Object.fromEntries(whitelistedDirs.map((dir) => [dir, "allow"])),
@@ -215,6 +218,24 @@ const layer = Layer.effect(
             options: {},
             mode: "subagent",
             native: true,
+          },
+          farmer: {
+            name: "farmer",
+            description:
+              "Runs the Farmer's Office: watches every thread, briefs Callum, answers what it may, and steers threads.",
+            permission: Permission.merge(
+              defaults,
+              Permission.fromConfig({
+                "*": "deny",
+                "office_*": "allow",
+              }),
+              user,
+            ),
+            prompt: PROMPT_FARMER,
+            options: {},
+            mode: "primary",
+            native: true,
+            hidden: true,
           },
           compaction: {
             name: "compaction",
