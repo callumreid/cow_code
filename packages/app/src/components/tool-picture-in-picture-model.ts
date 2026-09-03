@@ -25,6 +25,8 @@ const LOCAL_TOOLS = new Set([
   "write",
 ])
 
+const CODE_MODE_LOCAL_NAMESPACES = new Set(["apply_patch", "exec", "read", "search", "shell", "skill", "task", "write"])
+
 function toolText(part: ToolPart) {
   const input = part.state.input ?? {}
   try {
@@ -38,6 +40,8 @@ export function toolSurface(part: ToolPart): ToolSurface | undefined {
   const text = toolText(part)
   if (/slack/i.test(text)) return "slack"
   if (/playwright|browser|chrome|computer.?use|\bcua\b|websearch|webfetch/i.test(text)) return "browser"
+  const namespaces = Array.from(text.matchAll(/\btools\.([a-z0-9_-]+)/gi), (match) => match[1].toLowerCase())
+  if (namespaces.some((name) => !CODE_MODE_LOCAL_NAMESPACES.has(name))) return "integration"
   if (!LOCAL_TOOLS.has(part.tool) && part.tool.includes("_")) return "integration"
   return undefined
 }

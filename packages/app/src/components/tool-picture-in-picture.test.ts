@@ -38,7 +38,9 @@ describe("tool picture in picture", () => {
     expect(toolSurface(tool("playwright_browser_navigate"))).toBe("browser")
     expect(toolSurface(tool("shell", { command: "curl https://slack.com/api/conversations.history" }))).toBe("slack")
     expect(toolSurface(tool("linear_list_issues"))).toBe("integration")
+    expect(toolSurface(tool("execute", { code: "await tools.linear.list_issues({})" }))).toBe("integration")
     expect(toolSurface(tool("read"))).toBeUndefined()
+    expect(toolSurface(tool("execute", { code: "await search({ query: 'cow' })" }))).toBeUndefined()
   })
 
   test("uses only the active turn and retains its latest screenshot", () => {
