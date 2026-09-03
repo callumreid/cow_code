@@ -71,8 +71,19 @@ describe("derivePrState", () => {
 
 describe("groupByRepo", () => {
   const mk = (repo: string, number: number, createdAt: string) =>
-    ({ repo, number, createdAt, title: "", url: "", isDraft: false, updatedAt: createdAt,
-       review: "none", checks: "none", unresolvedCount: 0, state: "awaiting-review" }) as OpenPullRequest
+    ({
+      repo,
+      number,
+      createdAt,
+      title: "",
+      url: "",
+      isDraft: false,
+      updatedAt: createdAt,
+      review: "none",
+      checks: "none",
+      unresolvedCount: 0,
+      state: "awaiting-review",
+    }) as OpenPullRequest
 
   test("orders items oldest-first inside a repo", () => {
     const groups = groupByRepo([mk("a/b", 2, "2026-08-05T00:00:00Z"), mk("a/b", 1, "2026-08-01T00:00:00Z")])
@@ -91,15 +102,15 @@ describe("groupByRepo", () => {
 describe("fetchPrDashboard", () => {
   test("maps signals and counts ready PRs", async () => {
     const runner = openRunner([
-        openNode({ number: 10, createdAt: "2026-08-02T00:00:00Z" }),
-        openNode({
-          number: 11,
-          createdAt: "2026-08-03T00:00:00Z",
-          reviewDecision: "REVIEW_REQUIRED",
-          reviewThreads: { nodes: [{ isResolved: false }, { isResolved: true }] },
-          commits: { nodes: [{ commit: { statusCheckRollup: { state: "FAILURE" } } }] },
-        }),
-      ])
+      openNode({ number: 10, createdAt: "2026-08-02T00:00:00Z" }),
+      openNode({
+        number: 11,
+        createdAt: "2026-08-03T00:00:00Z",
+        reviewDecision: "REVIEW_REQUIRED",
+        reviewThreads: { nodes: [{ isResolved: false }, { isResolved: true }] },
+        commits: { nodes: [{ commit: { statusCheckRollup: { state: "FAILURE" } } }] },
+      }),
+    ])
     const result = await fetchPrDashboard(NOW, runner)
     expect(result.openCount).toBe(2)
     expect(result.readyCount).toBe(1)
@@ -110,7 +121,9 @@ describe("fetchPrDashboard", () => {
   })
 
   test("tolerates a PR with no checks and no review", async () => {
-    const runner = openRunner([openNode({ reviewDecision: null, commits: { nodes: [{ commit: { statusCheckRollup: null } }] } })])
+    const runner = openRunner([
+      openNode({ reviewDecision: null, commits: { nodes: [{ commit: { statusCheckRollup: null } }] } }),
+    ])
     const result = await fetchPrDashboard(NOW, runner)
     expect(result.groups[0].items[0].checks).toBe("none")
     expect(result.groups[0].items[0].review).toBe("none")
@@ -119,6 +132,45 @@ describe("fetchPrDashboard", () => {
   test("surfaces GraphQL errors from the open query", async () => {
     const runner = async () => JSON.stringify({ errors: [{ message: "Bad credentials" }] })
     await expect(fetchPrDashboard(NOW, runner)).rejects.toThrow("Bad credentials")
+  })
+
+  test("falls back to basic search when GraphQL is rate-limited", async () => {
+    const calls: string[][] = []
+    const runner = async (args: string[]) => {
+      calls.push(args)
+      if (args[0] === "api") {
+        return JSON.stringify({ errors: [{ message: "API rate limit already exceeded for user ID 1." }] })
+      }
+      return JSON.stringify([
+        {
+          number: 42,
+          title: "Still open",
+          url: "https://github.com/o/r/pull/42",
+          isDraft: false,
+          createdAt: "2026-08-01T00:00:00Z",
+          updatedAt: "2026-08-02T00:00:00Z",
+          repository: { nameWithOwner: "o/r" },
+        },
+      ])
+    }
+
+    const result = await fetchPrDashboard(NOW, runner)
+    expect(calls.map((args) => args[0])).toEqual(["api", "search"])
+    expect(result.openCount).toBe(1)
+    expect(result.readyCount).toBe(0)
+    expect(result.groups[0].items[0].detailsUnavailable).toBe(true)
+    expect(result.notice).toContain("rate-limited")
+    expect(result.error).toBeUndefined()
+  })
+
+  test("does not hide a non-rate-limit GraphQL failure behind basic search", async () => {
+    let calls = 0
+    const runner = async () => {
+      calls++
+      return JSON.stringify({ errors: [{ message: "Bad credentials" }] })
+    }
+    await expect(fetchPrDashboard(NOW, runner)).rejects.toThrow("Bad credentials")
+    expect(calls).toBe(1)
   })
 })
 
@@ -140,7 +192,15 @@ describe("fetchPrMerged", () => {
       calls++
       if (calls === 1) {
         return mergedPayload(
-          [{ number: 1, title: "old", url: "u1", mergedAt: "2026-08-01T00:00:00Z", repository: { nameWithOwner: "o/r" } }],
+          [
+            {
+              number: 1,
+              title: "old",
+              url: "u1",
+              mergedAt: "2026-08-01T00:00:00Z",
+              repository: { nameWithOwner: "o/r" },
+            },
+          ],
           true,
           "CURSOR",
         )

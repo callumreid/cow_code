@@ -65,6 +65,16 @@ type RawMerged = {
   repository: { nameWithOwner: string }
 }
 
+type RawOpenSummary = {
+  number: number
+  title: string
+  url: string
+  isDraft: boolean
+  createdAt: string
+  updatedAt: string
+  repository: { nameWithOwner: string }
+}
+
 type SearchNode = RawOpen | RawMerged | Record<string, never>
 
 type RawResponse = {
@@ -83,6 +93,20 @@ function isRawOpen(node: SearchNode): node is RawOpen {
 
 function isRawMerged(node: SearchNode): node is RawMerged {
   return "number" in node && typeof node.number === "number" && "mergedAt" in node
+}
+
+function isRawOpenSummary(node: unknown): node is RawOpenSummary {
+  if (!node || typeof node !== "object") return false
+  const candidate = node as Partial<RawOpenSummary>
+  return (
+    typeof candidate.number === "number" &&
+    typeof candidate.title === "string" &&
+    typeof candidate.url === "string" &&
+    typeof candidate.isDraft === "boolean" &&
+    typeof candidate.createdAt === "string" &&
+    typeof candidate.updatedAt === "string" &&
+    typeof candidate.repository?.nameWithOwner === "string"
+  )
 }
 
 function reviewState(decision: string | null): PrReviewState {
@@ -152,6 +176,23 @@ function toOpen(node: RawOpen): OpenPullRequest {
   }
 }
 
+function toOpenSummary(node: RawOpenSummary): OpenPullRequest {
+  return {
+    repo: node.repository.nameWithOwner,
+    number: node.number,
+    title: node.title,
+    url: node.url,
+    isDraft: node.isDraft,
+    createdAt: node.createdAt,
+    updatedAt: node.updatedAt,
+    review: "none",
+    checks: "none",
+    unresolvedCount: 0,
+    state: node.isDraft ? "draft" : "awaiting-review",
+    detailsUnavailable: true,
+  }
+}
+
 export type PrDashboardRunner = (args: string[]) => Promise<string>
 
 /**
@@ -162,12 +203,21 @@ export type PrDashboardRunner = (args: string[]) => Promise<string>
  * closed, so listing them as open work is misleading.
  */
 export async function fetchPrDashboard(now: number, runner: PrDashboardRunner = runGh): Promise<PrDashboard> {
-  const open = await fetchOpen("is:pr is:open author:@me archived:false", runner)
+  let open: OpenPullRequest[]
+  let notice: string | undefined
+  try {
+    open = await fetchOpen("is:pr is:open author:@me archived:false", runner)
+  } catch (error) {
+    if (!isRateLimitError(error)) throw error
+    open = await fetchOpenSummary(runner)
+    notice = "GitHub's detailed status API is rate-limited. Showing current pull requests without review or CI details."
+  }
   return {
     groups: groupByRepo(open),
     openCount: open.length,
     readyCount: open.filter((pr) => pr.state === "ready").length,
     fetchedAt: now,
+    notice,
   }
 }
 
@@ -197,6 +247,26 @@ async function fetchOpen(query: string, runner: PrDashboardRunner): Promise<Open
     out.push(toOpen(node))
   }
   return out
+}
+
+function isRateLimitError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error)
+  return /rate[ _-]?limit|secondary rate/i.test(message)
+}
+
+async function fetchOpenSummary(runner: PrDashboardRunner): Promise<OpenPullRequest[]> {
+  const raw = await runner([
+    "search",
+    "prs",
+    "--author=@me",
+    "--state=open",
+    "--archived=false",
+    `--limit=${PAGE_SIZE}`,
+    "--json=number,title,url,isDraft,createdAt,updatedAt,repository",
+  ])
+  const parsed: unknown = JSON.parse(raw)
+  if (!Array.isArray(parsed)) throw new Error("Invalid GitHub pull request search response")
+  return parsed.filter(isRawOpenSummary).map(toOpenSummary)
 }
 
 async function fetchMerged(query: string, runner: PrDashboardRunner) {
@@ -280,12 +350,18 @@ export function getPrDashboard(force = false, now = Date.now()): Promise<PrDashb
   return cachedFetch(
     openCache,
     () => fetchPrDashboard(now),
-    () => ({ groups: [], openCount: 0, readyCount: 0, fetchedAt: now }),
+    () => ({ groups: [], openCount: 0, readyCount: 0, fetchedAt: now, unavailable: true }),
     force,
     now,
   )
 }
 
 export function getPrMerged(force = false, now = Date.now()): Promise<PrMergedHistory> {
-  return cachedFetch(mergedCache, () => fetchPrMerged(now), () => ({ items: [], fetchedAt: now }), force, now)
+  return cachedFetch(
+    mergedCache,
+    () => fetchPrMerged(now),
+    () => ({ items: [], fetchedAt: now }),
+    force,
+    now,
+  )
 }

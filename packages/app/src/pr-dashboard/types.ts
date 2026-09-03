@@ -28,6 +28,8 @@ export type OpenPullRequest = {
   checks: PrCheckState
   unresolvedCount: number
   state: PrState
+  /** Basic search fallback could not load review threads or check status. */
+  detailsUnavailable?: boolean
 }
 
 export type MergedPullRequest = {
@@ -51,6 +53,10 @@ export type PrDashboard = {
   fetchedAt: number
   /** Set when the fetch failed; previous data is kept so the panel never blanks. */
   error?: string
+  /** Non-fatal degradation, such as showing basic PRs while GraphQL is rate-limited. */
+  notice?: string
+  /** No successful or fallback payload is available; counts must not be presented as zero. */
+  unavailable?: boolean
 }
 
 export type PrMergedHistory = {

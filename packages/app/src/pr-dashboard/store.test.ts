@@ -4,10 +4,16 @@ import { createPrDashboardStore } from "./store"
 import type { PrDashboard, PrDashboardPlatform, PrMergedHistory } from "./types"
 
 const open = (over: Partial<PrDashboard> = {}): PrDashboard => ({
-  groups: [], openCount: 0, readyCount: 0, fetchedAt: 1, ...over,
+  groups: [],
+  openCount: 0,
+  readyCount: 0,
+  fetchedAt: 1,
+  ...over,
 })
 const history = (over: Partial<PrMergedHistory> = {}): PrMergedHistory => ({
-  items: [], fetchedAt: 1, ...over,
+  items: [],
+  fetchedAt: 1,
+  ...over,
 })
 
 /** Merged defaults to a stub that fails loudly if the store calls it unasked. */
@@ -27,7 +33,14 @@ describe("createPrDashboardStore", () => {
   test("fetches open PRs once on creation", async () => {
     let calls = 0
     await createRoot(async (dispose) => {
-      const store = createPrDashboardStore(() => platform({ fetch: async () => { calls++; return open({ openCount: 3 }) } }))
+      const store = createPrDashboardStore(() =>
+        platform({
+          fetch: async () => {
+            calls++
+            return open({ openCount: 3 })
+          },
+        }),
+      )
       await tick()
       expect(calls).toBe(1)
       expect(store.data()?.openCount).toBe(3)
@@ -38,7 +51,14 @@ describe("createPrDashboardStore", () => {
   test("does NOT fetch merged history until asked", async () => {
     let merged = 0
     await createRoot(async (dispose) => {
-      const store = createPrDashboardStore(() => platform({ fetchMerged: async () => { merged++; return history() } }))
+      const store = createPrDashboardStore(() =>
+        platform({
+          fetchMerged: async () => {
+            merged++
+            return history()
+          },
+        }),
+      )
       await tick()
       expect(merged).toBe(0)
       expect(store.merged()).toBeUndefined()
@@ -49,7 +69,14 @@ describe("createPrDashboardStore", () => {
   test("loadMerged fetches once, then is a no-op without force", async () => {
     let merged = 0
     await createRoot(async (dispose) => {
-      const store = createPrDashboardStore(() => platform({ fetchMerged: async () => { merged++; return history() } }))
+      const store = createPrDashboardStore(() =>
+        platform({
+          fetchMerged: async () => {
+            merged++
+            return history()
+          },
+        }),
+      )
       await tick()
       store.loadMerged()
       await tick()
@@ -68,7 +95,15 @@ describe("createPrDashboardStore", () => {
     let release: (v: PrDashboard) => void = () => {}
     await createRoot(async (dispose) => {
       const store = createPrDashboardStore(() =>
-        platform({ fetch: () => { calls++; return new Promise<PrDashboard>((r) => { release = r }) } }))
+        platform({
+          fetch: () => {
+            calls++
+            return new Promise<PrDashboard>((r) => {
+              release = r
+            })
+          },
+        }),
+      )
       store.refresh()
       store.refresh()
       expect(calls).toBe(1)
@@ -88,7 +123,8 @@ describe("createPrDashboardStore", () => {
             if (mode === "fail") throw new Error("gh exploded")
             return open({ openCount: 7 })
           },
-        }))
+        }),
+      )
       await tick()
       expect(store.data()?.openCount).toBe(7)
       mode = "fail"
@@ -100,6 +136,22 @@ describe("createPrDashboardStore", () => {
     })
   })
 
+  test("marks a first failed fetch unavailable instead of reporting zero open", async () => {
+    await createRoot(async (dispose) => {
+      const store = createPrDashboardStore(() =>
+        platform({
+          fetch: async () => {
+            throw new Error("offline")
+          },
+        }),
+      )
+      await tick()
+      expect(store.data()?.unavailable).toBe(true)
+      expect(store.data()?.error).toBe("offline")
+      dispose()
+    })
+  })
+
   test("annotates merged history on failure without clearing it", async () => {
     let mode: "ok" | "fail" = "ok"
     await createRoot(async (dispose) => {
@@ -107,9 +159,12 @@ describe("createPrDashboardStore", () => {
         platform({
           fetchMerged: async () => {
             if (mode === "fail") throw new Error("rate limited")
-            return history({ items: [{ repo: "o/r", number: 1, title: "t", url: "u", mergedAt: "2026-08-01T00:00:00Z" }] })
+            return history({
+              items: [{ repo: "o/r", number: 1, title: "t", url: "u", mergedAt: "2026-08-01T00:00:00Z" }],
+            })
           },
-        }))
+        }),
+      )
       store.loadMerged()
       await tick()
       expect(store.merged()?.items).toHaveLength(1)
@@ -137,10 +192,17 @@ describe("createPrDashboardStore", () => {
     let merges = 0
     await createRoot(async (dispose) => {
       const store = createPrDashboardStore(
-        () => platform({
-          fetch: async () => { opens++; return open() },
-          fetchMerged: async () => { merges++; return history() },
-        }),
+        () =>
+          platform({
+            fetch: async () => {
+              opens++
+              return open()
+            },
+            fetchMerged: async () => {
+              merges++
+              return history()
+            },
+          }),
         5,
       )
       await new Promise((r) => setTimeout(r, 30))
@@ -156,7 +218,16 @@ describe("createPrDashboardStore", () => {
   test("stops polling after dispose", async () => {
     let calls = 0
     await createRoot(async (dispose) => {
-      createPrDashboardStore(() => platform({ fetch: async () => { calls++; return open() } }), 5)
+      createPrDashboardStore(
+        () =>
+          platform({
+            fetch: async () => {
+              calls++
+              return open()
+            },
+          }),
+        5,
+      )
       await tick()
       dispose()
       const after = calls

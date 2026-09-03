@@ -51,7 +51,14 @@ export function createPrDashboardStore(
         setData((prev) =>
           prev
             ? { ...prev, error: message }
-            : { groups: [], openCount: 0, readyCount: 0, fetchedAt: Date.now(), error: message },
+            : {
+                groups: [],
+                openCount: 0,
+                readyCount: 0,
+                fetchedAt: Date.now(),
+                error: message,
+                unavailable: true,
+              },
         )
       })
       .finally(() => {
@@ -75,9 +82,7 @@ export function createPrDashboardStore(
       .catch((error: unknown) => {
         if (disposed) return
         const message = error instanceof Error ? error.message : String(error)
-        setMerged((prev) =>
-          prev ? { ...prev, error: message } : { items: [], fetchedAt: Date.now(), error: message },
-        )
+        setMerged((prev) => (prev ? { ...prev, error: message } : { items: [], fetchedAt: Date.now(), error: message }))
       })
       .finally(() => {
         mergedInflight = false

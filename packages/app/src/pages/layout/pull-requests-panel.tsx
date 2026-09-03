@@ -47,7 +47,12 @@ function detail(pr: OpenPullRequest) {
 }
 
 const OpenRow = (props: { pr: OpenPullRequest; now: number; onOpen: (url: string) => void }) => {
-  const meta = createMemo(() => STATE_META[props.pr.state])
+  const meta = createMemo(() => {
+    if (props.pr.detailsUnavailable && !props.pr.isDraft) {
+      return { label: "Status unavailable", icon: "warning" as const, tone: "muted" as const }
+    }
+    return STATE_META[props.pr.state]
+  })
   const sub = createMemo(() => detail(props.pr))
   return (
     <button
@@ -129,9 +134,11 @@ export const PullRequestsPanel = (props: { store: PrDashboardStore; onClose: () 
               <span class="text-16-medium text-text-strong">Pull requests</span>
               <Show when={data()} fallback={<span class="text-12-regular text-text-base">Loading…</span>}>
                 <span class="text-12-regular text-text-base">
-                  {data()!.openCount} open
-                  <Show when={data()!.readyCount > 0}>
-                    <span class="text-icon-success-base"> · {data()!.readyCount} ready to merge</span>
+                  <Show when={!data()!.unavailable} fallback={<>Unavailable</>}>
+                    {data()!.openCount} open
+                    <Show when={data()!.readyCount > 0}>
+                      <span class="text-icon-success-base"> · {data()!.readyCount} ready to merge</span>
+                    </Show>
                   </Show>
                 </span>
               </Show>
@@ -167,11 +174,17 @@ export const PullRequestsPanel = (props: { store: PrDashboardStore; onClose: () 
             <div class="text-12-regular text-icon-critical-base">{data()!.error}</div>
           </Show>
 
+          <Show when={data()?.notice}>
+            <div class="text-12-regular text-surface-warning-strong">{data()!.notice}</div>
+          </Show>
+
           <Show
             when={(data()?.groups.length ?? 0) > 0}
             fallback={
               <Show when={data()} fallback={<div class="text-14-regular text-text-base">Loading…</div>}>
-                <div class="text-14-regular text-text-base">No open pull requests</div>
+                <div class="text-14-regular text-text-base">
+                  {data()!.unavailable ? "Pull requests are temporarily unavailable" : "No open pull requests"}
+                </div>
               </Show>
             }
           >
