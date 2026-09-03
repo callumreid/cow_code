@@ -1,6 +1,6 @@
 import type { ServerSDK } from "@/context/server-sdk"
 import { authTokenFromCredentials } from "@/utils/server"
-import type { OfficeState, VoiceToken } from "./types"
+import type { OfficeBrief, OfficeState, VoiceToken } from "./types"
 
 export type OfficeSdk = Pick<ServerSDK, "url" | "server">
 
@@ -66,6 +66,17 @@ export function ensureOverseer(sdk: OfficeSdk, init?: OfficeFetchInit) {
 
 export function ask(sdk: OfficeSdk, input: { text: string; source?: "text" | "voice" }, init?: OfficeFetchInit) {
   return json<{ text: string; sessionID: string }>(sdk, "/global/office/ask", post(input, init))
+}
+
+/**
+ * "Since you last looked": one short farmer brief on what changed after `since`.
+ * A server without the route (older build) behaves as if nothing happened.
+ */
+export function brief(sdk: OfficeSdk, input: { since: number }, init?: OfficeFetchInit): Promise<OfficeBrief> {
+  return json<OfficeBrief>(sdk, "/global/office/brief", post(input, init)).catch((error: unknown) => {
+    if (isOfficeUnavailable(error)) return { text: "", sessionID: "", skipped: true }
+    throw error
+  })
 }
 
 export function promptThread(

@@ -23,6 +23,7 @@ export interface OfficeSettings {
   voiceModel: string
   voice: string
   autonomy: "brief" | "act"
+  openOnLaunch: boolean
 }
 
 export interface Settings {
@@ -234,6 +235,7 @@ const defaultSettings: Settings = {
     voiceModel: "gpt-realtime-2.1",
     voice: "marin",
     autonomy: "act",
+    openOnLaunch: true,
   },
 }
 
@@ -599,6 +601,10 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
         autonomy: withFallback(() => store.office?.autonomy, defaultSettings.office.autonomy),
         setAutonomy(value: "brief" | "act") {
           setStore("office", "autonomy", value)
+        },
+        openOnLaunch: withFallback(() => store.office?.openOnLaunch, defaultSettings.office.openOnLaunch),
+        setOpenOnLaunch(value: boolean) {
+          setStore("office", "openOnLaunch", value)
         },
       },
     }

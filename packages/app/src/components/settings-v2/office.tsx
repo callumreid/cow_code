@@ -1,5 +1,6 @@
 import type { Component } from "solid-js"
 import { SelectV2 } from "@opencode-ai/ui/v2/select-v2"
+import { Switch } from "@opencode-ai/ui/v2/switch-v2"
 import { TextInputV2 } from "@opencode-ai/ui/v2/text-input-v2"
 import { useSettings } from "@/context/settings"
 import { useServerSDK } from "@/context/server-sdk"
@@ -72,6 +73,17 @@ export const SettingsOfficeV2: Component = () => {
               void setAutonomy(sdk(), option.value).catch(() => undefined)
             }}
           />
+        </SettingsRowV2>
+        <SettingsRowV2
+          title="Open on launch"
+          description="Show the office once when the app starts, so what changed while you were away is the first thing you see."
+        >
+          <div data-action="settings-office-open-on-launch">
+            <Switch
+              checked={settings.office.openOnLaunch()}
+              onChange={(checked) => settings.office.setOpenOnLaunch(checked)}
+            />
+          </div>
         </SettingsRowV2>
       </SettingsListV2>
     </div>

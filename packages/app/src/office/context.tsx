@@ -1,15 +1,17 @@
 import { createStore, produce, reconcile } from "solid-js/store"
-import { batch, createEffect, createMemo, on, onCleanup } from "solid-js"
-import { useNavigate } from "@solidjs/router"
+import { batch, createEffect, createMemo, createSignal, on, onCleanup } from "solid-js"
+import { useLocation, useNavigate } from "@solidjs/router"
 import { createSimpleContext } from "@opencode-ai/ui/context"
 import { base64Encode } from "@opencode-ai/core/util/encode"
 import { usePlatform } from "@/context/platform"
 import { useSettings } from "@/context/settings"
 import { useServerSDK, type ServerSDK } from "@/context/server-sdk"
+import { persisted } from "@/utils/persist"
 import { playSoundById } from "@/utils/sound"
 import {
   answerThread,
   ask,
+  brief,
   ensureOverseer,
   getState,
   isOfficeUnavailable,
@@ -19,13 +21,19 @@ import {
   type OfficeAnswer,
   type OfficeFetchInit,
 } from "./api"
-import type { OfficeBucket, OfficeReport, OfficeState, OfficeThread } from "./types"
+import { latestOfKind, NEEDS_YOU_KINDS, nextNeedsYou, unreadReports } from "./stream"
+import type { OfficeBucket, OfficeCardAction, OfficeReport, OfficeState, OfficeThread } from "./types"
 
 export const BUCKET_ORDER: OfficeBucket[] = ["needs_you", "failed", "review", "working", "done"]
-/** Report kinds that mean a thread is blocked on the user. */
-export const NEEDS_YOU_REPORTS = new Set<OfficeReport["kind"]>(["permission", "question"])
+/** A strip chip: a bucket of cow threads, or the read-only Claude rows. */
+export type OfficeChip = OfficeBucket | "claude"
+export type BriefState = "idle" | "pending" | "skipped" | "done" | "error"
 const DONE_TTL_MS = 24 * 60 * 60 * 1000
 const MAX_REPORTS = 100
+/** How long launch autoselect gets to navigate away from the root before the office opens anyway. */
+const LAUNCH_GRACE_MS = 3000
+/** How still the route must be after a launch navigation before the office opens. */
+const LAUNCH_SETTLE_MS = 750
 
 type Overseer = { sessionID: string; directory: string }
 type ReportListener = (report: OfficeReport) => void
@@ -62,8 +70,9 @@ export const { use: useOffice, provider: OfficeProvider } = createSimpleContext(
     const platform = usePlatform()
     const settings = useSettings()
     const navigate = useNavigate()
+    const location = useLocation()
     const listeners = new Set<ReportListener>()
-    const meta = { ensuring: undefined as Promise<Overseer> | undefined }
+    const meta = { ensuring: undefined as Promise<Overseer> | undefined, briefed: false, launched: false }
 
     const [store, setStore] = createStore({
       threads: {} as Record<string, OfficeThread>,
@@ -71,25 +80,36 @@ export const { use: useOffice, provider: OfficeProvider } = createSimpleContext(
       overseer: undefined as Overseer | undefined,
       updated: 0,
       open: false,
-      selected: undefined as string | undefined,
       voice: false,
       loading: false,
       loaded: false,
       available: true,
       error: undefined as string | undefined,
+      expanded: undefined as OfficeChip | undefined,
+      actions: {} as Record<string, OfficeCardAction>,
+      focus: undefined as { id: string; seq: number } | undefined,
+      brief: "idle" as BriefState,
+      briefError: undefined as string | undefined,
     })
+    // When the panel was last closed; the stream's divider and the unread badge hang off it.
+    const [seen, setSeen, , seenReady] = persisted("office.lastSeen.v1", createStore({ at: 0 }))
 
     const init = (): OfficeFetchInit => ({ fetch: platform.fetch })
 
     const threads = createMemo(() => Object.values(store.threads).sort(compareThreads))
-    const needsYou = createMemo(() => threads().filter((thread) => thread.bucket === "needs_you"))
+    const cow = createMemo(() => threads().filter((thread) => thread.source === "cow"))
+    const claude = createMemo(() => threads().filter((thread) => thread.source === "claude"))
+    const needsYou = createMemo(() => cow().filter((thread) => thread.bucket === "needs_you"))
+    // Chips count cow threads only; Claude rows are read-only and get their own chip.
     const counts = createMemo(() => {
       const result = emptyCounts()
-      threads().forEach((thread) => {
+      cow().forEach((thread) => {
         result[thread.bucket] += 1
       })
       return result
     })
+    const unread = createMemo(() => unreadReports(store.reports, seen.at))
+    const latest = createMemo(() => latestOfKind(store.reports))
 
     const applyState = (state: OfficeState) => {
       const now = Date.now()
@@ -145,9 +165,27 @@ export const { use: useOffice, provider: OfficeProvider } = createSimpleContext(
     const addReport = (report: OfficeReport) => {
       setStore("reports", (list) => [...list, report].slice(-MAX_REPORTS))
       listeners.forEach((listener) => listener(report))
-      if (!NEEDS_YOU_REPORTS.has(report.kind) || store.open) return
+      if (!NEEDS_YOU_KINDS.has(report.kind) || store.open) return
       if (!settings.sounds.permissionsEnabled()) return
       void playSoundById(settings.sounds.permissions())
+    }
+
+    const open = () => {
+      if (store.open) return
+      setStore("open", true)
+    }
+
+    const close = () => {
+      if (!store.open) return
+      batch(() => {
+        setStore("open", false)
+        setStore("expanded", undefined)
+        setStore("focus", undefined)
+        setStore("brief", "idle")
+        setStore("briefError", undefined)
+      })
+      meta.briefed = false
+      if (seenReady()) setSeen("at", Date.now())
     }
 
     const handleEvent = (type: string, properties: unknown) => {
@@ -159,7 +197,7 @@ export const { use: useOffice, provider: OfficeProvider } = createSimpleContext(
       if (typeof directory !== "string") return
       if (type === "office.overseer") return setStore("overseer", { sessionID, directory })
       if (type !== "office.navigate") return
-      setStore("open", false)
+      close()
       navigate(`/${base64Encode(directory)}/session/${sessionID}`)
     }
 
@@ -195,11 +233,67 @@ export const { use: useOffice, provider: OfficeProvider } = createSimpleContext(
       return meta.ensuring
     }
 
-    // The feed needs the farmer's session to subscribe to, so opening the panel
-    // is what creates it.
+    // The stream needs the farmer's session to subscribe to, so opening the
+    // panel is what creates it.
     createEffect(() => {
       if (!store.open || !store.loaded || !store.available || store.overseer) return
       void ensure().catch((error: unknown) => setStore("error", errorText(error)))
+    })
+
+    const runBrief = () => {
+      const current = sdk()
+      batch(() => {
+        setStore("brief", "pending")
+        setStore("briefError", undefined)
+      })
+      return brief(current, { since: seen.at }, init()).then(
+        (result) => {
+          if (sdk() === current) setStore("brief", result.skipped ? "skipped" : "done")
+          return result
+        },
+        (error: unknown) => {
+          if (sdk() === current) {
+            batch(() => {
+              setStore("brief", "error")
+              setStore("briefError", errorText(error))
+            })
+          }
+          throw error
+        },
+      )
+    }
+
+    // "Since you last looked": one brief per open, only when something was
+    // reported meanwhile. The reply shows up in the stream as a farmer message.
+    createEffect(() => {
+      if (!store.open || !store.available || !seenReady() || meta.briefed) return
+      meta.briefed = true
+      if (unread().length === 0) return
+      void runBrief().catch(() => undefined)
+    })
+
+    // Open once per launch, after the first state load. Launch autoselect
+    // navigates once the project list loads (to the project, then on to its
+    // last session) and the layout closes overlays on every navigation, so
+    // open only once the route has been still for a moment — or after a grace
+    // when the app stays at the root.
+    const [settled, setSettled] = createSignal(false)
+    createEffect(
+      on(
+        () => location.pathname,
+        (pathname) => {
+          if (meta.launched) return
+          setSettled(false)
+          const timer = setTimeout(() => setSettled(true), pathname === "/" ? LAUNCH_GRACE_MS : LAUNCH_SETTLE_MS)
+          onCleanup(() => clearTimeout(timer))
+        },
+      ),
+    )
+    createEffect(() => {
+      if (meta.launched || !store.loaded || !store.available || !settings.ready() || !settled()) return
+      meta.launched = true
+      if (!settings.office.openOnLaunch()) return
+      open()
     })
 
     const mark = async (sessionID: string, input: { pinned?: boolean; muted?: boolean }) => {
@@ -213,37 +307,55 @@ export const { use: useOffice, provider: OfficeProvider } = createSimpleContext(
 
     return {
       threads,
+      cow,
+      claude,
       needsYou,
       counts,
+      unread,
+      latest,
       thread: (sessionID: string) => store.threads[sessionID],
       reports: () => store.reports,
       overseer: () => store.overseer,
       opened: () => store.open,
-      selected: () => store.selected,
       voice: () => store.voice,
       loading: () => store.loading,
       loaded: () => store.loaded,
       available: () => store.available,
       error: () => store.error,
-      open() {
-        setStore("open", true)
+      lastSeen: () => seen.at,
+      markSeen() {
+        if (seenReady()) setSeen("at", Date.now())
       },
-      close() {
-        setStore("open", false)
+      briefState: () => store.brief,
+      briefError: () => store.briefError,
+      brief: runBrief,
+      expandedBucket: () => store.expanded,
+      toggleBucket(chip: OfficeChip) {
+        setStore("expanded", (current) => (current === chip ? undefined : chip))
       },
+      collapse() {
+        setStore("expanded", undefined)
+      },
+      cardAction: (reportID: string) => store.actions[reportID],
+      recordAction(reportID: string, action: OfficeCardAction) {
+        setStore("actions", reportID, action)
+      },
+      focus: () => store.focus,
+      clearFocus() {
+        setStore("focus", undefined)
+      },
+      open,
+      close,
       toggle() {
-        setStore("open", (value) => !value)
+        if (store.open) return close()
+        open()
       },
-      select(sessionID: string | undefined) {
-        setStore("selected", sessionID)
-      },
+      /** Jump to the next live needs-you card in the stream, opening the panel if needed. */
       next() {
-        const items = needsYou()
-        const index = items.findIndex((thread) => thread.sessionID === store.selected)
-        const target = items[(index + 1) % Math.max(items.length, 1)]
+        const target = nextNeedsYou(store.reports, (id) => store.threads[id], latest(), store.focus?.id)
         batch(() => {
-          setStore("open", true)
-          if (target) setStore("selected", target.sessionID)
+          if (target) setStore("focus", { id: target.id, seq: (store.focus?.seq ?? 0) + 1 })
+          open()
         })
       },
       refresh: () => load(sdk()),
