@@ -85,6 +85,8 @@ const getBase = (appId: string): Configuration => ({
     gatekeeperAssess: false,
     entitlements: "resources/entitlements.plist",
     entitlementsInherit: "resources/entitlements.plist",
+    // The Farmer's Office voice mode needs the microphone; macOS refuses getUserMedia without this string.
+    extendInfo: { NSMicrophoneUsageDescription: "Cow Code uses the microphone so you can talk to the Farmer's Office." },
     notarize: true,
     target: ["dmg", "zip"],
   },
