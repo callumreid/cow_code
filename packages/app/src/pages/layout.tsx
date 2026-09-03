@@ -86,6 +86,9 @@ import { AccountMenu } from "./layout/sidebar-account"
 import { SidebarPullRequests } from "./layout/sidebar-pull-requests"
 import { PullRequestsPanel } from "./layout/pull-requests-panel"
 import { createPrDashboardStore } from "@/pr-dashboard/store"
+import { SidebarOffice } from "./layout/sidebar-office"
+import { OfficePanel } from "./layout/office-panel"
+import { useOffice } from "@/office/context"
 
 export default function LegacyLayout(props: ParentProps) {
   const serverSDK = useServerSDK()
@@ -123,6 +126,7 @@ export default function LegacyLayout(props: ParentProps) {
   const providers = useProviders(() => undefined)
   const dialog = useDialog()
   const command = useCommand()
+  const office = useOffice()
   const theme = useTheme()
   const language = useLanguage()
   createEffect(() => setV2Toast(false))
@@ -167,7 +171,25 @@ export default function LegacyLayout(props: ParentProps) {
   const location = useLocation()
   // Opening a session has to reveal it, so the panel gives the main area back.
   // `navigateWithSidebarReset` covers the same-route cases this effect cannot see.
-  createEffect(on(() => location.pathname, () => setState("pullRequests", false), { defer: true }))
+  createEffect(
+    on(
+      () => location.pathname,
+      () => {
+        setState("pullRequests", false)
+        office.close()
+      },
+      { defer: true },
+    ),
+  )
+  // The two overlays share the session area, so opening one gives up the other.
+  const openPullRequests = () => {
+    office.close()
+    setState("pullRequests", true)
+  }
+  const openOffice = () => {
+    setState("pullRequests", false)
+    office.open()
+  }
 
   const updateVersion = () => {
     const state = platform.updater?.state()
@@ -336,6 +358,7 @@ export default function LegacyLayout(props: ParentProps) {
   const navigateWithSidebarReset = (href: string) => {
     clearSidebarHoverState()
     setState("pullRequests", false)
+    office.close()
     navigate(href)
     layout.mobileSidebar.hide()
   }
@@ -1033,8 +1056,39 @@ export default function LegacyLayout(props: ParentProps) {
         id: "pullrequests.open",
         title: "Pull requests",
         category: language.t("command.category.view"),
-        onSelect: () => setState("pullRequests", true),
+        onSelect: () => openPullRequests(),
       })
+
+    commands.push(
+      {
+        id: "office.open",
+        title: "Farmer's Office",
+        category: language.t("command.category.view"),
+        // mod+shift+o belongs to project.select on the new-session page.
+        keybind: "mod+shift+f",
+        onSelect: () => openOffice(),
+      },
+      {
+        id: "office.next",
+        title: "Next thread needing you",
+        category: language.t("command.category.view"),
+        // mod+shift+n is the desktop menu's New Window accelerator.
+        keybind: "mod+shift+j",
+        onSelect: () => {
+          setState("pullRequests", false)
+          office.next()
+        },
+      },
+      {
+        id: "office.voice",
+        title: "Farmer's Office: toggle voice",
+        category: language.t("command.category.view"),
+        onSelect: () => {
+          if (!office.opened()) openOffice()
+          office.toggleVoice()
+        },
+      },
+    )
 
     Array.from({ length: 9 }, (_, i) => {
       const index = i
@@ -2116,11 +2170,8 @@ export default function LegacyLayout(props: ParentProps) {
                 </div>
               </div>
 
-              <SidebarPullRequests
-                store={pullRequests}
-                active={state.pullRequests}
-                onOpen={() => setState("pullRequests", true)}
-              />
+              <SidebarPullRequests store={pullRequests} active={state.pullRequests} onOpen={openPullRequests} />
+              <SidebarOffice active={office.opened()} count={office.counts().needs_you} onOpen={openOffice} />
 
               <div class="flex-1 min-h-0 flex flex-col">
                 <Show
@@ -2395,6 +2446,11 @@ export default function LegacyLayout(props: ParentProps) {
               <Show when={state.pullRequests}>
                 <div class="absolute inset-0 z-10 overflow-hidden rounded-ss-[12px] border-t border-s border-border-weak-base bg-background-base">
                   <PullRequestsPanel store={pullRequests} onClose={() => setState("pullRequests", false)} />
+                </div>
+              </Show>
+              <Show when={office.opened()}>
+                <div class="absolute inset-0 z-10 overflow-hidden rounded-ss-[12px] border-t border-s border-border-weak-base bg-background-base">
+                  <OfficePanel onClose={() => office.close()} onNavigate={navigateWithSidebarReset} />
                 </div>
               </Show>
             </div>

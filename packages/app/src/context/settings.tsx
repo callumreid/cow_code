@@ -19,6 +19,12 @@ export interface SoundSettings {
   errors: string
 }
 
+export interface OfficeSettings {
+  voiceModel: string
+  voice: string
+  autonomy: "brief" | "act"
+}
+
 export interface Settings {
   general: {
     autoSave: boolean
@@ -54,6 +60,7 @@ export interface Settings {
   }
   notifications: NotificationSettings
   sounds: SoundSettings
+  office: OfficeSettings
 }
 
 export const monoDefault = "System Mono"
@@ -222,6 +229,11 @@ const defaultSettings: Settings = {
     permissions: "moo-01",
     errorsEnabled: true,
     errors: "nope-03",
+  },
+  office: {
+    voiceModel: "gpt-realtime-2.1",
+    voice: "marin",
+    autonomy: "act",
   },
 }
 
@@ -573,6 +585,20 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
         errors: withFallback(() => store.sounds?.errors, defaultSettings.sounds.errors),
         setErrors(value: string) {
           setStore("sounds", "errors", value)
+        },
+      },
+      office: {
+        voiceModel: withFallback(() => store.office?.voiceModel, defaultSettings.office.voiceModel),
+        setVoiceModel(value: string) {
+          setStore("office", "voiceModel", value.trim() ? value : defaultSettings.office.voiceModel)
+        },
+        voice: withFallback(() => store.office?.voice, defaultSettings.office.voice),
+        setVoice(value: string) {
+          setStore("office", "voice", value)
+        },
+        autonomy: withFallback(() => store.office?.autonomy, defaultSettings.office.autonomy),
+        setAutonomy(value: "brief" | "act") {
+          setStore("office", "autonomy", value)
         },
       },
     }

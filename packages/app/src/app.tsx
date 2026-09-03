@@ -55,6 +55,7 @@ import { LanguageProvider, type Locale, useLanguage } from "@/context/language"
 import { LayoutProvider } from "@/context/layout"
 import { ModelsProvider } from "@/context/models"
 import { NotificationProvider } from "@/context/notification"
+import { OfficeProvider } from "@/office/context"
 import { PermissionProvider } from "@/context/permission"
 import { usePlatform } from "@/context/platform"
 import { PromptProvider } from "@/context/prompt"
@@ -446,7 +447,9 @@ function ServerScopedProviders(props: ServerScopedShellProps) {
 function LegacyServerScopedShell(props: ServerScopedShellProps) {
   return (
     <ServerScopedProviders directory={props.directory} serverScoped={props.serverScoped}>
-      <LegacyLayout>{props.children}</LegacyLayout>
+      <OfficeProvider>
+        <LegacyLayout>{props.children}</LegacyLayout>
+      </OfficeProvider>
     </ServerScopedProviders>
   )
 }
