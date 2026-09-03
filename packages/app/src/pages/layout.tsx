@@ -90,6 +90,7 @@ import { SidebarOffice } from "./layout/sidebar-office"
 import { OfficePanel } from "./layout/office-panel"
 import { useOffice } from "@/office/context"
 import { officeOpen } from "@/office/presence"
+import { ToolPictureInPicture } from "@/components/tool-picture-in-picture"
 
 export default function LegacyLayout(props: ParentProps) {
   const serverSDK = useServerSDK()
@@ -2462,6 +2463,11 @@ export default function LegacyLayout(props: ParentProps) {
                   <OfficePanel onClose={() => office.close()} onNavigate={navigateWithSidebarReset} />
                 </div>
               </Show>
+              <ToolPictureInPicture
+                directory={currentDir}
+                sessionID={() => params.id}
+                visible={() => !office.opened() && !state.pullRequests}
+              />
             </div>
 
             <div
