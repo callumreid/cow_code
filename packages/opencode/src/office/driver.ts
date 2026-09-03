@@ -178,14 +178,21 @@ const layer = Layer.effect(
 
     // "Since you last looked": one short brief when Callum opens the office, and
     // no model call at all when nothing happened.
+    // A brief is only worth a turn once per batch of news: reloads and re-opens
+    // with nothing reported since the last brief get `skipped`, not "nothing new".
+    const briefed = { at: 0, needs: "" }
     const brief = Effect.fn("OfficeDriver.brief")(function* (input: { since: number }) {
       const state = yield* office.state()
-      const since = state.reports.filter((report) => report.time > input.since && report.kind !== "auto_allowed")
+      const floor = Math.max(input.since, briefed.at)
+      const since = state.reports.filter((report) => report.time > floor && report.kind !== "auto_allowed")
       const needs = state.threads.filter((thread) => thread.bucket === "needs_you" || thread.bucket === "failed")
-      if (since.length === 0 && needs.length === 0) {
+      const needsKey = needs.map((thread) => `${thread.sessionID}:${thread.waiting?.kind ?? thread.bucket}`).sort().join(",")
+      if (since.length === 0 && (needs.length === 0 || needsKey === briefed.needs)) {
         const ref = yield* ensureOverseer()
         return { text: "", sessionID: ref.sessionID, skipped: true }
       }
+      briefed.at = Date.now()
+      briefed.needs = needsKey
       const lines = since.map((report) => `- ${report.kind} · "${report.title}": ${report.summary}`)
       const text = [
         "<office_since_last_look>",
