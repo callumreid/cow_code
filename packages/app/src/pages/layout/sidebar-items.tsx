@@ -128,7 +128,7 @@ const SessionRow = (props: {
         >
           <Switch>
             <Match when={props.isWorking()}>
-              <CowWorking class="size-[19px]" title="Working" />
+              <CowWorking seed={props.session.id} class="size-[19px]" title="Working" />
             </Match>
             <Match when={props.hasPermissions()}>
               <div class="size-1.5 rounded-full bg-surface-warning-strong" />

@@ -15,6 +15,7 @@ import { makeEventListener } from "@solid-primitives/event-listener"
 import { createMediaQuery } from "@solid-primitives/media"
 import type { Message, TextPart, ToolPart } from "@opencode-ai/sdk/v2/client"
 import { Icon } from "@opencode-ai/ui/icon"
+import cowboy from "@/assets/cow/cowboy.png"
 import { IconButton } from "@opencode-ai/ui/icon-button"
 import { Tooltip } from "@opencode-ai/ui/tooltip"
 import { TextareaV2 } from "@opencode-ai/ui/v2/textarea-v2"
@@ -381,7 +382,13 @@ export const OfficePanel = (props: { onClose: () => void; onNavigate: (href: str
     <div class="flex flex-col size-full bg-background-base">
       <div class="shrink-0 border-b border-border-weak-base bg-background-base">
         <div class="mx-auto w-full max-w-[880px] flex flex-wrap items-center gap-2 px-3 py-2 md:px-6 md:py-3">
-          <Icon name="eye" class="text-text-base shrink-0" />
+          <img
+            src={cowboy}
+            alt=""
+            aria-hidden="true"
+            draggable={false}
+            class="size-6 shrink-0 rounded-full object-cover"
+          />
           <span class="text-16-medium text-text-strong me-1 shrink-0">Farmer's Office</span>
           {/* On a phone the chips drop to their own row so the mode toggle and close stay on the title row. */}
           <div class="flex flex-wrap items-center gap-1.5 min-w-0 max-md:order-last max-md:w-full">
