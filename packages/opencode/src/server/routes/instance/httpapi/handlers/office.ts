@@ -17,6 +17,8 @@ import type {
 } from "../groups/office"
 
 const TRANSCRIBE_MODEL = "gpt-4o-mini-transcribe"
+const TRANSCRIBE_PROMPT =
+  "Callum talking to the farmer about coding threads, pull requests, tests, deploys, Coval, Linear, Slack."
 const TTS_MODEL = "gpt-4o-mini-tts"
 
 const DEFAULT_VOICE_MODEL = "gpt-realtime-2.1"
@@ -125,7 +127,7 @@ export const officeHandlers = HttpApiBuilder.group(RootHttpApi, "office", (handl
       const form = new FormData()
       form.append("file", new Blob([bytes], { type: ctx.payload.mime }), `clip.${ext}`)
       form.append("model", TRANSCRIBE_MODEL)
-      form.append("prompt", "Callum talking to the farmer about coding threads, pull requests, tests, deploys, Coval, Linear, Slack.")
+      form.append("prompt", TRANSCRIBE_PROMPT)
       const response = yield* Effect.tryPromise(() =>
         fetch("https://api.openai.com/v1/audio/transcriptions", {
           method: "POST",
@@ -137,7 +139,10 @@ export const officeHandlers = HttpApiBuilder.group(RootHttpApi, "office", (handl
       const body = (yield* Effect.promise(() => response.json().catch(() => ({})))) as { text?: string; error?: { message?: string } }
       if (!response.ok)
         return HttpServerResponse.jsonUnsafe({ error: body.error?.message ?? `OpenAI returned HTTP ${response.status}.` }, { status: 502 })
-      return HttpServerResponse.jsonUnsafe({ text: body.text ?? "" })
+      // Silence makes the model echo its own vocabulary prompt; treat that as nothing said.
+      const text = (body.text ?? "").trim()
+      const echoed = text.length > 0 && TRANSCRIBE_PROMPT.toLowerCase().includes(text.toLowerCase().slice(0, 40))
+      return HttpServerResponse.jsonUnsafe({ text: echoed || text.length < 2 ? "" : text })
     })
 
     const speak = Effect.fn("OfficeHttpApi.speak")(function* (ctx: { payload: typeof SpeakInput.Type }) {

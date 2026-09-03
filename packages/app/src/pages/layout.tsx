@@ -2457,7 +2457,8 @@ export default function LegacyLayout(props: ParentProps) {
                 </div>
               </Show>
               <Show when={office.opened()}>
-                <div class="absolute inset-0 z-10 overflow-hidden rounded-ss-[12px] border-t border-s border-border-weak-base bg-background-base">
+                {/* The sidebar is always open and at least 244px, so on a phone the office takes the whole viewport under the titlebar instead of the sliver beside it. */}
+                <div class="absolute inset-0 z-10 overflow-hidden rounded-ss-[12px] border-t border-s border-border-weak-base bg-background-base max-md:fixed max-md:inset-x-0 max-md:top-10 max-md:bottom-0 max-md:z-50 max-md:rounded-none max-md:border-s-0">
                   <OfficePanel onClose={() => office.close()} onNavigate={navigateWithSidebarReset} />
                 </div>
               </Show>

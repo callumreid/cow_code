@@ -103,6 +103,16 @@ export function voiceToken(sdk: OfficeSdk, input: { model?: string; voice?: stri
   return json<VoiceToken>(sdk, "/global/office/voice/token", post(input, init))
 }
 
+/** Hold-to-talk: one recorded clip (base64) to text. A 502 carries the upstream error verbatim. */
+export function transcribe(sdk: OfficeSdk, input: { audio: string; mime: string }, init?: OfficeFetchInit) {
+  return json<{ text: string }>(sdk, "/global/office/voice/transcribe", post(input, init))
+}
+
+/** Hold-to-talk: the farmer's reply as base64 mp3 in the office voice. */
+export function speak(sdk: OfficeSdk, input: { text: string; voice?: string }, init?: OfficeFetchInit) {
+  return json<{ audio: string; mime: string }>(sdk, "/global/office/voice/speak", post(input, init))
+}
+
 export function setAutonomy(sdk: OfficeSdk, mode: "brief" | "act", init?: OfficeFetchInit) {
   return json<{ ok: true }>(sdk, "/global/office/autonomy", post({ mode }, init))
 }

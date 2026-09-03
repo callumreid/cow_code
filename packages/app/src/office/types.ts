@@ -42,7 +42,7 @@ export type OfficeThread = {
   pr?: string | null // PR url seen in the transcript
   pinned: boolean
   muted: boolean
-  source: "cow" | "claude" // "claude" rows are read-only (stretch goal)
+  source: "cow" | "claude" | "codex" // claude/codex rows are read-only
   time: { created: number; updated: number; reported?: number }
 }
 

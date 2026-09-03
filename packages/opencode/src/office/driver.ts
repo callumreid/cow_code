@@ -90,7 +90,7 @@ const layer = Layer.effect(
     })
 
     // One farmer turn at a time; reports that land mid-turn wait for the next one.
-    const turn = (input: { text: string; synthetic: boolean }) =>
+    const turn = (input: { text: string; synthetic: boolean; hint?: string }) =>
       semaphore.withPermits(1)(
         Effect.gen(function* () {
           const ref = yield* ensureOverseer()
@@ -100,7 +100,7 @@ const layer = Layer.effect(
             prompt.prompt({
               sessionID: SessionID.make(ref.sessionID),
               agent: "farmer",
-              system: block,
+              system: input.hint ? `${block}\n\n${input.hint}` : block,
               parts: [{ type: "text", text: input.text, synthetic: input.synthetic }],
             }),
           )
@@ -172,8 +172,12 @@ const layer = Layer.effect(
     )
 
     const ask = Effect.fn("OfficeDriver.ask")(function* (input: { text: string; source?: "text" | "voice" }) {
-      const text = input.source === "voice" ? `(spoken, from voice — keep the reply under forty words)\n${input.text}` : input.text
-      return yield* turn({ text, synthetic: false }).pipe(Effect.orDie)
+      // The voice hint rides in the system prompt so the user's bubble shows only their words.
+      const hint =
+        input.source === "voice"
+          ? "This message was spoken and the reply will be read aloud: keep it under forty words, plain sentences, no markdown, no lists."
+          : undefined
+      return yield* turn({ text: input.text, synthetic: false, hint }).pipe(Effect.orDie)
     })
 
     // "Since you last looked": one short brief when Callum opens the office, and

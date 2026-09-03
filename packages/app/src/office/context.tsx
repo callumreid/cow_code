@@ -18,6 +18,8 @@ import {
   isOfficeUnavailable,
   markThread,
   promptThread,
+  speak,
+  transcribe,
   voiceToken,
   type OfficeAnswer,
   type OfficeFetchInit,
@@ -27,7 +29,7 @@ import type { OfficeBucket, OfficeCardAction, OfficeReport, OfficeState, OfficeT
 
 export const BUCKET_ORDER: OfficeBucket[] = ["needs_you", "failed", "review", "working", "done"]
 /** A strip chip: a bucket of cow threads, or the read-only Claude rows. */
-export type OfficeChip = OfficeBucket | "claude"
+export type OfficeChip = OfficeBucket | "claude" | "codex"
 export type BriefState = "idle" | "pending" | "skipped" | "done" | "error"
 const DONE_TTL_MS = 24 * 60 * 60 * 1000
 const MAX_REPORTS = 100
@@ -102,6 +104,7 @@ export const { use: useOffice, provider: OfficeProvider } = createSimpleContext(
     const threads = createMemo(() => Object.values(store.threads).sort(compareThreads))
     const cow = createMemo(() => threads().filter((thread) => thread.source === "cow"))
     const claude = createMemo(() => threads().filter((thread) => thread.source === "claude"))
+    const codex = createMemo(() => threads().filter((thread) => thread.source === "codex"))
     const needsYou = createMemo(() => cow().filter((thread) => thread.bucket === "needs_you"))
     // Chips count cow threads only; Claude rows are read-only and get their own chip.
     const counts = createMemo(() => {
@@ -312,6 +315,7 @@ export const { use: useOffice, provider: OfficeProvider } = createSimpleContext(
       threads,
       cow,
       claude,
+      codex,
       needsYou,
       counts,
       unread,
@@ -377,6 +381,9 @@ export const { use: useOffice, provider: OfficeProvider } = createSimpleContext(
       },
       voiceToken: () =>
         voiceToken(sdk(), { model: settings.office.voiceModel(), voice: settings.office.voice() }, init()),
+      transcribe: (input: { audio: string; mime: string }) =>
+        transcribe(sdk(), input, init()).then((result) => result.text),
+      speak: (text: string) => speak(sdk(), { text, voice: settings.office.voice() }, init()),
       onReport(listener: ReportListener) {
         listeners.add(listener)
         return () => {

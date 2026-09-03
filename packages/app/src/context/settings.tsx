@@ -24,6 +24,10 @@ export interface OfficeSettings {
   voice: string
   autonomy: "brief" | "act"
   openOnLaunch: boolean
+  /** Hold-to-talk sends the transcript as soon as it lands instead of leaving it in the composer. */
+  talkAutoSend: boolean
+  /** Read the farmer's reply aloud after a hold-to-talk question. */
+  speakReplies: boolean
 }
 
 export interface Settings {
@@ -236,6 +240,8 @@ const defaultSettings: Settings = {
     voice: "marin",
     autonomy: "act",
     openOnLaunch: true,
+    talkAutoSend: true,
+    speakReplies: true,
   },
 }
 
@@ -605,6 +611,14 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
         openOnLaunch: withFallback(() => store.office?.openOnLaunch, defaultSettings.office.openOnLaunch),
         setOpenOnLaunch(value: boolean) {
           setStore("office", "openOnLaunch", value)
+        },
+        talkAutoSend: withFallback(() => store.office?.talkAutoSend, defaultSettings.office.talkAutoSend),
+        setTalkAutoSend(value: boolean) {
+          setStore("office", "talkAutoSend", value)
+        },
+        speakReplies: withFallback(() => store.office?.speakReplies, defaultSettings.office.speakReplies),
+        setSpeakReplies(value: boolean) {
+          setStore("office", "speakReplies", value)
         },
       },
     }

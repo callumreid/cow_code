@@ -85,6 +85,28 @@ export const SettingsOfficeV2: Component = () => {
             />
           </div>
         </SettingsRowV2>
+        <SettingsRowV2
+          title="Send after you speak"
+          description="Hold to talk sends what you said as soon as it is transcribed. Off leaves it in the composer so you can edit first."
+        >
+          <div data-action="settings-office-talk-auto-send">
+            <Switch
+              checked={settings.office.talkAutoSend()}
+              onChange={(checked) => settings.office.setTalkAutoSend(checked)}
+            />
+          </div>
+        </SettingsRowV2>
+        <SettingsRowV2
+          title="Read replies aloud"
+          description="After you hold to talk, the farmer's reply is spoken in the office voice."
+        >
+          <div data-action="settings-office-speak-replies">
+            <Switch
+              checked={settings.office.speakReplies()}
+              onChange={(checked) => settings.office.setSpeakReplies(checked)}
+            />
+          </div>
+        </SettingsRowV2>
       </SettingsListV2>
     </div>
   )

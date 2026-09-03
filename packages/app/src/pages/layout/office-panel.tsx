@@ -12,6 +12,7 @@ import {
   type JSX,
 } from "solid-js"
 import { makeEventListener } from "@solid-primitives/event-listener"
+import { createMediaQuery } from "@solid-primitives/media"
 import type { Message, TextPart, ToolPart } from "@opencode-ai/sdk/v2/client"
 import { Icon } from "@opencode-ai/ui/icon"
 import { IconButton } from "@opencode-ai/ui/icon-button"
@@ -20,6 +21,7 @@ import { TextareaV2 } from "@opencode-ai/ui/v2/textarea-v2"
 import { Markdown } from "@opencode-ai/session-ui/markdown"
 import { readPartText } from "@opencode-ai/session-ui/message-part-text"
 import { useServerSync } from "@/context/server-sync"
+import { useSettings } from "@/context/settings"
 import { errorText, useOffice, type OfficeChip } from "@/office/context"
 import {
   buildStream,
@@ -30,6 +32,7 @@ import {
   toolTitle,
   waitingReason,
 } from "@/office/stream"
+import { HoldToTalk } from "@/office/talk"
 import type { OfficeBucket, OfficeThread } from "@/office/types"
 import { VoiceStrip } from "@/office/voice/strip"
 import { ReportCard } from "./office-card"
@@ -74,12 +77,18 @@ const CHIPS: Array<{ chip: OfficeChip; label: (n: number) => string; tone: strin
     tone: "border-border-weak-base bg-surface-inset-base text-text-weak",
     always: false,
   },
+  {
+    chip: "codex",
+    label: (n) => `${n} Codex`,
+    tone: "border-border-weak-base bg-surface-inset-base text-text-weak",
+    always: false,
+  },
 ]
 
 const NEAR_BOTTOM_PX = 80
 
 const RosterRow = (props: { thread: OfficeThread; now: number; onOpen: () => void }) => {
-  const readOnly = () => props.thread.source === "claude"
+  const readOnly = () => props.thread.source !== "cow"
   const reason = () => waitingReason(props.thread.waiting)
   return (
     <button
@@ -93,12 +102,12 @@ const RosterRow = (props: { thread: OfficeThread; now: number; onOpen: () => voi
         class={`size-2 shrink-0 rounded-full ${BUCKET_DOT[props.thread.bucket]}`}
         classList={{ "animate-pulse": props.thread.bucket === "working" }}
       />
-      <span class="text-12-mono text-text-weak shrink-0 rounded bg-surface-inset-base px-1 truncate max-w-32">
+      <span class="text-12-mono text-text-weak shrink-0 rounded bg-surface-inset-base px-1 truncate max-w-24 md:max-w-32">
         {projectLabel(props.thread)}
       </span>
-      <span class="flex-1 min-w-0 flex items-baseline gap-2">
-        <span class="text-14-medium text-text-strong truncate max-w-[45%]">{props.thread.title}</span>
-        <span class="text-12-regular text-text-weak truncate flex-1 min-w-0">{reason() ?? props.thread.summary}</span>
+      <span class="flex-1 min-w-0 flex flex-col md:flex-row md:items-baseline md:gap-2">
+        <span class="text-14-medium text-text-strong truncate md:max-w-[45%]">{props.thread.title}</span>
+        <span class="text-12-regular text-text-weak truncate md:flex-1 min-w-0">{reason() ?? props.thread.summary}</span>
       </span>
       <Show when={readOnly()}>
         <span class="text-12-mono text-text-weak shrink-0 rounded bg-surface-inset-base px-1">read-only</span>
@@ -181,6 +190,9 @@ const AssistantText = (props: { part: TextPart; message: Message; accum: Record<
 export const OfficePanel = (props: { onClose: () => void; onNavigate: (href: string) => void }): JSX.Element => {
   const office = useOffice()
   const sync = useServerSync()
+  const settings = useSettings()
+  // One mic instance at a time: a bar above the composer on phones, a round button beside it otherwise.
+  const phone = createMediaQuery("(max-width: 767px)")
   const [now, setNow] = createSignal(Date.now())
   const [draft, setDraft] = createSignal("")
   const [pending, setPending] = createSignal<{ text: string; count: number }>()
@@ -320,29 +332,47 @@ export const OfficePanel = (props: { onClose: () => void; onNavigate: (href: str
     }),
   )
 
-  const send = () => {
-    const text = draft().trim()
-    if (!text || working() || !office.available()) return
+  /** Sends one message; resolves with the farmer's reply, or undefined when it did not go out. */
+  const submit = (text: string, source: "text" | "voice") => {
+    if (!text || !office.available()) return Promise.resolve(undefined)
     setDraft("")
     setAskError(undefined)
     setPending({ text, count: messages().length })
     scroll.anchor = "none"
     setStick(true)
     requestAnimationFrame(scrollToBottom)
-    office
-      .ask(text, "text")
+    return office
+      .ask(text, source)
       .catch((cause: unknown) => {
         setAskError(errorText(cause))
         setDraft(text)
+        return undefined
       })
       .finally(() => setPending(undefined))
   }
+  const send = () => void submit(draft().trim(), "text")
+  const talk = () => (
+    <HoldToTalk
+      bar={phone()}
+      disabled={!office.available()}
+      transcribe={(input) => office.transcribe(input)}
+      speak={(text) => office.speak(text)}
+      speakReplies={settings.office.speakReplies()}
+      onTranscript={(text) => {
+        setDraft(text)
+        if (!settings.office.talkAutoSend()) return Promise.resolve(undefined)
+        return submit(text, "voice")
+      }}
+    />
+  )
 
-  const chipCount = (chip: OfficeChip) => (chip === "claude" ? office.claude().length : office.counts()[chip])
+  const chipCount = (chip: OfficeChip) =>
+    chip === "claude" ? office.claude().length : chip === "codex" ? office.codex().length : office.counts()[chip]
   const roster = createMemo(() => {
     const chip = office.expandedBucket()
     if (!chip) return []
     if (chip === "claude") return office.claude()
+    if (chip === "codex") return office.codex()
     return office.cow().filter((thread) => thread.bucket === chip)
   })
   const empty = () => rows().length === 0 && !showPending()
@@ -350,36 +380,39 @@ export const OfficePanel = (props: { onClose: () => void; onNavigate: (href: str
   return (
     <div class="flex flex-col size-full bg-background-base">
       <div class="shrink-0 border-b border-border-weak-base bg-background-base">
-        <div class="mx-auto w-full max-w-[880px] flex items-center gap-2 px-6 py-3 flex-wrap">
-          <Icon name="eye" class="text-text-base" />
-          <span class="text-16-medium text-text-strong me-1">Farmer's Office</span>
-          <For each={CHIPS}>
-            {(item) => (
-              <Show when={item.always || chipCount(item.chip) > 0}>
-                <button
-                  type="button"
-                  aria-expanded={office.expandedBucket() === item.chip}
-                  class={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-12-medium ${item.tone}`}
-                  classList={{
-                    "ring-1 ring-border-strong-selected": office.expandedBucket() === item.chip,
-                    "opacity-60": chipCount(item.chip) === 0,
-                  }}
-                  onClick={() => office.toggleBucket(item.chip)}
-                >
-                  <Show when={item.chip === "working" && chipCount("working") > 0}>
-                    <span class="size-1.5 rounded-full bg-icon-info-base animate-pulse" />
-                  </Show>
-                  {item.label(chipCount(item.chip))}
-                </button>
-              </Show>
-            )}
-          </For>
-          <Show when={office.loaded() && !office.available()}>
-            <span class="text-12-regular text-text-weak">office not available on this server</span>
-          </Show>
-          <Show when={office.error()}>
-            <span class="text-12-regular text-icon-critical-base truncate">{office.error()}</span>
-          </Show>
+        <div class="mx-auto w-full max-w-[880px] flex flex-wrap items-center gap-2 px-3 py-2 md:px-6 md:py-3">
+          <Icon name="eye" class="text-text-base shrink-0" />
+          <span class="text-16-medium text-text-strong me-1 shrink-0">Farmer's Office</span>
+          {/* On a phone the chips drop to their own row so the mode toggle and close stay on the title row. */}
+          <div class="flex flex-wrap items-center gap-1.5 min-w-0 max-md:order-last max-md:w-full">
+            <For each={CHIPS}>
+              {(item) => (
+                <Show when={item.always || chipCount(item.chip) > 0}>
+                  <button
+                    type="button"
+                    aria-expanded={office.expandedBucket() === item.chip}
+                    class={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-12-medium whitespace-nowrap ${item.tone}`}
+                    classList={{
+                      "ring-1 ring-border-strong-selected": office.expandedBucket() === item.chip,
+                      "opacity-60": chipCount(item.chip) === 0,
+                    }}
+                    onClick={() => office.toggleBucket(item.chip)}
+                  >
+                    <Show when={item.chip === "working" && chipCount("working") > 0}>
+                      <span class="size-1.5 rounded-full bg-icon-info-base animate-pulse" />
+                    </Show>
+                    {item.label(chipCount(item.chip))}
+                  </button>
+                </Show>
+              )}
+            </For>
+            <Show when={office.loaded() && !office.available()}>
+              <span class="text-12-regular text-text-weak">office not available on this server</span>
+            </Show>
+            <Show when={office.error()}>
+              <span class="text-12-regular text-icon-critical-base truncate">{office.error()}</span>
+            </Show>
+          </div>
           <div class="flex-1" />
           <div class="flex items-center rounded-md border border-border-weak-base p-0.5" role="group" aria-label="Mode">
             <button
@@ -425,7 +458,7 @@ export const OfficePanel = (props: { onClose: () => void; onNavigate: (href: str
         </div>
         <Show when={office.expandedBucket()} keyed>
           {(chip) => (
-            <div class="px-6 pb-3">
+            <div class="px-3 pb-3 md:px-6">
               <div
                 role="list"
                 aria-label={`${chip} threads`}
@@ -450,9 +483,9 @@ export const OfficePanel = (props: { onClose: () => void; onNavigate: (href: str
       <div
         ref={streamRef}
         onScroll={onScroll}
-        class="relative flex-1 min-h-0 overflow-y-auto px-6 py-4 [overflow-anchor:none]"
+        class="relative flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-3 py-4 md:px-6 [overflow-anchor:none]"
       >
-        <div ref={contentRef} class="mx-auto w-full max-w-[880px] flex flex-col gap-3">
+        <div ref={contentRef} class="mx-auto w-full max-w-[880px] min-w-0 flex flex-col gap-3">
           <Show when={empty()}>
             <div class="flex flex-col items-center gap-2 px-6 py-16 text-center">
               <Icon name="eye" class="text-text-weak" />
@@ -536,24 +569,28 @@ export const OfficePanel = (props: { onClose: () => void; onNavigate: (href: str
         />
       </Show>
 
-      <div class="shrink-0 border-t border-border-weak-base px-6 py-3">
-        <div class="mx-auto w-full max-w-[880px] flex flex-col gap-1">
-          <TextareaV2
-            ref={composerRef}
-            class="!w-full"
-            rows={2}
-            placeholder="Tell the farmer what to do, or ask what's going on…"
-            aria-label="Tell the farmer"
-            value={draft()}
-            disabled={working() || !office.available()}
-            onInput={(event) => setDraft(event.currentTarget.value)}
-            onKeyDown={(event) => {
-              if (event.key !== "Enter" || event.shiftKey || event.isComposing) return
-              event.preventDefault()
-              send()
-            }}
-          />
-          <div class="flex items-center gap-2">
+      <div class="shrink-0 border-t border-border-weak-base px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:px-6">
+        <div class="mx-auto w-full max-w-[880px] flex flex-col gap-2">
+          <Show when={phone()}>{talk()}</Show>
+          <div class="flex items-end gap-2">
+            <TextareaV2
+              ref={composerRef}
+              class="!w-full flex-1 min-w-0"
+              rows={2}
+              placeholder="Tell the farmer what to do, or ask what's going on…"
+              aria-label="Tell the farmer"
+              value={draft()}
+              disabled={!office.available()}
+              onInput={(event) => setDraft(event.currentTarget.value)}
+              onKeyDown={(event) => {
+                if (event.key !== "Enter" || event.shiftKey || event.isComposing) return
+                event.preventDefault()
+                send()
+              }}
+            />
+            <Show when={!phone()}>{talk()}</Show>
+          </div>
+          <div class="flex items-center gap-2 min-w-0">
             <span class="text-12-regular text-text-weak">Enter to send · Shift+Enter for a new line</span>
             <Show when={askError()}>
               <span class="text-12-regular text-icon-critical-base truncate">{askError()}</span>
