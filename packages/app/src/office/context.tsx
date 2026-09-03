@@ -1,4 +1,5 @@
 import { createStore, produce, reconcile } from "solid-js/store"
+import { setOfficeOpen } from "@/office/presence"
 import { batch, createEffect, createMemo, createSignal, on, onCleanup } from "solid-js"
 import { useLocation, useNavigate } from "@solidjs/router"
 import { createSimpleContext } from "@opencode-ai/ui/context"
@@ -93,6 +94,8 @@ export const { use: useOffice, provider: OfficeProvider } = createSimpleContext(
     })
     // When the panel was last closed; the stream's divider and the unread badge hang off it.
     const [seen, setSeen, , seenReady] = persisted("office.lastSeen.v1", createStore({ at: 0 }))
+    // Mirror the open flag for the notification layer, which sits outside this context.
+    createEffect(() => setOfficeOpen(store.open))
 
     const init = (): OfficeFetchInit => ({ fetch: platform.fetch })
 

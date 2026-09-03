@@ -45,6 +45,25 @@ export const VoiceToken = Schema.Struct({
 
 const VoiceTokenResult = Schema.Union([VoiceToken, Schema.Struct({ error: Schema.String })])
 
+// Hold-to-talk: the phone (or desktop) records a clip, the server transcribes it,
+// the farmer answers, and the server voices the reply. No WebRTC needed.
+export const TranscribeInput = Schema.Struct({
+  audio: Schema.String.annotate({ description: "base64 audio clip" }),
+  mime: Schema.String.annotate({ description: "e.g. audio/webm, audio/mp4" }),
+})
+
+export const TranscribeResult = Schema.Union([Schema.Struct({ text: Schema.String }), Schema.Struct({ error: Schema.String })])
+
+export const SpeakInput = Schema.Struct({
+  text: Schema.String,
+  voice: Schema.optional(Schema.String),
+})
+
+export const SpeakResult = Schema.Union([
+  Schema.Struct({ audio: Schema.String, mime: Schema.String }),
+  Schema.Struct({ error: Schema.String }),
+])
+
 export const OfficePaths = {
   state: "/global/office/state",
   overseer: "/global/office/overseer",
@@ -55,6 +74,8 @@ export const OfficePaths = {
   threadMark: "/global/office/thread/mark",
   autonomy: "/global/office/autonomy",
   voiceToken: "/global/office/voice/token",
+  transcribe: "/global/office/voice/transcribe",
+  speak: "/global/office/voice/speak",
 } as const
 
 export const OfficeApi = HttpApi.make("office").add(
@@ -94,6 +115,14 @@ export const OfficeApi = HttpApi.make("office").add(
         payload: VoiceTokenInput,
         success: described(VoiceTokenResult, "Ephemeral Realtime client secret"),
       }).annotateMerge(OpenApi.annotations({ identifier: "office.voice.token", summary: "Mint a Realtime client secret for the office voice" })),
+      HttpApiEndpoint.post("transcribe", OfficePaths.transcribe, {
+        payload: TranscribeInput,
+        success: described(TranscribeResult, "Transcript of the clip"),
+      }).annotateMerge(OpenApi.annotations({ identifier: "office.voice.transcribe", summary: "Transcribe a hold-to-talk clip" })),
+      HttpApiEndpoint.post("speak", OfficePaths.speak, {
+        payload: SpeakInput,
+        success: described(SpeakResult, "Spoken audio for a reply"),
+      }).annotateMerge(OpenApi.annotations({ identifier: "office.voice.speak", summary: "Voice a farmer reply" })),
     )
     .annotateMerge(OpenApi.annotations({ title: "office", description: "The Farmer's Office." })),
 )

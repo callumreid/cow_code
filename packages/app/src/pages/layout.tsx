@@ -89,6 +89,7 @@ import { createPrDashboardStore } from "@/pr-dashboard/store"
 import { SidebarOffice } from "./layout/sidebar-office"
 import { OfficePanel } from "./layout/office-panel"
 import { useOffice } from "@/office/context"
+import { officeOpen } from "@/office/presence"
 
 export default function LegacyLayout(props: ParentProps) {
   const serverSDK = useServerSDK()
@@ -458,6 +459,8 @@ export default function LegacyLayout(props: ParentProps) {
         const directory = e.name
         const props = e.details.properties
         if (e.details.type === "permission.asked" && permission.autoResponds(e.details.properties, directory)) return
+        // The farmer surfaces these as cards while the office is open; no popups on top.
+        if (officeOpen()) return
 
         const [store] = serverSync().child(directory, { bootstrap: false })
         const session = store.session.find((s) => s.id === props.sessionID)

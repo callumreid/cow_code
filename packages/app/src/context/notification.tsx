@@ -17,6 +17,7 @@ import { ServerConnection, useServer } from "./server"
 import { type DraftTab, useTabs } from "./tabs"
 import { requireServerKey } from "@/utils/session-route"
 import type { ServerScope } from "@/utils/server-scope"
+import { officeOpen } from "@/office/presence"
 
 type NotificationBase = {
   directory?: string
@@ -342,20 +343,22 @@ function createServerNotificationState(input: {
       if (!session) return
       if (session.parentID) return
 
-      if (settings.sounds.agentEnabled()) {
+      // While the office is open the farmer surfaces finishes as cards; stay quiet.
+      const quiet = officeOpen()
+      if (settings.sounds.agentEnabled() && !quiet) {
         void playSoundById(settings.sounds.agent())
       }
 
       append({
         directory,
         time,
-        viewed: viewedInCurrentSession(directory, sessionID),
+        viewed: viewedInCurrentSession(directory, sessionID) || quiet,
         type: "turn-complete",
         session: sessionID,
       })
 
       const href = `/${base64Encode(directory)}/session/${sessionID}`
-      if (settings.notifications.agent()) {
+      if (settings.notifications.agent() && !quiet) {
         void platform.notify(language.t("notification.session.responseReady.title"), session.title ?? sessionID, () =>
           input.navigate(href),
         )
@@ -373,7 +376,8 @@ function createServerNotificationState(input: {
       if (meta.disposed) return
       if (session?.parentID) return
 
-      if (settings.sounds.errorsEnabled()) {
+      const quiet = officeOpen()
+      if (settings.sounds.errorsEnabled() && !quiet) {
         void playSoundById(settings.sounds.errors())
       }
 
@@ -390,7 +394,7 @@ function createServerNotificationState(input: {
         session?.title ??
         (typeof error === "string" ? error : language.t("notification.session.error.fallbackDescription"))
       const href = sessionID ? `/${base64Encode(directory)}/session/${sessionID}` : `/${base64Encode(directory)}`
-      if (settings.notifications.errors()) {
+      if (settings.notifications.errors() && !quiet) {
         void platform.notify(language.t("notification.session.error.title"), description, () => input.navigate(href))
       }
     })
