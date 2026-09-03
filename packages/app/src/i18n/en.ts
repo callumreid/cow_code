@@ -51,7 +51,7 @@ export const dict = {
   "dialog.phone.loading": "Preparing a network address...",
   "dialog.phone.description": "Scan with your phone camera to open this workspace in the browser.",
   "dialog.phone.network": "Your phone must be on the same network (Wi-Fi or tailnet).",
-  "dialog.phone.voiceSecure": "Secure Tailscale HTTPS is selected, so microphone and voice will work on mobile.",
+  "dialog.phone.voiceSecure": "Secure HTTPS is selected, so microphone and voice will work on mobile.",
   "dialog.phone.voiceNeedsHttps": "Microphone and voice need an HTTPS address on mobile.",
   "dialog.phone.insecure": "This server has no password, so anyone on the network can connect.",
   "dialog.phone.unavailable":

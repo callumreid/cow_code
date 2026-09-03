@@ -16,6 +16,7 @@ import { checkAppExists, resolveAppPath } from "./apps"
 import { CHANNEL } from "./constants"
 import { registerIpcHandlers, sendDeepLinks, sendMenuCommand } from "./ipc"
 import { getNetworkIPs } from "./network-ips"
+import { getPublicCompanionOrigin } from "./public-companion"
 import { getTailscaleServeOrigins } from "./tailscale-serve"
 import { getPrDetails } from "./pr-details"
 import { forwardInitializationFailure } from "./initialization"
@@ -314,7 +315,16 @@ const main = Effect.gen(function* () {
       const current = server
       if (!current) throw new Error("The local server is not managed by this window")
       const port = await current.expose()
-      return { port, hosts: getNetworkIPs(), secureOrigins: await getTailscaleServeOrigins(port) }
+      const publicFile = join(app.getPath("userData"), "opencode", "public-companion.json")
+      const [publicOrigin, tailscaleOrigins] = await Promise.all([
+        getPublicCompanionOrigin(publicFile),
+        getTailscaleServeOrigins(port),
+      ])
+      return {
+        port,
+        hosts: getNetworkIPs(),
+        secureOrigins: [...(publicOrigin ? [publicOrigin] : []), ...tailscaleOrigins],
+      }
     },
     recordFatalRendererError: (error) => writeLog("renderer", "fatal renderer error", { ...error }, "error"),
     setNativeTranslations: (bundle) => {

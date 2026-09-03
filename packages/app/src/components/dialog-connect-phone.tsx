@@ -83,7 +83,7 @@ export function DialogConnectPhone() {
     // immediately (see ProjectsFromUrl).
     for (const project of server.projects.list()) params.append("project", base64Encode(project.worktree))
     const target = new URL(origin)
-    target.search = params.toString()
+    for (const [key, value] of params) target.searchParams.append(key, value)
     return target.toString()
   })
 
