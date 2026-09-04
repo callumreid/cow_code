@@ -339,14 +339,11 @@ async function isHealthy(url: string) {
 }
 
 async function probeHealth(url: string) {
-  try {
-    const response = await fetch(url, { method: "HEAD", signal: AbortSignal.timeout(TUNNEL_HEALTH_TIMEOUT) })
-    return { ok: response.ok, detail: `HTTP ${response.status}` }
-  } catch (systemError) {
-    const direct = await probeCloudflareEdge(url)
-    if (direct.ok) return direct
-    return { ok: false, detail: `${errorMessage(systemError)}; direct edge: ${direct.detail}` }
-  }
+  // A brand-new quick-tunnel hostname can briefly return NXDOMAIN through
+  // macOS/Tailscale even after Cloudflare's own resolver has published it.
+  // Probing through the system resolver here would poison its negative cache
+  // just before the phone scans the QR, so validate directly at Cloudflare.
+  return probeCloudflareEdge(url)
 }
 
 async function probeCloudflareEdge(url: string) {
