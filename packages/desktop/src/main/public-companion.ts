@@ -1,6 +1,6 @@
 import { spawn, type ChildProcess } from "node:child_process"
 import { randomBytes, timingSafeEqual } from "node:crypto"
-import { resolve4 } from "node:dns/promises"
+import { Resolver } from "node:dns/promises"
 import { existsSync } from "node:fs"
 import { chmod, mkdir, rm, writeFile } from "node:fs/promises"
 import {
@@ -352,7 +352,9 @@ async function probeHealth(url: string) {
 async function probeCloudflareEdge(url: string) {
   try {
     const parsed = new URL(url)
-    const addresses = await resolve4(parsed.hostname)
+    const resolver = new Resolver()
+    resolver.setServers(["1.1.1.1", "1.0.0.1"])
+    const addresses = await resolver.resolve4(parsed.hostname)
     let last = "no A records"
     for (const address of addresses) {
       const result = await new Promise<{ ok: boolean; detail: string }>((resolve) => {
