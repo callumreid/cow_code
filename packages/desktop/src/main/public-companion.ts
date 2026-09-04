@@ -170,12 +170,10 @@ export function createPublicCompanionManager(options: PublicCompanionOptions): P
 
   const ensure = async (): Promise<string | undefined> => {
     desired = true
-    if (origin && tunnel?.exitCode === null && proxy?.listening) {
-      if (await isHealthy(origin)) return origin
-      options.logger.warn("mobile companion HTTPS health check failed; restarting")
-      ++generation
-      await clearRuntime()
-    }
+    // Startup already proved the public edge. Re-probing every time the dialog
+    // opens can hit a different DNS cache and rotate a healthy quick tunnel.
+    // The child exit listener and local proxy liveness are the durable signals.
+    if (origin && tunnel?.exitCode === null && proxy?.listening) return origin
     if (startPromise) return startPromise
     startPromise = start().finally(() => {
       startPromise = undefined
