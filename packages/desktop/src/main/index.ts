@@ -16,7 +16,7 @@ import { checkAppExists, resolveAppPath } from "./apps"
 import { CHANNEL } from "./constants"
 import { registerIpcHandlers, sendDeepLinks, sendMenuCommand } from "./ipc"
 import { getNetworkIPs } from "./network-ips"
-import { getPublicCompanionOrigin } from "./public-companion"
+import { createPublicCompanionManager, type PublicCompanionManager } from "./public-companion"
 import { getTailscaleServeOrigins } from "./tailscale-serve"
 import { getPrDetails } from "./pr-details"
 import { forwardInitializationFailure } from "./initialization"
@@ -70,6 +70,8 @@ const jsCallStackFeature = "DocumentPolicyIncludeJSCallStacksInCrashReports"
 
 let logger: ReturnType<typeof initLogging>
 let server: SidecarListener | null = null
+let publicCompanion: PublicCompanionManager | null = null
+let serverPassword: string | null = null
 
 const pendingDeepLinks: string[] = []
 
@@ -90,6 +92,10 @@ function emitDeepLinks(urls: string[]) {
 }
 
 async function killSidecar() {
+  const companion = publicCompanion
+  publicCompanion = null
+  serverPassword = null
+  await companion?.stop()
   if (!server) return
   const current = server
   server = null
@@ -316,10 +322,8 @@ const main = Effect.gen(function* () {
       if (!current) throw new Error("The local server is not managed by this window")
       const port = await current.expose()
       const publicFile = join(app.getPath("userData"), "opencode", "public-companion.json")
-      const [publicOrigin, tailscaleOrigins] = await Promise.all([
-        getPublicCompanionOrigin(publicFile),
-        getTailscaleServeOrigins(port),
-      ])
+      const manager = ensurePublicCompanionManager(publicFile, port)
+      const [publicOrigin, tailscaleOrigins] = await Promise.all([manager?.ensure(), getTailscaleServeOrigins(port)])
       return {
         port,
         hosts: getNetworkIPs(),
@@ -393,6 +397,7 @@ const main = Effect.gen(function* () {
     const hostname = "127.0.0.1"
     const url = `http://${hostname}:${port}`
     const password = companionPassword()
+    serverPassword = password
 
     logger.log("spawning sidecar", { url })
     const { listener, health } = yield* Effect.promise(() =>
@@ -406,7 +411,13 @@ const main = Effect.gen(function* () {
     server = listener
     // Companion listener up-front so phone pairing links (stable password,
     // port 4096 when free) work without opening the Connect phone dialog.
-    listener.expose().catch((error) => logger.error("companion expose failed", error))
+    listener
+      .expose()
+      .then((exposedPort) => {
+        const publicFile = join(app.getPath("userData"), "opencode", "public-companion.json")
+        return ensurePublicCompanionManager(publicFile, exposedPort)?.ensure()
+      })
+      .catch((error) => logger.error("companion expose failed", error))
     yield* Deferred.succeed(serverReady, {
       url,
       username: "opencode",
@@ -458,6 +469,22 @@ function companionPassword() {
   mkdirSync(stateDir, { recursive: true })
   writeFileSync(file, generated, { mode: 0o600 })
   return generated
+}
+
+function ensurePublicCompanionManager(stateFile: string, port: number) {
+  if (publicCompanion) return publicCompanion
+  if (!serverPassword) return undefined
+  publicCompanion = createPublicCompanionManager({
+    stateFile,
+    targetPort: port,
+    password: serverPassword,
+    logger: {
+      log: (message, meta) => logger.log(message, meta),
+      warn: (message, meta) => logger.warn(message, meta),
+      error: (message, meta) => logger.error(message, meta),
+    },
+  })
+  return publicCompanion
 }
 
 Effect.runFork(main)
