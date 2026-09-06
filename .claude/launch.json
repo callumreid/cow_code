@@ -1,0 +1,28 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "engine",
+      "runtimeExecutable": "bun",
+      "runtimeArgs": [
+        "run",
+        "--cwd",
+        "packages/opencode",
+        "--conditions=browser",
+        "src/index.ts",
+        "serve",
+        "--hostname",
+        "127.0.0.1",
+        "--port",
+        "4096"
+      ],
+      "port": 4096
+    },
+    {
+      "name": "app",
+      "runtimeExecutable": "bun",
+      "runtimeArgs": ["run", "--cwd", "packages/app", "dev"],
+      "port": 3000
+    }
+  ]
+}
