@@ -237,6 +237,8 @@ import type {
   ToolIdsResponses,
   ToolListErrors,
   ToolListResponses,
+  TranscribeAudioErrors,
+  TranscribeAudioResponses,
   TuiAppendPromptErrors,
   TuiAppendPromptResponses,
   TuiClearPromptErrors,
@@ -4575,6 +4577,49 @@ export class Sync extends HeyApiClient {
   }
 }
 
+export class Transcribe extends HeyApiClient {
+  /**
+   * Transcribe audio
+   *
+   * Transcribe recorded audio to text using the connected OpenAI account.
+   */
+  public audio<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      audio?: string
+      mime?: string
+      language?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "audio" },
+            { in: "body", key: "mime" },
+            { in: "body", key: "language" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<TranscribeAudioResponses, TranscribeAudioErrors, ThrowOnError>({
+      url: "/transcribe",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+}
+
 export class Control extends HeyApiClient {
   /**
    * Get next TUI request
@@ -7206,6 +7251,11 @@ export class OpencodeClient extends HeyApiClient {
   private _sync?: Sync
   get sync(): Sync {
     return (this._sync ??= new Sync({ client: this.client }))
+  }
+
+  private _transcribe?: Transcribe
+  get transcribe(): Transcribe {
+    return (this._transcribe ??= new Transcribe({ client: this.client }))
   }
 
   private _tui?: Tui

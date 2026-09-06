@@ -5823,6 +5823,9 @@
                     "properties": {
                       "archived": {
                         "type": "number"
+                      },
+                      "pinned": {
+                        "type": "number"
                       }
                     },
                     "additionalProperties": false
@@ -8404,6 +8407,99 @@
           {
             "lang": "js",
             "source": "import { createOpencodeClient } from \"@opencode-ai/sdk\n\nconst client = createOpencodeClient()\nawait client.sync.history.list({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/transcribe": {
+      "post": {
+        "tags": ["transcribe"],
+        "operationId": "transcribe.audio",
+        "parameters": [
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Transcribed text",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "text": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["text"],
+                  "additionalProperties": false,
+                  "description": "Transcribed text"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "TranscribeError | InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/TranscribeError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/InvalidRequestError"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "description": "Transcribe recorded audio to text using the connected OpenAI account.",
+        "summary": "Transcribe audio",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "audio": {
+                    "type": "string",
+                    "description": "Base64-encoded audio (webm/mp4/mp3/wav)"
+                  },
+                  "mime": {
+                    "type": "string",
+                    "description": "MIME type of the audio, e.g. audio/webm"
+                  },
+                  "language": {
+                    "type": "string"
+                  }
+                },
+                "required": ["audio", "mime"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@opencode-ai/sdk\n\nconst client = createOpencodeClient()\nawait client.transcribe.audio({\n  ...\n})"
           }
         ]
       }
@@ -15877,6 +15973,9 @@
               },
               "archived": {
                 "type": "number"
+              },
+              "pinned": {
+                "type": "number"
               }
             },
             "required": ["created", "updated"],
@@ -21512,6 +21611,9 @@
               "openTelemetry": {
                 "type": "boolean"
               },
+              "traceExport": {
+                "type": "boolean"
+              },
               "primary_tools": {
                 "type": "array",
                 "items": {
@@ -22129,6 +22231,9 @@
                 "minimum": 0
               },
               "archived": {
+                "type": "number"
+              },
+              "pinned": {
                 "type": "number"
               }
             },
@@ -23217,6 +23322,26 @@
           }
         },
         "required": ["_tag", "sessionID", "message"],
+        "additionalProperties": false
+      },
+      "TranscribeError": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "enum": ["BadRequest", "NoOpenAiAuth", "TranscriptionFailed"]
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "message": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "required": ["name", "data"],
         "additionalProperties": false
       },
       "EventTuiPromptAppend": {
@@ -36835,6 +36960,10 @@
     {
       "name": "sync",
       "description": "Experimental HttpApi sync routes."
+    },
+    {
+      "name": "transcribe",
+      "description": "Speech-to-text for voice dictation."
     },
     {
       "name": "tui",

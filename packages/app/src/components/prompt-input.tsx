@@ -69,6 +69,7 @@ import { PromptDragOverlay } from "./prompt-input/drag-overlay"
 import { promptPlaceholder } from "./prompt-input/placeholder"
 import { createPromptInputTransientState } from "./prompt-input/transient-state"
 import { showToast } from "@/utils/toast"
+import { encode64Bytes } from "@/utils/base64"
 import { ImagePreview } from "@opencode-ai/ui/image-preview"
 import type { ReferenceInfo } from "@opencode-ai/sdk/v2/client"
 
@@ -535,6 +536,73 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
         }),
     })
   }
+
+  // Voice dictation: record via MediaRecorder, transcribe on the engine
+  // (/transcribe → OpenAI), then insert at the caret like typed input so file
+  // pills and cursor state survive (handleInput re-syncs the store from DOM).
+  const [dictation, setDictation] = createStore({ recording: false, transcribing: false })
+  let dictationRecorder: MediaRecorder | undefined
+  let dictationChunks: Blob[] = []
+
+  const insertTranscript = (text: string) => {
+    const trimmed = text.trim()
+    if (!trimmed || !editorRef?.isConnected) return
+    editorRef.focus()
+    const existing = (editorRef.textContent ?? "").replace(/\u200B/g, "")
+    setCursorPosition(editorRef, existing.length)
+    document.execCommand("insertText", false, existing.length > 0 ? ` ${trimmed}` : trimmed)
+    handleInput()
+  }
+
+  const startDictation = async () => {
+    const media = await navigator.mediaDevices.getUserMedia({ audio: true }).catch(() => undefined)
+    if (!media) {
+      showToast({ variant: "error", title: language.t("prompt.dictation.noMicPermission") })
+      return
+    }
+    const mime = MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : "audio/mp4"
+    dictationChunks = []
+    dictationRecorder = new MediaRecorder(media, { mimeType: mime })
+    dictationRecorder.ondataavailable = (event) => {
+      if (event.data.size > 0) dictationChunks.push(event.data)
+    }
+    dictationRecorder.onstop = () => {
+      media.getTracks().forEach((track) => track.stop())
+      setDictation("recording", false)
+      const blob = new Blob(dictationChunks, { type: mime })
+      dictationChunks = []
+      dictationRecorder = undefined
+      if (blob.size === 0) return
+      setDictation("transcribing", true)
+      void blob
+        .arrayBuffer()
+        .then((buffer) => sdk().client.transcribe.audio({ audio: encode64Bytes(buffer), mime }))
+        .then((result) => insertTranscript(result.data?.text ?? ""))
+        .catch((error: unknown) =>
+          showToast({
+            variant: "error",
+            title: language.t("prompt.dictation.error"),
+            description: error instanceof Error ? error.message : String(error),
+          }),
+        )
+        .finally(() => setDictation("transcribing", false))
+    }
+    dictationRecorder.start()
+    setDictation("recording", true)
+  }
+
+  const toggleDictation = () => {
+    if (dictation.recording) {
+      dictationRecorder?.stop()
+      return
+    }
+    void startDictation()
+  }
+
+  // Never leave the microphone running past the composer's lifetime.
+  onCleanup(() => {
+    dictationRecorder?.stream.getTracks().forEach((track) => track.stop())
+  })
 
   const setMode = (mode: "normal" | "shell") => {
     setStore("mode", mode)
@@ -1667,6 +1735,33 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                       aria-label={language.t("prompt.action.attachFile")}
                     />
                   </TooltipV2>
+                  <TooltipV2
+                    placement="top"
+                    value={
+                      dictation.recording
+                        ? language.t("prompt.action.stopDictation")
+                        : dictation.transcribing
+                          ? language.t("prompt.dictation.transcribing")
+                          : language.t("prompt.action.dictate")
+                    }
+                  >
+                    <IconButton
+                      data-action="prompt-dictate"
+                      type="button"
+                      icon={dictation.recording ? "mic-stop" : "mic"}
+                      variant="ghost"
+                      class={`size-7 rounded-md p-[6px] ${dictation.recording ? "text-text-danger-base animate-pulse" : "text-v2-icon-icon-muted"}`}
+                      style={buttons()}
+                      onClick={toggleDictation}
+                      disabled={dictation.transcribing || store.mode !== "normal"}
+                      tabIndex={store.mode === "normal" ? undefined : -1}
+                      aria-label={
+                        dictation.recording
+                          ? language.t("prompt.action.stopDictation")
+                          : language.t("prompt.action.dictate")
+                      }
+                    />
+                  </TooltipV2>
                   <Show when={permission.isBypassing()}>
                     <TooltipV2 placement="top" value={language.t("permission.bypass.indicator.tooltip")}>
                       <button
@@ -1926,6 +2021,23 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                       <Icon name="plus" class="size-4.5" />
                     </Button>
                   </TooltipKeybind>
+                  <Button
+                    data-action="prompt-dictate"
+                    type="button"
+                    variant="ghost"
+                    class={`size-8 p-0 ${dictation.recording ? "text-text-danger-base animate-pulse" : ""}`}
+                    style={buttons()}
+                    onClick={toggleDictation}
+                    disabled={dictation.transcribing || store.mode !== "normal"}
+                    tabIndex={store.mode === "normal" ? undefined : -1}
+                    aria-label={
+                      dictation.recording
+                        ? language.t("prompt.action.stopDictation")
+                        : language.t("prompt.action.dictate")
+                    }
+                  >
+                    <Icon name={dictation.recording ? "mic-stop" : "mic"} class="size-4.5" />
+                  </Button>
                 </div>
               </div>
             </div>

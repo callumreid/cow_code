@@ -63,6 +63,9 @@ const getBase = (appId: string): Configuration => ({
   mac: {
     category: "public.app-category.developer-tools",
     icon: `resources/icons/icon.icns`,
+    extendInfo: {
+      NSMicrophoneUsageDescription: "Voice dictation transcribes your speech into the prompt.",
+    },
     hardenedRuntime: true,
     gatekeeperAssess: false,
     entitlements: "resources/entitlements.plist",

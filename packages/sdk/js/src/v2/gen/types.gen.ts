@@ -2018,6 +2018,7 @@ export type Config = {
     disable_paste_summary?: boolean
     batch_tool?: boolean
     openTelemetry?: boolean
+    traceExport?: boolean
     primary_tools?: Array<string>
     continue_loop_on_deny?: boolean
     mcp_timeout?: number
@@ -2596,6 +2597,13 @@ export type SessionBusyError = {
   _tag: "SessionBusyError"
   sessionID: string
   message: string
+}
+
+export type TranscribeError = {
+  name: "BadRequest" | "NoOpenAiAuth" | "TranscriptionFailed"
+  data: {
+    message?: string
+  }
 }
 
 export type EventTuiPromptAppend = {
@@ -10612,6 +10620,46 @@ export type SyncHistoryListResponses = {
 }
 
 export type SyncHistoryListResponse = SyncHistoryListResponses[keyof SyncHistoryListResponses]
+
+export type TranscribeAudioData = {
+  body?: {
+    /**
+     * Base64-encoded audio (webm/mp4/mp3/wav)
+     */
+    audio: string
+    /**
+     * MIME type of the audio, e.g. audio/webm
+     */
+    mime: string
+    language?: string
+  }
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/transcribe"
+}
+
+export type TranscribeAudioErrors = {
+  /**
+   * TranscribeError | InvalidRequestError
+   */
+  400: TranscribeError | InvalidRequestError
+}
+
+export type TranscribeAudioError = TranscribeAudioErrors[keyof TranscribeAudioErrors]
+
+export type TranscribeAudioResponses = {
+  /**
+   * Transcribed text
+   */
+  200: {
+    text: string
+  }
+}
+
+export type TranscribeAudioResponse = TranscribeAudioResponses[keyof TranscribeAudioResponses]
 
 export type TuiAppendPromptData = {
   body?: {
