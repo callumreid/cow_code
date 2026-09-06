@@ -28,6 +28,7 @@ import opencodeThemeJson from "./themes/opencode.json"
 import orngThemeJson from "./themes/orng.json"
 import osakaJadeThemeJson from "./themes/osaka-jade.json"
 import palenightThemeJson from "./themes/palenight.json"
+import pastureThemeJson from "./themes/pasture.json"
 import rosepineThemeJson from "./themes/rosepine.json"
 import shadesOfPurpleThemeJson from "./themes/shadesofpurple.json"
 import solarizedThemeJson from "./themes/solarized.json"
@@ -66,6 +67,7 @@ export const opencodeTheme = opencodeThemeJson as DesktopTheme
 export const orngTheme = orngThemeJson as DesktopTheme
 export const osakaJadeTheme = osakaJadeThemeJson as DesktopTheme
 export const palenightTheme = palenightThemeJson as DesktopTheme
+export const pastureTheme = pastureThemeJson as DesktopTheme
 export const rosepineTheme = rosepineThemeJson as DesktopTheme
 export const shadesOfPurpleTheme = shadesOfPurpleThemeJson as DesktopTheme
 export const solarizedTheme = solarizedThemeJson as DesktopTheme
@@ -105,6 +107,7 @@ export const DEFAULT_THEMES: Record<string, DesktopTheme> = {
   orng: orngTheme,
   "osaka-jade": osakaJadeTheme,
   palenight: palenightTheme,
+  pasture: pastureTheme,
   rosepine: rosepineTheme,
   shadesofpurple: shadesOfPurpleTheme,
   solarized: solarizedTheme,

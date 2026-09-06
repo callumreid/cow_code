@@ -67,6 +67,7 @@ export {
   orngTheme,
   osakaJadeTheme,
   palenightTheme,
+  pastureTheme,
   rosepineTheme,
   shadesOfPurpleTheme,
   solarizedTheme,

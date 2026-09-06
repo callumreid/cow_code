@@ -1,0 +1,33 @@
+{
+  "$schema": "https://opencode.ai/desktop-theme.json",
+  "name": "Pasture",
+  "id": "pasture",
+  "light": {
+    "palette": {
+      "neutral": "#f8f3e4",
+      "ink": "#43382b",
+      "primary": "#557d3f",
+      "accent": "#a06b3f",
+      "success": "#557d3f",
+      "warning": "#c9862c",
+      "error": "#c0503f",
+      "info": "#4a8a6f",
+      "diffAdd": "#6f9c4a",
+      "diffDelete": "#c65a49"
+    }
+  },
+  "dark": {
+    "palette": {
+      "neutral": "#262a1f",
+      "ink": "#e8e0c9",
+      "primary": "#a4c47c",
+      "accent": "#cfa06f",
+      "success": "#a4c47c",
+      "warning": "#e0a458",
+      "error": "#d97b6c",
+      "info": "#8fbf9f",
+      "diffAdd": "#9fbf7a",
+      "diffDelete": "#d97b6c"
+    }
+  }
+}
