@@ -649,6 +649,7 @@ export const dict = {
   "common.pin": "Fastgør",
   "common.unpin": "Frigør",
   "home.sessions.group.pinned": "Fastgjorte",
+  "home.sessions.search.messages": "Beskeder",
   "common.reset": "Nulstil",
   "common.archive": "Arkivér",
   "common.delete": "Slet",

@@ -559,6 +559,7 @@ export const dict = {
   "home.sessions.search.placeholder": "搜索会话",
   "home.sessions.search.placeholder.scoped": "在 {{scope}} 中搜索会话",
   "home.sessions.search.sessions": "会话",
+  "home.sessions.search.messages": "消息",
   "home.sessions.search.noResults": "未找到与 {{query}} 相关的会话",
   "home.sessions.empty": "这里还没有内容",
   "home.sessions.empty.description": "创建一个会话以开始。",

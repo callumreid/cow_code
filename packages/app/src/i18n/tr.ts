@@ -658,6 +658,7 @@ export const dict = {
   "common.pin": "Sabitle",
   "common.unpin": "Sabitlemeyi kaldır",
   "home.sessions.group.pinned": "Sabitlenmiş",
+  "home.sessions.search.messages": "Mesajlar",
   "common.reset": "Sıfırla",
   "common.archive": "Arşivle",
   "common.delete": "Sil",

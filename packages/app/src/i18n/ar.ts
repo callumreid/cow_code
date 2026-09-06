@@ -585,6 +585,7 @@ export const dict = {
   "common.pin": "تثبيت",
   "common.unpin": "إلغاء التثبيت",
   "home.sessions.group.pinned": "مثبتة",
+  "home.sessions.search.messages": "الرسائل",
   "common.reset": "إعادة تعيين",
   "common.archive": "أرشفة",
   "common.delete": "حذف",

@@ -5,6 +5,7 @@ import {
   createMemo,
   createResource,
   createRoot,
+  createSignal,
   For,
   Match,
   on,
@@ -15,6 +16,7 @@ import {
   Switch,
 } from "solid-js"
 import { makeEventListener } from "@solid-primitives/event-listener"
+import { debounce } from "@solid-primitives/scheduled"
 import { createStore, produce } from "solid-js/store"
 import { useQuery } from "@tanstack/solid-query"
 import { Button } from "@opencode-ai/ui/button"
@@ -331,6 +333,53 @@ export function NewHome() {
     if (!query) return []
     return allRecords().filter((record) => matchesHomeSessionSearch(record, query))
   })
+
+  // Server-side content search (message text), debounced so no request fires
+  // per keystroke. Rendered as a separate "Messages" section under the instant
+  // title matches; deduped against them by directory+id.
+  const [contentQuery, setContentQuery] = createSignal("")
+  const scheduleContentQuery = debounce((value: string) => setContentQuery(value), 250)
+  createEffect(() => {
+    const value = search()
+    scheduleContentQuery(value.length >= 2 ? value : "")
+  })
+  const contentSearch = useQuery(() => ({
+    queryKey: [
+      "home",
+      "content-search",
+      selection().server,
+      selectedProject()?.worktree ?? "*",
+      contentQuery(),
+    ] as const,
+    enabled: contentQuery().length >= 2,
+    queryFn: async () => {
+      const ctx = focusedServerCtx()
+      if (!ctx) return []
+      const responses = await Promise.all(
+        projectDirectories().map((directory) =>
+          ctx.sdk.client.session
+            .list({ directory, search: contentQuery(), roots: true, limit: 20 })
+            .then((result) => result.data ?? [])
+            .catch(() => []),
+        ),
+      )
+      return responses.flat()
+    },
+  }))
+  const contentResults = createMemo(() => {
+    if (contentQuery().length < 2 || search().length < 2) return []
+    const titleKeys = new Set(searchResults().map(homeSessionSearchKey))
+    const seen = new Set<string>()
+    return (contentSearch.data ?? []).flatMap((session) => {
+      const project = projectForSession(session, projects(), projectByID())
+      if (!project) return []
+      const record = { session, project, projectName: displayName(project) }
+      const key = homeSessionSearchKey(record)
+      if (titleKeys.has(key) || seen.has(key)) return []
+      seen.add(key)
+      return [record]
+    })
+  })
   const searchOpen = createMemo(() => state.searchFocused && search().length > 0)
   const groups = createMemo(() => groupSessions(records(), language))
   const sessionHeaderOpacity = useHomeSessionHeaderOpacity(groups)
@@ -585,6 +634,8 @@ export function NewHome() {
             open={searchOpen()}
             loading={sessionLoad.isLoading}
             results={searchResults()}
+            contentResults={contentResults()}
+            contentLoading={contentSearch.isFetching && contentQuery().length >= 2}
             showProjectName={!selectedProject()}
             server={selection().server}
             noResultsLabel={language.t("home.sessions.search.noResults", { query: search() })}
@@ -1061,6 +1112,8 @@ function HomeSessionSearch(props: {
   open: boolean
   loading: boolean
   results: HomeSessionRecord[]
+  contentResults: HomeSessionRecord[]
+  contentLoading: boolean
   showProjectName: boolean
   server: ServerConnection.Key
   noResultsLabel: string
@@ -1085,6 +1138,9 @@ function HomeSessionSearch(props: {
     props.bindFocus(focusInput)
   })
 
+  // Keyboard navigation walks title matches then content matches as one list.
+  const combined = () => [...props.results, ...props.contentResults]
+
   const syncActive = (results: HomeSessionRecord[]) => {
     if (results.length === 0) {
       setStore("active", "")
@@ -1095,24 +1151,25 @@ function HomeSessionSearch(props: {
     }
   }
 
-  createEffect(() => syncActive(props.results))
+  createEffect(() => syncActive(combined()))
 
   createEffect(
     on(
       () => props.value,
-      () => syncActive(props.results),
+      () => syncActive(combined()),
     ),
   )
 
   const scrollActiveIntoView = () => {
     const key = store.active
-    if (!key || !listRef) return
-    const element = listRef.querySelector<HTMLElement>(`[data-key="${key}"]`)
+    if (!key || !root) return
+    // Query from the panel root: the two sections live in separate scroll areas.
+    const element = root.querySelector<HTMLElement>(`[data-key="${key}"]`)
     element?.scrollIntoView({ block: "nearest" })
   }
 
   const moveActive = (delta: number) => {
-    const results = props.results
+    const results = combined()
     if (results.length === 0) return
     const index = results.findIndex((record) => homeSessionSearchKey(record) === store.active)
     const start = index === -1 ? 0 : index
@@ -1122,7 +1179,7 @@ function HomeSessionSearch(props: {
   }
 
   const selectActive = () => {
-    const record = props.results.find((item) => homeSessionSearchKey(item) === store.active)
+    const record = combined().find((item) => homeSessionSearchKey(item) === store.active)
     if (!record) return
     props.onSelect(record.session)
   }
@@ -1161,34 +1218,70 @@ function HomeSessionSearch(props: {
                   }
                 >
                   <Show
-                    when={props.results.length > 0}
+                    when={props.results.length > 0 || props.contentResults.length > 0 || props.contentLoading}
                     fallback={
                       <p class="my-1.5 px-4 pb-2 text-[13px] leading-4 tracking-[-0.04px] text-v2-text-text-muted [font-weight:440]">
                         {props.noResultsLabel}
                       </p>
                     }
                   >
-                    <div class="flex flex-col">
-                      <p class="my-1.5 pl-[18px] pr-6 text-[13px] leading-4 tracking-[-0.04px] text-v2-text-text-muted [font-weight:440]">
-                        {language.t("home.sessions.search.sessions")}
-                      </p>
-                      <ScrollView class="max-h-80" viewportRef={(el) => (listRef = el)}>
-                        <div class="flex flex-col gap-px pb-2">
-                          <For each={props.results}>
-                            {(record) => (
-                              <HomeSessionSearchResultRow
-                                record={record}
-                                showProjectName={props.showProjectName}
-                                server={props.server}
-                                selected={store.active === homeSessionSearchKey(record)}
-                                onHighlight={() => setStore("active", homeSessionSearchKey(record))}
-                                onSelect={(session) => props.onSelect(session)}
-                              />
-                            )}
-                          </For>
-                        </div>
-                      </ScrollView>
-                    </div>
+                    <Show when={props.results.length > 0}>
+                      <div class="flex flex-col">
+                        <p class="my-1.5 pl-[18px] pr-6 text-[13px] leading-4 tracking-[-0.04px] text-v2-text-text-muted [font-weight:440]">
+                          {language.t("home.sessions.search.sessions")}
+                        </p>
+                        <ScrollView class="max-h-80" viewportRef={(el) => (listRef = el)}>
+                          <div class="flex flex-col gap-px pb-2">
+                            <For each={props.results}>
+                              {(record) => (
+                                <HomeSessionSearchResultRow
+                                  record={record}
+                                  showProjectName={props.showProjectName}
+                                  server={props.server}
+                                  selected={store.active === homeSessionSearchKey(record)}
+                                  onHighlight={() => setStore("active", homeSessionSearchKey(record))}
+                                  onSelect={(session) => props.onSelect(session)}
+                                />
+                              )}
+                            </For>
+                          </div>
+                        </ScrollView>
+                      </div>
+                    </Show>
+                    {/* Content matches arrive after the debounce; a separate section keeps
+                        late results from reshuffling the title list under the cursor. */}
+                    <Show when={props.contentResults.length > 0 || props.contentLoading}>
+                      <div class="flex flex-col">
+                        <p class="my-1.5 pl-[18px] pr-6 text-[13px] leading-4 tracking-[-0.04px] text-v2-text-text-muted [font-weight:440]">
+                          {language.t("home.sessions.search.messages")}
+                        </p>
+                        <Show
+                          when={props.contentResults.length > 0}
+                          fallback={
+                            <div class="flex items-center px-4 pb-3 text-v2-text-text-muted">
+                              <Spinner class="size-3.5" />
+                            </div>
+                          }
+                        >
+                          <ScrollView class="max-h-60">
+                            <div class="flex flex-col gap-px pb-2">
+                              <For each={props.contentResults}>
+                                {(record) => (
+                                  <HomeSessionSearchResultRow
+                                    record={record}
+                                    showProjectName={props.showProjectName}
+                                    server={props.server}
+                                    selected={store.active === homeSessionSearchKey(record)}
+                                    onHighlight={() => setStore("active", homeSessionSearchKey(record))}
+                                    onSelect={(session) => props.onSelect(session)}
+                                  />
+                                )}
+                              </For>
+                            </div>
+                          </ScrollView>
+                        </Show>
+                      </div>
+                    </Show>
                   </Show>
                 </Show>
               </div>

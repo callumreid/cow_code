@@ -590,6 +590,7 @@ export const dict = {
   "common.pin": "ピン留め",
   "common.unpin": "ピン留めを解除",
   "home.sessions.group.pinned": "ピン留め",
+  "home.sessions.search.messages": "メッセージ",
   "common.reset": "リセット",
   "common.archive": "アーカイブ",
   "common.delete": "削除",

@@ -590,6 +590,7 @@ export const dict = {
   "common.pin": "Przypnij",
   "common.unpin": "Odepnij",
   "home.sessions.group.pinned": "Przypięte",
+  "home.sessions.search.messages": "Wiadomości",
   "common.reset": "Resetuj",
   "common.archive": "Archiwizuj",
   "common.delete": "Usuń",

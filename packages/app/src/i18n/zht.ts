@@ -642,6 +642,7 @@ export const dict = {
   "common.pin": "置頂",
   "common.unpin": "取消置頂",
   "home.sessions.group.pinned": "已置頂",
+  "home.sessions.search.messages": "訊息",
   "common.reset": "重設",
   "common.archive": "封存",
   "common.delete": "刪除",

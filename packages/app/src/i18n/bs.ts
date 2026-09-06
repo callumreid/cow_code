@@ -652,6 +652,7 @@ export const dict = {
   "common.pin": "Zakači",
   "common.unpin": "Otkači",
   "home.sessions.group.pinned": "Zakačene",
+  "home.sessions.search.messages": "Poruke",
   "common.reset": "Resetuj",
   "common.archive": "Arhiviraj",
   "common.delete": "Izbriši",

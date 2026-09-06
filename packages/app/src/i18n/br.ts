@@ -592,6 +592,7 @@ export const dict = {
   "common.pin": "Fixar",
   "common.unpin": "Desafixar",
   "home.sessions.group.pinned": "Fixadas",
+  "home.sessions.search.messages": "Mensagens",
   "common.reset": "Redefinir",
   "common.archive": "Arquivar",
   "common.delete": "Excluir",

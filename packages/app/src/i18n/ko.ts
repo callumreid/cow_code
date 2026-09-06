@@ -586,6 +586,7 @@ export const dict = {
   "common.pin": "고정",
   "common.unpin": "고정 해제",
   "home.sessions.group.pinned": "고정됨",
+  "home.sessions.search.messages": "메시지",
   "common.reset": "초기화",
   "common.archive": "보관",
   "common.delete": "삭제",

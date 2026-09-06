@@ -601,6 +601,7 @@ export const dict = {
   "common.pin": "Anheften",
   "common.unpin": "Loslösen",
   "home.sessions.group.pinned": "Angeheftet",
+  "home.sessions.search.messages": "Nachrichten",
   "common.reset": "Zurücksetzen",
   "common.archive": "Archivieren",
   "common.delete": "Löschen",

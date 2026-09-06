@@ -708,6 +708,7 @@ export const dict = {
   "common.pin": "Закріпити",
   "common.unpin": "Відкріпити",
   "home.sessions.group.pinned": "Закріплені",
+  "home.sessions.search.messages": "Повідомлення",
   "common.reset": "Скинути",
   "common.archive": "Архівувати",
   "common.delete": "Видалити",

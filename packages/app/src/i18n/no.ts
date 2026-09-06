@@ -656,6 +656,7 @@ export const dict = {
   "common.pin": "Fest",
   "common.unpin": "Løsne",
   "home.sessions.group.pinned": "Festet",
+  "home.sessions.search.messages": "Meldinger",
   "common.reset": "Tilbakestill",
   "common.archive": "Arkiver",
   "common.delete": "Slett",

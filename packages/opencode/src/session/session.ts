@@ -566,7 +566,8 @@ const layer: Layer.Layer<
       if (input?.roots) conditions.push(isNull(SessionTable.parent_id))
       if (input?.start) conditions.push(gte(SessionTable.time_updated, input.start))
       if (input?.cursor) conditions.push(lt(SessionTable.time_updated, input.cursor))
-      if (input?.search) conditions.push(like(SessionTable.title, `%${input.search}%`))
+      if (input?.search)
+        conditions.push(or(like(SessionTable.title, `%${input.search}%`), contentSearchCondition(db, input.search))!)
       if (!input?.archived) conditions.push(isNull(SessionTable.time_archived))
 
       const query =
@@ -965,6 +966,27 @@ const cancelBackgroundJobs = Effect.fn("Session.cancelBackgroundJobs")(function*
   )
 })
 
+// Content search: match sessions whose visible message text contains the
+// needle. Uncorrelated IN-subquery over text/reasoning parts (synthetic and
+// ignored parts excluded, tool payloads excluded), bounded so a common term
+// can't scan forever; early-terminates on hits.
+const contentSearchCondition = (db: Database.Interface["db"], needle: string) =>
+  inArray(
+    SessionTable.id,
+    db
+      .selectDistinct({ session_id: PartTable.session_id })
+      .from(PartTable)
+      .where(
+        and(
+          sql`json_extract(${PartTable.data},'$.type') IN ('text','reasoning')`,
+          sql`json_extract(${PartTable.data},'$.synthetic') IS NOT 1`,
+          sql`json_extract(${PartTable.data},'$.ignored') IS NOT 1`,
+          sql`json_extract(${PartTable.data},'$.text') LIKE ${`%${needle}%`}`,
+        ),
+      )
+      .limit(200),
+  )
+
 function listByProject(
   db: Database.Interface["db"],
   input: ListInput & {
@@ -999,7 +1021,7 @@ function listByProject(
     conditions.push(isNull(SessionTable.parent_id))
   }
   if (input.search) {
-    conditions.push(like(SessionTable.title, `%${input.search}%`))
+    conditions.push(or(like(SessionTable.title, `%${input.search}%`), contentSearchCondition(db, input.search))!)
   }
 
   const limit = input.limit ?? 100

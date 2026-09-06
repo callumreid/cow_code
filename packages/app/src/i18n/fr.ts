@@ -598,6 +598,7 @@ export const dict = {
   "common.pin": "Épingler",
   "common.unpin": "Désépingler",
   "home.sessions.group.pinned": "Épinglées",
+  "home.sessions.search.messages": "Messages",
   "common.reset": "Réinitialiser",
   "common.archive": "Archiver",
   "common.delete": "Supprimer",

@@ -652,6 +652,7 @@ export const dict = {
   "common.pin": "Закрепить",
   "common.unpin": "Открепить",
   "home.sessions.group.pinned": "Закреплённые",
+  "home.sessions.search.messages": "Сообщения",
   "common.reset": "Сбросить",
   "common.archive": "Архивировать",
   "common.delete": "Удалить",

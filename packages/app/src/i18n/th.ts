@@ -647,6 +647,7 @@ export const dict = {
   "common.pin": "ปักหมุด",
   "common.unpin": "เลิกปักหมุด",
   "home.sessions.group.pinned": "ปักหมุดแล้ว",
+  "home.sessions.search.messages": "ข้อความ",
   "common.reset": "รีเซ็ต",
   "common.archive": "จัดเก็บ",
   "common.delete": "ลบ",
