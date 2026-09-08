@@ -1391,7 +1391,23 @@ export function UserMessageDisplay(props: {
   )
 }
 
-type HighlightSegment = { text: string; type?: "file" | "agent" }
+type HighlightSegment = { text: string; type?: "file" | "agent" | "url" }
+
+const urlPattern = /https?:\/\/[^\s<>()`"']+/g
+
+function urlSegments(text: string): HighlightSegment[] {
+  const segments: HighlightSegment[] = []
+  let lastIndex = 0
+  for (const match of text.matchAll(urlPattern)) {
+    const url = match[0].replace(/[.,;:!?]+$/, "")
+    const start = match.index ?? 0
+    if (start > lastIndex) segments.push({ text: text.slice(lastIndex, start) })
+    segments.push({ text: url, type: "url" })
+    lastIndex = start + url.length
+  }
+  if (lastIndex < text.length) segments.push({ text: text.slice(lastIndex) })
+  return segments
+}
 
 function HighlightedText(props: { text: string; references: FilePart[]; agents: AgentPart[] }) {
   const segments = createMemo(() => {
@@ -1413,7 +1429,7 @@ function HighlightedText(props: { text: string; references: FilePart[]; agents: 
       if (ref.start < lastIndex) continue
 
       if (ref.start > lastIndex) {
-        result.push({ text: text.slice(lastIndex, ref.start) })
+        result.push(...urlSegments(text.slice(lastIndex, ref.start)))
       }
 
       result.push({ text: text.slice(ref.start, ref.end), type: ref.type })
@@ -1421,13 +1437,25 @@ function HighlightedText(props: { text: string; references: FilePart[]; agents: 
     }
 
     if (lastIndex < text.length) {
-      result.push({ text: text.slice(lastIndex) })
+      result.push(...urlSegments(text.slice(lastIndex)))
     }
 
     return result
   })
 
-  return <For each={segments()}>{(segment) => <span data-highlight={segment.type}>{segment.text}</span>}</For>
+  return (
+    <For each={segments()}>
+      {(segment) =>
+        segment.type === "url" ? (
+          <a data-highlight="url" href={segment.text} target="_blank" rel="noopener noreferrer">
+            {segment.text}
+          </a>
+        ) : (
+          <span data-highlight={segment.type}>{segment.text}</span>
+        )
+      }
+    </For>
+  )
 }
 
 export function Part(props: MessagePartProps) {
