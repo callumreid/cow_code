@@ -35,3 +35,4 @@ tsconfig.tsbuildinfo
 
 # slack cli local app state
 packages/slack/.slack/apps*.json
+packages/slack/.slack/cache/
