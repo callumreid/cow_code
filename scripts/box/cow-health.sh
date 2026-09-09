@@ -1,6 +1,5 @@
 #!/bin/bash
-# Box health check: prints a report; if anything is wrong, asks the farmer to tell Callum
-# (which becomes a needs-you card in the office and a DM from the cow bot).
+# Box health check: prints a report; if anything is wrong, DMs Callum through the cow Slack bot.
 export HOME=/Users/bronson
 export PATH=$HOME/.local/bin:/opt/homebrew/bin:/Applications/Docker.app/Contents/Resources/bin:/usr/bin:/bin:/usr/sbin:/sbin
 PW=$(head -1 "$HOME/.config/opencode/server-password")
@@ -22,7 +21,18 @@ awk -v s="${swap:-0}" 'BEGIN{exit !(s>4096)}' && problems+=("swap in use: ${swap
 echo "$(date '+%F %T') box health: ${#problems[@]} problem(s); disk ${avail_gb} GB free; swap ${swap:-?} MB; phone origin ${origin:-none}"
 for p in "${problems[@]}"; do echo "  - $p"; done
 if [ "${#problems[@]}" -gt 0 ] && [ "${1:-}" != "--quiet" ]; then
-  report=$(printf '%s\n' "${problems[@]}")
-  opencode run --attach http://127.0.0.1:4096 --dir "$HOME/coval" --title "routine: box health $(date '+%Y-%m-%d %H:%M')" \
-    "The box health check on this machine found problems: $report. Use the question tool to tell Callum, one line per problem, and suggest the fix. Do not try to fix anything yourself." >/dev/null 2>&1 || echo "  (could not reach the farmer to report)"
+  # Tell Callum through the cow Slack bot (a DM); no model call needed for a health report.
+  [ -f "$HOME/.config/cow/slack-tokens.env" ] && source "$HOME/.config/cow/slack-tokens.env"
+  if [ -n "${COW_SLACK_BOT_TOKEN:-}" ] && [ -n "${COW_SLACK_NOTIFY_CHANNEL:-}" ]; then
+    text="box health: ${#problems[@]} problem(s)"; for p in "${problems[@]}"; do text="$text"$'\n'"- $p"; done
+    python3 - "$COW_SLACK_BOT_TOKEN" "$COW_SLACK_NOTIFY_CHANNEL" "$text" <<'PY'
+import json, sys, urllib.request
+tok, ch, text = sys.argv[1:4]
+req = urllib.request.Request("https://slack.com/api/chat.postMessage", data=json.dumps({"channel": ch, "text": text}).encode(),
+  headers={"authorization": f"Bearer {tok}", "content-type": "application/json"})
+print("  slack:", json.load(urllib.request.urlopen(req, timeout=20)).get("ok"))
+PY
+  else
+    echo "  (no slack tokens; report not sent)"
+  fi
 fi

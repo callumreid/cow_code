@@ -129,6 +129,19 @@ PY
 A="$HOME/.config/opencode/AGENTS.md"
 grep -q "cow-eyes" "$A" 2>/dev/null || { cat "$HERE/opencode-AGENTS.box.md" >> "$A"; log "  box rules appended to ~/.config/opencode/AGENTS.md"; }
 
+log "opencode: chatgpt subscription provider (its own id so the openai key keeps gpt-5.6 + voice)"
+python3 - <<'PY'
+import json, os
+p = os.path.expanduser("~/.config/opencode/opencode.json")
+c = json.load(open(p))
+lim = {"context": 400000, "output": 128000}
+want = {"npm": "@ai-sdk/openai", "name": "ChatGPT (Pro/Plus subscription)", "options": {"baseURL": "https://api.openai.com/v1"},
+        "models": {"gpt-5.5": {"name": "GPT-5.5 (ChatGPT)", "limit": lim}, "gpt-5.4": {"name": "GPT-5.4 (ChatGPT)", "limit": lim},
+                   "gpt-5.3-codex-spark": {"name": "GPT-5.3 Codex Spark (ChatGPT)", "limit": lim}}}
+if c.setdefault("provider", {}).get("chatgpt") != want:
+    c["provider"]["chatgpt"] = want; json.dump(c, open(p, "w"), indent=2); print("  provider.chatgpt written (sign in: POST /provider/chatgpt/oauth/authorize, open the url in the computer view, then POST .../oauth/callback with the same method index)")
+PY
+
 log "tailscale"
 TS=/Applications/Tailscale.app/Contents/MacOS/Tailscale
 if [ -x "$TS" ]; then
