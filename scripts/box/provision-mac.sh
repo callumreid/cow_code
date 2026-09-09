@@ -63,13 +63,15 @@ fi
 
 log "services"
 changed=0
-for f in cow-serve.sh cow-gate.js cow-slack.sh claude-rc.sh; do
+for f in cow-serve.sh cow-gate.js cow-slack.sh claude-rc.sh cow-browser.sh cow-eyes.sh; do
   if ! cmp -s "$HERE/$f" "$HOME/bin/$f"; then install -m 755 "$HERE/$f" "$HOME/bin/$f"; changed=1; fi
 done
 [ -x "$HOME/.local/bin/cow-slack" ] || warn "~/.local/bin/cow-slack missing: build with 'bun run build' in packages/slack and copy it here"
+[ -x "$HOME/.local/bin/cow-eyes" ] || warn "~/.local/bin/cow-eyes missing: build with 'bun run build' in packages/cow-eyes and copy it here"
+[ -d "/Applications/Google Chrome.app" ] || warn "Google Chrome missing: the box's browser (cow-browser) needs it"
 # (Re)load a job only when its plist changed, a script it runs changed, or it is not loaded.
 # cow-public is a cloudflared quick tunnel: restarting it rotates the phone URL, so leave it alone when nothing changed.
-for j in cow-awake cow-server cow-gate cow-public cow-slack claude-rc; do
+for j in cow-awake cow-browser cow-eyes cow-server cow-gate cow-public cow-slack claude-rc; do
   src="$HERE/launchd/dev.bronson.$j.plist"; dst="$HOME/Library/LaunchAgents/dev.bronson.$j.plist"
   loaded=0; launchctl print "gui/$UID_NUM/dev.bronson.$j" >/dev/null 2>&1 && loaded=1
   same=0; cmp -s "$src" "$dst" && same=1
@@ -110,6 +112,21 @@ for r in backend frontend docs sofia-agent sofia-infra coval-infra cli mcp-serve
   fi
 done
 [ -f "$HOME/coval/backend/.env" ] || install -m 600 "$HERE/backend.env" "$HOME/coval/backend/.env"
+
+log "opencode: shared browser for the agent (playwright over CDP) + box rules"
+mkdir -p "$HOME/.config/cow/browser-output"
+python3 - <<'PY'
+import json, os
+p = os.path.expanduser("~/.config/opencode/opencode.json")
+try: c = json.load(open(p))
+except Exception: c = {}
+want = {"type": "local", "enabled": True, "command": ["npx", "-y", "@playwright/mcp@0.0.80", "--cdp-endpoint", "http://127.0.0.1:9222", "--image-responses=allow", "--output-dir", os.path.expanduser("~/.config/cow/browser-output")]}
+if (c.get("mcp") or {}).get("playwright") != want:
+    c.setdefault("mcp", {})["playwright"] = want
+    json.dump(c, open(p, "w"), indent=2); print("  mcp.playwright -> cdp 127.0.0.1:9222")
+PY
+A="$HOME/.config/opencode/AGENTS.md"
+grep -q "cow-eyes" "$A" 2>/dev/null || { cat "$HERE/opencode-AGENTS.box.md" >> "$A"; log "  box rules appended to ~/.config/opencode/AGENTS.md"; }
 
 log "tailscale"
 TS=/Applications/Tailscale.app/Contents/MacOS/Tailscale
