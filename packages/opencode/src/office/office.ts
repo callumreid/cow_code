@@ -168,6 +168,9 @@ type Row = DeepMutable<Thread> & {
   edited: boolean
   lastPartAt: number
   stalled: boolean
+  /** Last error report time, so a provider retry storm yields one card, not one per attempt. */
+  lastErrorAt?: number
+  lastErrorMessage?: string
 }
 
 const RECENT_MS = 48 * 60 * 60 * 1000
@@ -450,9 +453,20 @@ const layer = Layer.effect(
           const row = yield* resolve(payload.sessionID)
           if (!row) return
           const message = payload.error?.data?.message ?? payload.error?.name ?? "unknown error"
+          // Rate limits and repeated identical errors: update the row, but do not raise another card.
+          const repeat =
+            row.lastErrorAt !== undefined &&
+            Date.now() - row.lastErrorAt < 15 * 60_000 &&
+            (/Too Many Requests|rate limit/i.test(message) || row.lastErrorMessage === message)
+          row.lastErrorAt = Date.now()
+          row.lastErrorMessage = message
           row.bucket = "failed"
           row.waiting = { kind: "error", message }
           row.summary = summarize(row)
+          if (repeat) {
+            touch(row)
+            return
+          }
           touch(row)
           if (row.muted) return
           note({ kind: "error", sessionID: row.sessionID, directory: row.directory, title: row.title, summary: message })

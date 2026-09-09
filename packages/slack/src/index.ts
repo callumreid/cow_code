@@ -68,8 +68,11 @@ app.message(async ({ message, say }) => {
   await handle(m.text, m.channel, m.thread_ts ?? m.ts, say)
 })
 
-// Push threads that need Callum. One line per (thread, waiting item); silence otherwise.
+// Push threads that need Callum. At most one DM per thread per bucket, and never more than one
+// failure DM per thread every 15 minutes: a provider retry storm must not become a DM storm.
 const pushed = new Set<string>()
+const lastFailure = new Map<string, number>()
+const FAILURE_COOLDOWN_MS = 15 * 60_000
 async function watch() {
   if (!notify) return
   for (;;) {
@@ -112,8 +115,19 @@ async function onEvent(raw: unknown) {
   const t = ev.properties
   if (t.muted) return
   if (t.bucket !== "needs_you" && t.bucket !== "failed") return
-  const key = `${t.sessionID}:${t.bucket}:${t.waiting?.id ?? t.waiting?.message ?? ""}`
+  const key = `${t.sessionID}:${t.bucket}:${t.waiting?.kind === "permission" || t.waiting?.kind === "question" ? t.waiting.id : ""}`
   if (pushed.has(key)) return
+  if (t.bucket === "failed" || t.waiting?.kind === "error") {
+    const last = lastFailure.get(t.sessionID!) ?? 0
+    if (Date.now() - last < FAILURE_COOLDOWN_MS) return
+    lastFailure.set(t.sessionID!, Date.now())
+    // A rate-limited routine will be retried by its schedule; one line is enough.
+    if (/Too Many Requests|rate limit/i.test(t.waiting?.message ?? "")) {
+      pushed.add(key)
+      await app.client.chat.postMessage({ channel: notify!, text: `${t.title ?? t.sessionID} — hit the model's rate limit; the next scheduled run retries` })
+      return
+    }
+  }
   pushed.add(key)
   if (pushed.size > 500) pushed.delete(pushed.values().next().value as string)
   const why =

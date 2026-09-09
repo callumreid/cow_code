@@ -142,6 +142,25 @@ if c.setdefault("provider", {}).get("chatgpt") != want:
     c["provider"]["chatgpt"] = want; json.dump(c, open(p, "w"), indent=2); print("  provider.chatgpt written (sign in: POST /provider/chatgpt/oauth/authorize, open the url in the computer view, then POST .../oauth/callback with the same method index)")
 PY
 
+log "coval scheduled-job scripts (box versions: attached to the server, routine titles, guard, archived filter)"
+mkdir -p "$HOME/coval/scripts"
+for f in "$HERE"/coval-scripts/*.sh; do
+  b=$(basename "$f")
+  if ! cmp -s "$f" "$HOME/coval/scripts/$b"; then install -m 755 "$f" "$HOME/coval/scripts/$b"; log "  installed coval/scripts/$b"; fi
+done
+[ -x "$HOME/bin/cow-routine-guard.sh" ] || install -m 755 "$HERE/cow-routine-guard.sh" "$HOME/bin/cow-routine-guard.sh"
+[ -x "$HOME/bin/cow-notify.sh" ] || install -m 755 "$HERE/cow-notify.sh" "$HOME/bin/cow-notify.sh"
+[ -x "$HOME/bin/pr-keep-updated.sh" ] || install -m 755 "$HERE/pr-keep-updated.sh" "$HOME/bin/pr-keep-updated.sh"
+[ -x "$HOME/bin/cow-health.sh" ] || install -m 755 "$HERE/cow-health.sh" "$HOME/bin/cow-health.sh"
+for j in dev.coval.pr-review-sweep dev.coval.pr-review-queue dev.coval.pr-review-fixer dev.coval.pr-keep-updated dev.coval.daily-workers-health-audit dev.coval.daily-prod-validation dev.bronson.cow-health; do
+  if [ -f "$HERE/launchd/$j.plist" ] && ! cmp -s "$HERE/launchd/$j.plist" "$HOME/Library/LaunchAgents/$j.plist"; then
+    install -m 644 "$HERE/launchd/$j.plist" "$HOME/Library/LaunchAgents/$j.plist"
+    launchctl bootout "gui/$UID_NUM/$j" >/dev/null 2>&1 || true
+    for _ in $(seq 1 10); do launchctl bootstrap "gui/$UID_NUM" "$HOME/Library/LaunchAgents/$j.plist" 2>/dev/null && break; sleep 1; done
+    log "  scheduled job $j (re)loaded"
+  fi
+done
+
 log "tailscale"
 TS=/Applications/Tailscale.app/Contents/MacOS/Tailscale
 if [ -x "$TS" ]; then
