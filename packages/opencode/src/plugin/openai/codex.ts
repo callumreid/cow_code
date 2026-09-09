@@ -426,9 +426,18 @@ export async function CodexAuthPlugin(input: PluginInput, options: CodexAuthPlug
               if (residency) headers.set("x-openai-internal-codex-residency", residency)
             }
 
+            // The Codex backend rejects max_output_tokens ("Unsupported parameter"); Codex CLI never sends it.
+            let body = init?.body
+            if (rewrite && typeof body === "string" && body.includes("max_output_tokens")) {
+              try {
+                const json = JSON.parse(body) as Record<string, unknown>
+                delete json.max_output_tokens
+                body = JSON.stringify(json)
+              } catch {}
+            }
             const requestInit = {
               ...init,
-              body: init?.body,
+              body,
               headers,
             }
             if (websocketFetch && parsed.pathname.endsWith("/responses")) return websocketFetch(url, requestInit)
