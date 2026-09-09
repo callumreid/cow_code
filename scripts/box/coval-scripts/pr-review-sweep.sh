@@ -61,7 +61,7 @@ report="${REPORT_DIR}/${stamp}.log"
 rc=0
 NO_COLOR=1 /Users/bronson/.opencode/bin/opencode run --auto --attach http://127.0.0.1:4096 \
   --title "routine: pr-review-sweep $(date +%Y-%m-%dT%H:%M)" \
-  -m cloudflare-workers-ai/@cf/zai-org/glm-5.3-flash \
+  -m chatgpt/gpt-5.5 \
   "You are the pr-review-sweep scheduled runner (a launchd-driven headless opencode session). Working directory /Users/bronson/coval — a multi-repo container, NOT a git repo; always git -C <repo>. GitHub login callumreid, org coval-ai. Display all times in PST/PDT, never UTC.
 
 Read, in this order, before doing anything:

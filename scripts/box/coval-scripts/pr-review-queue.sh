@@ -106,7 +106,7 @@ stamp=$(date +%Y%m%dT%H%M%S)
 report="${REPORT_DIR}/${stamp}.log"
 pending=$(cat "${pending_file}")
 
-NO_COLOR=1 /Users/bronson/.opencode/bin/opencode run --auto --attach http://127.0.0.1:4096 \
+NO_COLOR=1 /Users/bronson/.opencode/bin/opencode run --auto --attach http://127.0.0.1:4096 -m chatgpt/gpt-5.5 \
   --title "routine: pr-review-queue $(date +%Y-%m-%dT%H:%M)" "
 Run the review queue against exactly these pending PR heads:
 
