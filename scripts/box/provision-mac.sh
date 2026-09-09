@@ -63,7 +63,7 @@ fi
 
 log "services"
 changed=0
-for f in cow-serve.sh cow-gate.js cow-slack.sh claude-rc.sh cow-browser.sh cow-eyes.sh; do
+for f in cow-serve.sh cow-gate.js cow-slack.sh claude-rc.sh cow-browser.sh cow-eyes.sh cow-pipeline.sh; do
   if ! cmp -s "$HERE/$f" "$HOME/bin/$f"; then install -m 755 "$HERE/$f" "$HOME/bin/$f"; changed=1; fi
 done
 [ -x "$HOME/.local/bin/cow-slack" ] || warn "~/.local/bin/cow-slack missing: build with 'bun run build' in packages/slack and copy it here"
@@ -112,6 +112,7 @@ for r in backend frontend docs sofia-agent sofia-infra coval-infra cli mcp-serve
   fi
 done
 [ -f "$HOME/coval/backend/.env" ] || install -m 600 "$HERE/backend.env" "$HOME/coval/backend/.env"
+[ -f "$HOME/coval/backend/.dev_id" ] || printf 'COVAL_DEV_ID=callum\n' > "$HOME/coval/backend/.dev_id"
 
 log "opencode: shared browser for the agent (playwright over CDP) + box rules"
 mkdir -p "$HOME/.config/cow/browser-output"
@@ -137,6 +138,17 @@ else
 fi
 
 log "docker"
+# Over ssh/launchd there is no GUI keychain session, so the keychain credential helper cannot store
+# registry logins ("User interaction is not allowed"); keep registry tokens in ~/.docker/config.json.
+python3 - <<'PY'
+import json, os
+p = os.path.expanduser("~/.docker/config.json")
+try: d = json.load(open(p))
+except Exception: d = {}
+if "credsStore" in d or "credHelpers" in d:
+    d.pop("credsStore", None); d.pop("credHelpers", None)
+    json.dump(d, open(p, "w"), indent=2); os.chmod(p, 0o600); print("  docker: credential helper disabled (file store)")
+PY
 open -ga Docker
 for _ in $(seq 1 30); do docker info >/dev/null 2>&1 && break; sleep 4; done
 docker info >/dev/null 2>&1 && log "  docker $(docker info --format '{{.ServerVersion}} cpus={{.NCPU}} mem={{.MemTotal}}')" || warn "  docker did not come up"
@@ -151,4 +163,5 @@ log "health"
 sleep 3
 curl -fsS -u "opencode:$(head -1 "$PW")" http://127.0.0.1:4096/global/health && echo
 echo "phone url: run  cow-phone-url  on the laptop (or read ~/Library/Logs/cow-public.log here)"
+echo "dev pipeline: cow-pipeline.sh start|stop|status|logs (workers take dev_id=callum runs only)"
 log "done"
