@@ -119,5 +119,5 @@ fi
   echo "Report: ${report}"
 } >> "${LOG_FILE}"
 
-exit "${rc}"
 routine_finish "routine: pr-review-sweep"
+exit "${rc}"

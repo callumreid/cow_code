@@ -5,7 +5,7 @@
 ROUTINE_LOCK="$HOME/.coval/logs/routine-llm.lock"
 routine_acquire() {
   mkdir -p "$HOME/.coval/logs"
-  if mkdir "$ROUTINE_LOCK" 2>/dev/null; then echo "$1 $(date -Iseconds)" > "$ROUTINE_LOCK/owner"; trap 'rmdir "$ROUTINE_LOCK" 2>/dev/null; rm -f "$ROUTINE_LOCK/owner"' EXIT; return 0; fi
+  if mkdir "$ROUTINE_LOCK" 2>/dev/null; then echo "$1 $(date -Iseconds)" > "$ROUTINE_LOCK/owner"; trap 'rm -rf "$ROUTINE_LOCK"' EXIT; return 0; fi
   # stale after 90 minutes
   if [ -n "$(find "$ROUTINE_LOCK" -maxdepth 0 -mmin +90 2>/dev/null)" ]; then rm -rf "$ROUTINE_LOCK"; mkdir "$ROUTINE_LOCK" 2>/dev/null && { echo "$1 $(date -Iseconds)" > "$ROUTINE_LOCK/owner"; trap 'rm -rf "$ROUTINE_LOCK"' EXIT; return 0; }; fi
   echo "$(date -Iseconds): another LLM routine is running ($(cat "$ROUTINE_LOCK/owner" 2>/dev/null)); skipping $1"
