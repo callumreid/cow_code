@@ -19,7 +19,7 @@ if (!bot || !appToken) {
 const server = (process.env.COW_SERVER_URL ?? "http://127.0.0.1:4096").replace(/\/+$/, "")
 const passwordFile = process.env.COW_SERVER_PASSWORD_FILE ?? join(homedir(), ".config/opencode/server-password")
 const password = readFileSync(passwordFile, "utf8").split("\n")[0].trim()
-const auth = `Basic ${Buffer.from(`${process.env.COW_SERVER_USERNAME ?? "opencode"}:${password}`).toString("base64")}`
+const auth = `Basic ${Buffer.from(`${process.env.COW_SERVER_USERNAME ?? "cow"}:${password}`).toString("base64")}`
 const notify = process.env.COW_SLACK_NOTIFY_CHANNEL
 
 const app = new App({ token: bot, appToken, socketMode: true })

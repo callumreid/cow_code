@@ -27,7 +27,8 @@ if (!fs.existsSync(gateFile) || fs.readFileSync(gateFile, "utf8").trim().length 
   fs.writeFileSync(gateFile, randomBytes(32).toString("base64url") + "\n", { mode: 0o600 })
 }
 const gate = fs.readFileSync(gateFile, "utf8").trim()
-const authorization = `Basic ${Buffer.from(`opencode:${password}`).toString("base64")}`
+const username = process.env.COW_SERVER_USERNAME || "cow"
+const authorization = `Basic ${Buffer.from(`${username}:${password}`).toString("base64")}`
 
 function safeEqual(value, expected) {
   if (!value) return false

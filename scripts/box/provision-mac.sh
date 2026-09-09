@@ -161,7 +161,7 @@ fi
 
 log "health"
 sleep 3
-curl -fsS -u "opencode:$(head -1 "$PW")" http://127.0.0.1:4096/global/health && echo
+curl -fsS -u "${COW_SERVER_USERNAME:-cow}:$(head -1 "$PW")" http://127.0.0.1:4096/global/health && echo
 echo "phone url: run  cow-phone-url  on the laptop (or read ~/Library/Logs/cow-public.log here)"
 echo "dev pipeline: cow-pipeline.sh start|stop|status|logs (workers take dev_id=callum runs only)"
 log "done"

@@ -13,7 +13,7 @@ const PORT = Number(process.env.COW_EYES_PORT ?? 4099)
 const CDP = (process.env.COW_CDP ?? "http://127.0.0.1:9222").replace(/\/+$/, "")
 const passwordFile = process.env.COW_SERVER_PASSWORD_FILE ?? join(homedir(), ".config/opencode/server-password")
 const password = readFileSync(passwordFile, "utf8").split("\n")[0].trim()
-const expectedAuth = `Basic ${Buffer.from(`${process.env.COW_SERVER_USERNAME ?? "opencode"}:${password}`).toString("base64")}`
+const expectedAuth = `Basic ${Buffer.from(`${process.env.COW_SERVER_USERNAME ?? "cow"}:${password}`).toString("base64")}`
 const sessionToken = randomBytes(24).toString("base64url")
 
 function safeEqual(a: string, b: string) {
