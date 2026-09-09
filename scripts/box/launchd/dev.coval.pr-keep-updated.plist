@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>Label</key><string>dev.coval.pr-keep-updated</string>
+<key>ProgramArguments</key><array><string>/bin/bash</string><string>/Users/bronson/bin/pr-keep-updated.sh</string></array>
+<key>EnvironmentVariables</key><dict><key>HOME</key><string>/Users/bronson</string><key>PATH</key><string>/Users/bronson/.local/bin:/opt/homebrew/bin:/usr/bin:/bin</string></dict>
+<key>SessionCreate</key><true/>
+<key>RunAtLoad</key><false/>
+<key>StartCalendarInterval</key><array><dict><key>Minute</key><integer>15</integer></dict><dict><key>Minute</key><integer>45</integer></dict></array>
+<key>StandardOutPath</key><string>/Users/bronson/.coval/logs/pr-keep-updated.launchd.log</string>
+<key>StandardErrorPath</key><string>/Users/bronson/.coval/logs/pr-keep-updated.launchd.err.log</string>
+</dict></plist>

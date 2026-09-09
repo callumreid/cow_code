@@ -60,6 +60,8 @@ export const Thread = Schema.Struct({
   projectName: Schema.optional(Schema.String),
   title: Schema.String,
   agent: Schema.optional(Schema.String),
+  // Set when the thread is a scheduled routine run (title "routine: <name> <stamp>").
+  routine: Schema.optional(Schema.String),
   bucket: Bucket,
   waiting: Schema.optional(Waiting),
   summary: Schema.String,
@@ -189,6 +191,11 @@ function trim(text: string | undefined, max: number) {
   return clean.length > max ? clean.slice(0, max - 1) + "…" : clean
 }
 
+function routineOf(title: string | undefined) {
+  const match = title?.match(/^routine:\s*(\S+)/i)
+  return match?.[1]
+}
+
 function publicThread(row: Row): Thread {
   return {
     sessionID: row.sessionID,
@@ -197,6 +204,7 @@ function publicThread(row: Row): Thread {
     projectName: row.projectName,
     title: row.title,
     agent: row.agent,
+    routine: row.routine,
     bucket: row.bucket,
     waiting: row.waiting,
     summary: row.summary,
@@ -324,6 +332,7 @@ const layer = Layer.effect(
         projectID: info.projectID,
         title: info.title,
         agent: info.agent,
+        routine: routineOf(info.title),
         bucket: "done",
         summary: "no output yet",
         pinned: mark?.pinned ?? false,
@@ -336,6 +345,7 @@ const layer = Layer.effect(
         stalled: false,
       }
       row.title = info.title
+      row.routine = routineOf(info.title)
       row.agent = info.agent
       row.directory = info.directory
       row.projectID = info.projectID
@@ -971,6 +981,17 @@ const layer = Layer.effect(
         settings.autonomy === "act"
           ? "act — you may answer read-only and reversible permissions, steer threads, and dispatch work without asking; irreversible actions (tier callum) need Callum's own words quoted in office_answer."
           : "brief — only read-only permissions are auto-allowed; everything else waits for Callum."
+      const routines = (() => {
+        const latest = new Map<string, Thread>()
+        for (const thread of list) {
+          if (!thread.routine) continue
+          const seen = latest.get(thread.routine)
+          if (!seen || thread.time.updated > seen.time.updated) latest.set(thread.routine, thread)
+        }
+        return [...latest.values()].sort((x, y) => y.time.updated - x.time.updated)
+      })()
+      const routineLine = (thread: Thread) =>
+        `- ${thread.routine}: ${thread.bucket} · last run ${age(now, thread.time.updated)} — ${thread.waiting ? describeWaitingForFarmer(thread.waiting) : thread.summary} [${thread.sessionID}]`
       const recent = reports.slice(-10).map((report) => `- ${age(now, report.time)} · ${report.kind} · "${report.title}": ${report.summary}`)
       const due = reminders.map((reminder) => `- ${reminder.id} due ${age(now, reminder.due).replace(" ago", "")}: ${reminder.note}`)
       return [
@@ -981,7 +1002,8 @@ const layer = Layer.effect(
         ...section("FAILED", by("failed")),
         ...section("READY FOR REVIEW", by("review")),
         ...section("WORKING", by("working")),
-        ...section("DONE (recent)", by("done"), 6),
+        ...section("DONE (recent)", by("done").filter((thread) => !thread.routine), 6),
+        routines.length ? `ROUTINES (latest run each):\n${routines.map(routineLine).join("\n")}` : "ROUTINES: none yet",
         recent.length ? `RECENT REPORTS:\n${recent.join("\n")}` : "RECENT REPORTS: none",
         due.length ? `REMINDERS:\n${due.join("\n")}` : "REMINDERS: none",
       ].join("\n")

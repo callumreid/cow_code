@@ -11,6 +11,8 @@ type Tone = "ready" | "blocked" | "muted" | "attention"
 
 const STATE_META: Record<PrState, { label: string; icon: IconProps["name"]; tone: Tone }> = {
   ready: { label: "Ready to merge", icon: "circle-check", tone: "ready" },
+  "merge-queue": { label: "In merge queue", icon: "checklist", tone: "ready" },
+  "re-requested": { label: "Re-review requested", icon: "review", tone: "attention" },
   draft: { label: "Draft", icon: "pencil-line", tone: "muted" },
   "changes-requested": { label: "Changes requested", icon: "warning", tone: "blocked" },
   "checks-failing": { label: "Checks not green", icon: "warning", tone: "blocked" },
@@ -38,6 +40,8 @@ function relativeTime(iso: string, now: number) {
 /** The one-line reason a PR is not mergeable, or nothing when it is. */
 function detail(pr: OpenPullRequest) {
   const parts: string[] = []
+  if (pr.inMergeQueue) parts.push(pr.mergeQueuePosition ? `queue #${pr.mergeQueuePosition}` : "queued")
+  if (pr.behind) parts.push("behind base")
   if (pr.unresolvedCount > 0) parts.push(`${pr.unresolvedCount} unresolved`)
   if (pr.checks === "failure") parts.push("CI failing")
   else if (pr.checks === "pending") parts.push("CI running")
@@ -46,7 +50,31 @@ function detail(pr: OpenPullRequest) {
   return parts.join(" · ")
 }
 
-const OpenRow = (props: { pr: OpenPullRequest; now: number; onOpen: (url: string) => void }) => {
+type AutomationToggleProps = { on: boolean; label: string; icon: "branch" | "brain"; onToggle: () => void }
+/** One of the two per-PR automation switches: keep the branch updated, auto-fix review comments. */
+const AutomationToggle = (props: AutomationToggleProps) => (
+  <Tooltip placement="top" gutter={2} value={`${props.label}: ${props.on ? "on" : "off"} (click to ${props.on ? "turn off" : "turn on"})`}>
+    <button
+      type="button"
+      aria-pressed={props.on}
+      aria-label={props.label}
+      class={`shrink-0 rounded-md p-1 transition-colors motion-reduce:transition-none ${props.on ? "text-icon-success-base bg-surface-success-base/40" : "text-text-weak opacity-50 hover:opacity-100"}`}
+      onClick={(event) => {
+        event.stopPropagation()
+        props.onToggle()
+      }}
+    >
+      <Icon name={props.icon} size="small" />
+    </button>
+  </Tooltip>
+)
+
+const OpenRow = (props: {
+  pr: OpenPullRequest
+  now: number
+  onOpen: (url: string) => void
+  onAutomation?: (pr: OpenPullRequest, key: "keepUpdated" | "autoFix", on: boolean) => void
+}) => {
   const meta = createMemo(() => {
     if (props.pr.detailsUnavailable && !props.pr.isDraft) {
       return { label: "Status unavailable", icon: "warning" as const, tone: "muted" as const }
@@ -68,6 +96,22 @@ const OpenRow = (props: { pr: OpenPullRequest; now: number; onOpen: (url: string
       <span class="text-14-medium text-text-strong truncate flex-1 min-w-0">{props.pr.title}</span>
       <Show when={sub()}>
         <span class="text-12-regular text-text-base shrink-0 truncate max-w-64">{sub()}</span>
+      </Show>
+      <Show when={props.onAutomation && !props.pr.detailsUnavailable}>
+        <span class="flex items-center gap-0.5 shrink-0">
+          <AutomationToggle
+            on={props.pr.automation.keepUpdated}
+            label="Keep updated with base"
+            icon="branch"
+            onToggle={() => props.onAutomation?.(props.pr, "keepUpdated", !props.pr.automation.keepUpdated)}
+          />
+          <AutomationToggle
+            on={props.pr.automation.autoFix}
+            label="Auto-fix review comments"
+            icon="brain"
+            onToggle={() => props.onAutomation?.(props.pr, "autoFix", !props.pr.automation.autoFix)}
+          />
+        </span>
       </Show>
       <Tooltip placement="top" gutter={2} value={`Opened ${relativeTime(props.pr.createdAt, props.now)} ago`}>
         <span class="text-12-regular text-text-base shrink-0 w-10 text-end">
@@ -195,7 +239,16 @@ export const PullRequestsPanel = (props: { store: PrDashboardStore; onClose: () 
                     <span class="text-12-medium text-text-strong truncate">{group.repo}</span>
                     <span class="text-12-regular text-text-base">{group.items.length}</span>
                   </div>
-                  <For each={group.items}>{(pr) => <OpenRow pr={pr} now={now()} onOpen={openExternal} />}</For>
+                  <For each={group.items}>
+                    {(pr) => (
+                      <OpenRow
+                        pr={pr}
+                        now={now()}
+                        onOpen={openExternal}
+                        onAutomation={(target, key, on) => void props.store.setAutomation(target, key, on)}
+                      />
+                    )}
+                  </For>
                 </div>
               )}
             </For>

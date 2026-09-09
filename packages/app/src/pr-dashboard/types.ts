@@ -14,7 +14,19 @@ export type PrReviewState = "approved" | "changes-requested" | "review-required"
  * a draft reads as a draft even if CI is red, and a red check outranks a
  * missing review because it blocks regardless of who approves.
  */
-export type PrState = "draft" | "changes-requested" | "checks-failing" | "unresolved" | "awaiting-review" | "ready"
+export type PrState =
+  | "draft"
+  | "merge-queue"
+  | "re-requested"
+  | "changes-requested"
+  | "checks-failing"
+  | "unresolved"
+  | "awaiting-review"
+  | "ready"
+
+/** Per-PR automation switches, stored as GitHub labels so the box and every client agree. */
+export type PrAutomation = { keepUpdated: boolean; autoFix: boolean }
+export type PrAutomationKey = keyof PrAutomation
 
 export type OpenPullRequest = {
   repo: string
@@ -28,6 +40,14 @@ export type OpenPullRequest = {
   checks: PrCheckState
   unresolvedCount: number
   state: PrState
+  /** GitHub merge queue membership and position (1 = next). */
+  inMergeQueue: boolean
+  mergeQueuePosition?: number
+  /** The branch is behind its base and GitHub would let us update it. */
+  behind: boolean
+  /** Changes were requested, then a newer commit or re-request happened; waiting on the reviewer again. */
+  reRequested: boolean
+  automation: PrAutomation
   /** Basic search fallback could not load review threads or check status. */
   detailsUnavailable?: boolean
 }
@@ -69,6 +89,8 @@ export type PrMergedHistory = {
 }
 
 export type PrDashboardPlatform = {
+  /** Flip a per-PR automation switch (a label on the PR). Resolves when GitHub has it. */
+  setAutomation?(repo: string, number: number, key: PrAutomationKey, on: boolean): Promise<void>
   /** Open PRs. Cheap enough to paint on app start. */
   fetch(force?: boolean): Promise<PrDashboard>
   /** Merged history. Deferred: it pages the whole window and costs seconds. */
@@ -89,9 +111,12 @@ export function derivePrState(pr: {
   review: PrReviewState
   checks: PrCheckState
   unresolvedCount: number
+  inMergeQueue?: boolean
+  reRequested?: boolean
 }): PrState {
   if (pr.isDraft) return "draft"
-  if (pr.review === "changes-requested") return "changes-requested"
+  if (pr.inMergeQueue) return "merge-queue"
+  if (pr.review === "changes-requested") return pr.reRequested ? "re-requested" : "changes-requested"
   if (pr.checks === "failure") return "checks-failing"
   if (pr.unresolvedCount > 0) return "unresolved"
   if (pr.review !== "approved") return "awaiting-review"

@@ -108,6 +108,7 @@ export type ElectronAPI = {
   prStatus: (url: string) => Promise<"open" | "merged" | "closed" | null>
   prDashboard: (force?: boolean) => Promise<PrDashboard>
   prDashboardMerged: (force?: boolean) => Promise<PrMergedHistory>
+  prAutomationSet: (repo: string, number: number, key: "keepUpdated" | "autoFix", on: boolean) => Promise<void>
   openLocalFile: (url: string) => void
   openPath: (path: string, app?: string) => Promise<void>
   revealPath: (path: string) => Promise<boolean>

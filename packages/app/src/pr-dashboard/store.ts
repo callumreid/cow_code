@@ -1,5 +1,5 @@
 import { createSignal, onCleanup } from "solid-js"
-import type { PrDashboard, PrDashboardPlatform, PrMergedHistory } from "./types"
+import type { OpenPullRequest, PrAutomationKey, PrDashboard, PrDashboardPlatform, PrMergedHistory } from "./types"
 
 /** Matches the main-process cache window, so a tick never does redundant work. */
 export const PR_REFRESH_MS = 15 * 60_000
@@ -12,6 +12,8 @@ export type PrDashboardStore = {
   refresh: (force?: boolean) => void
   /** Loads merged history on first call; subsequent calls are no-ops unless forced. */
   loadMerged: (force?: boolean) => void
+  /** Flip keep-updated / auto-fix for one PR. Optimistic; the next refresh confirms. */
+  setAutomation: (pr: OpenPullRequest, key: PrAutomationKey, on: boolean) => Promise<void>
 }
 
 /**
@@ -90,6 +92,29 @@ export function createPrDashboardStore(
       })
   }
 
+  const setAutomation = async (pr: OpenPullRequest, key: PrAutomationKey, on: boolean) => {
+    const api = platform()
+    if (!api?.setAutomation) return
+    setData((prev) =>
+      prev
+        ? {
+            ...prev,
+            groups: prev.groups.map((group) => ({
+              ...group,
+              items: group.items.map((item) =>
+                item.repo === pr.repo && item.number === pr.number ? { ...item, automation: { ...item.automation, [key]: on } } : item,
+              ),
+            })),
+          }
+        : prev,
+    )
+    try {
+      await api.setAutomation(pr.repo, pr.number, key, on)
+    } finally {
+      refresh(true)
+    }
+  }
+
   refresh()
   const timer = setInterval(() => {
     refresh(true)
@@ -102,5 +127,5 @@ export function createPrDashboardStore(
     clearInterval(timer)
   })
 
-  return { data, merged, loading, mergedLoading, refresh, loadMerged }
+  return { data, merged, loading, mergedLoading, refresh, loadMerged, setAutomation }
 }

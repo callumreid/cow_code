@@ -1,6 +1,7 @@
 import { execFile } from "node:child_process"
 import {
   derivePrState,
+  type PrAutomationKey,
   groupByRepo,
   type MergedPullRequest,
   type OpenPullRequest,
@@ -26,9 +27,14 @@ query($open: String!) {
     nodes { ... on PullRequest {
       number title url isDraft createdAt updatedAt
       repository { nameWithOwner }
-      reviewDecision
+      reviewDecision mergeStateStatus isInMergeQueue
+      mergeQueueEntry { position state }
+      labels(first: 30) { nodes { name } }
+      reviewRequests(first: 10) { totalCount }
+      latestReviews(first: 10) { nodes { state submittedAt } }
+      timelineItems(last: 5, itemTypes: [REVIEW_REQUESTED_EVENT]) { nodes { ... on ReviewRequestedEvent { createdAt } } }
       reviewThreads(first: 50) { nodes { isResolved } }
-      commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }
+      commits(last: 1) { nodes { commit { committedDate statusCheckRollup { state } } } }
     } }
   }
 }`
@@ -53,8 +59,15 @@ type RawOpen = {
   updatedAt: string
   repository: { nameWithOwner: string }
   reviewDecision: string | null
+  mergeStateStatus?: string | null
+  isInMergeQueue?: boolean | null
+  mergeQueueEntry?: { position?: number | null; state?: string | null } | null
+  labels?: { nodes?: { name: string }[] } | null
+  reviewRequests?: { totalCount?: number } | null
+  latestReviews?: { nodes?: { state: string; submittedAt: string }[] } | null
+  timelineItems?: { nodes?: ({ createdAt?: string } | Record<string, never>)[] } | null
   reviewThreads: { nodes: { isResolved: boolean }[] }
-  commits: { nodes: { commit: { statusCheckRollup: { state: string } | null } }[] }
+  commits: { nodes: { commit: { committedDate?: string; statusCheckRollup: { state: string } | null } }[] }
 }
 
 type RawMerged = {
@@ -157,10 +170,34 @@ function mergedSince(now: number) {
   return new Date(now - MERGED_WINDOW_DAYS * 86_400_000).toISOString().slice(0, 10)
 }
 
+export const AUTOMATION_LABELS: Record<PrAutomationKey, string> = {
+  keepUpdated: "cow:no-update",
+  autoFix: "cow:no-autofix",
+}
+
+/**
+ * "Changes requested, then Callum pushed or re-requested" — the reviewer's turn again.
+ * GitHub keeps reviewDecision at CHANGES_REQUESTED until the reviewer comes back, so this is
+ * derived from timestamps: a review request or head commit newer than the last change request.
+ */
+function reRequestedAfterChanges(node: RawOpen): boolean {
+  const changes = (node.latestReviews?.nodes ?? []).filter((r) => r.state === "CHANGES_REQUESTED").map((r) => Date.parse(r.submittedAt))
+  if (!changes.length) return false
+  const lastChanges = Math.max(...changes)
+  const requests = (node.timelineItems?.nodes ?? []).map((n) => ("createdAt" in n && n.createdAt ? Date.parse(n.createdAt) : 0))
+  const lastRequest = requests.length ? Math.max(...requests) : 0
+  const head = Date.parse(node.commits.nodes[0]?.commit?.committedDate ?? "") || 0
+  const pending = (node.reviewRequests?.totalCount ?? 0) > 0
+  return lastRequest > lastChanges || (pending && head > lastChanges)
+}
+
 function toOpen(node: RawOpen): OpenPullRequest {
   const unresolvedCount = node.reviewThreads.nodes.reduce((n, t) => (t.isResolved ? n : n + 1), 0)
   const review = reviewState(node.reviewDecision)
   const checks = checkState(node.commits.nodes[0]?.commit?.statusCheckRollup?.state)
+  const labels = (node.labels?.nodes ?? []).map((l) => l.name)
+  const inMergeQueue = !!node.isInMergeQueue || !!node.mergeQueueEntry
+  const reRequested = reRequestedAfterChanges(node)
   return {
     repo: node.repository.nameWithOwner,
     number: node.number,
@@ -172,8 +209,35 @@ function toOpen(node: RawOpen): OpenPullRequest {
     review,
     checks,
     unresolvedCount,
-    state: derivePrState({ isDraft: node.isDraft, review, checks, unresolvedCount }),
+    inMergeQueue,
+    mergeQueuePosition: node.mergeQueueEntry?.position ?? undefined,
+    behind: node.mergeStateStatus === "BEHIND",
+    reRequested,
+    automation: {
+      keepUpdated: !labels.includes(AUTOMATION_LABELS.keepUpdated),
+      autoFix: !labels.includes(AUTOMATION_LABELS.autoFix),
+    },
+    state: derivePrState({ isDraft: node.isDraft, review, checks, unresolvedCount, inMergeQueue, reRequested }),
   }
+}
+
+/** Flip a per-PR automation switch by adding/removing its label; creates the label in the repo if needed. */
+export async function setPrAutomation(
+  repo: string,
+  number: number,
+  key: PrAutomationKey,
+  on: boolean,
+  runner: PrDashboardRunner = runGh,
+): Promise<void> {
+  const label = AUTOMATION_LABELS[key]
+  if (on) {
+    await runner(["api", "-X", "DELETE", `repos/${repo}/issues/${number}/labels/${encodeURIComponent(label)}`]).catch((error: Error) => {
+      if (!/404|not found/i.test(error.message)) throw error
+    })
+    return
+  }
+  await runner(["label", "create", label, "-R", repo, "--color", "5B6A5F", "--description", "cow box: automation switched off for this PR", "--force"]).catch(() => undefined)
+  await runner(["api", "-X", "POST", `repos/${repo}/issues/${number}/labels`, "-f", `labels[]=${label}`])
 }
 
 function toOpenSummary(node: RawOpenSummary): OpenPullRequest {
@@ -188,6 +252,10 @@ function toOpenSummary(node: RawOpenSummary): OpenPullRequest {
     review: "none",
     checks: "none",
     unresolvedCount: 0,
+    inMergeQueue: false,
+    behind: false,
+    reRequested: false,
+    automation: { keepUpdated: true, autoFix: true },
     state: node.isDraft ? "draft" : "awaiting-review",
     detailsUnavailable: true,
   }
