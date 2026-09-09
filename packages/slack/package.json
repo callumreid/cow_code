@@ -5,10 +5,10 @@
   "license": "MIT",
   "scripts": {
     "dev": "bun run src/index.ts",
-    "typecheck": "tsgo --noEmit"
+    "typecheck": "tsgo --noEmit",
+    "build": "bun build --compile --target=bun-darwin-arm64 src/index.ts --outfile dist/cow-slack"
   },
   "dependencies": {
-    "@opencode-ai/sdk": "workspace:*",
     "@slack/bolt": "^3.17.1"
   },
   "devDependencies": {

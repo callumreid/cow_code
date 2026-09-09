@@ -10,6 +10,7 @@
 #   ~/.local/share/opencode/auth.json opencode provider keys
 #   ~/.config/opencode/opencode.json  opencode config (farmer agent, providers)
 #   ~/coval/frontend/.env.local       frontend env
+#   COW_SLACK_BOT_TOKEN / COW_SLACK_APP_TOKEN in secrets.env for the Slack door (slack-manifest.json)
 # Re-running is safe: every step checks before it changes anything.
 set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -62,18 +63,19 @@ fi
 
 log "services"
 changed=0
-for f in cow-serve.sh cow-gate.js; do
+for f in cow-serve.sh cow-gate.js cow-slack.sh claude-rc.sh; do
   if ! cmp -s "$HERE/$f" "$HOME/bin/$f"; then install -m 755 "$HERE/$f" "$HOME/bin/$f"; changed=1; fi
 done
+[ -x "$HOME/.local/bin/cow-slack" ] || warn "~/.local/bin/cow-slack missing: build with 'bun run build' in packages/slack and copy it here"
 # (Re)load a job only when its plist changed, a script it runs changed, or it is not loaded.
 # cow-public is a cloudflared quick tunnel: restarting it rotates the phone URL, so leave it alone when nothing changed.
-for j in cow-awake cow-server cow-gate cow-public; do
+for j in cow-awake cow-server cow-gate cow-public cow-slack claude-rc; do
   src="$HERE/launchd/dev.bronson.$j.plist"; dst="$HOME/Library/LaunchAgents/dev.bronson.$j.plist"
   loaded=0; launchctl print "gui/$UID_NUM/dev.bronson.$j" >/dev/null 2>&1 && loaded=1
   same=0; cmp -s "$src" "$dst" && same=1
   needs=0
   [ "$same" = 1 ] && [ "$loaded" = 1 ] || needs=1
-  { [ "$j" = cow-server ] || [ "$j" = cow-gate ]; } && [ "$changed" = 1 ] && needs=1
+  [ "$j" != cow-public ] && [ "$changed" = 1 ] && needs=1
   [ "$needs" = 1 ] || { log "  $j unchanged, left running"; continue; }
   install -m 644 "$src" "$dst"
   launchctl bootout "gui/$UID_NUM/dev.bronson.$j" >/dev/null 2>&1 || true
