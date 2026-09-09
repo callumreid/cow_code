@@ -9,12 +9,26 @@ LOG_DIR="$HOME/.coval/logs"; mkdir -p "$LOG_DIR"; LOG="$LOG_DIR/pr-keep-updated.
 LOCK="$LOG_DIR/pr-keep-updated.lock"
 if ! mkdir "$LOCK" 2>/dev/null; then echo "$(date -Iseconds): previous run still going, skipping" >> "$LOG"; exit 0; fi
 trap 'rmdir "$LOCK"' EXIT
+
+# GitHub's PR search ignores archived:false, so ask each repo once per run (bash 3.2 friendly).
+__archived_list=""
+repo_is_archived() {  # usage: repo_is_archived <name>  -> exit 0 when archived
+  local r="$1" v
+  case " $__archived_list " in
+    *" $r=true "*) return 0 ;;
+    *" $r=false "*) return 1 ;;
+  esac
+  v=$(gh repo view "coval-ai/$r" --json isArchived --jq .isArchived 2>/dev/null || echo false)
+  __archived_list="$__archived_list $r=$v"
+  [ "$v" = "true" ]
+}
 echo "=== $(date -Iseconds) ===" >> "$LOG"
-prs=$(gh search prs --author=callumreid --state=open --owner=coval-ai --limit 100 --json repository,number --jq '.[] | "\(.repository.name) \(.number)"' 2>>"$LOG")
+prs=$(gh search prs --author=callumreid --state=open --owner=coval-ai --archived=false --limit 100 --json repository,number --jq '.[] | "\(.repository.name) \(.number)"' 2>>"$LOG")
 updated=0; conflicts=(); skipped=0; current=0
 while IFS= read -r line; do
   [ -z "$line" ] && continue
   repo=${line%% *}; number=${line##* }
+  repo_is_archived "$repo" && { skipped=$((skipped+1)); continue; }
   info=$(gh pr view "$number" -R "coval-ai/$repo" --json mergeStateStatus,labels,state 2>>"$LOG") || continue
   status=$(printf '%s' "$info" | python3 -c 'import json,sys; d=json.load(sys.stdin); labels=[l["name"] for l in d.get("labels",[])]; print("skip" if "cow:no-update" in labels or d.get("state")!="OPEN" else d.get("mergeStateStatus",""))')
   case "$status" in

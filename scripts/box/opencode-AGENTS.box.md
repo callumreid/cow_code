@@ -15,3 +15,5 @@
 
 - Any message that names a PR (Slack, the office, a DM, a routine report) includes its full GitHub
   URL, e.g. https://github.com/coval-ai/backend/pull/7279, as plain text. Never a bare "#7279".
+- Archived repositories (today: coval-ai/sofia-infra) are dead: never list, mention, review, or
+  update their PRs. Filter searches with `archived:false` / `--archived=false`.

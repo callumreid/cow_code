@@ -26,7 +26,7 @@ query($open: String!) {
   open: search(query: $open, type: ISSUE, first: 50) {
     nodes { ... on PullRequest {
       number title url isDraft createdAt updatedAt
-      repository { nameWithOwner }
+      repository { nameWithOwner isArchived }
       reviewDecision mergeStateStatus isInMergeQueue
       mergeQueueEntry { position state }
       labels(first: 30) { nodes { name } }
@@ -45,7 +45,7 @@ query($merged: String!, $cursor: String) {
     pageInfo { hasNextPage endCursor }
     nodes { ... on PullRequest {
       number title url mergedAt
-      repository { nameWithOwner }
+      repository { nameWithOwner isArchived }
     } }
   }
 }`
@@ -57,7 +57,7 @@ type RawOpen = {
   isDraft: boolean
   createdAt: string
   updatedAt: string
-  repository: { nameWithOwner: string }
+  repository: { nameWithOwner: string; isArchived?: boolean | null }
   reviewDecision: string | null
   mergeStateStatus?: string | null
   isInMergeQueue?: boolean | null
@@ -75,7 +75,7 @@ type RawMerged = {
   title: string
   url: string
   mergedAt: string
-  repository: { nameWithOwner: string }
+  repository: { nameWithOwner: string; isArchived?: boolean | null }
 }
 
 type RawOpenSummary = {
@@ -312,6 +312,8 @@ async function fetchOpen(query: string, runner: PrDashboardRunner): Promise<Open
   const out: OpenPullRequest[] = []
   for (const node of parsed.data?.open?.nodes ?? []) {
     if (!isRawOpen(node)) continue
+    // GitHub search ignores archived:false for pull requests; drop them here.
+    if (node.repository.isArchived) continue
     out.push(toOpen(node))
   }
   return out
@@ -349,6 +351,7 @@ async function fetchMerged(query: string, runner: PrDashboardRunner) {
 
     for (const node of parsed.data?.merged?.nodes ?? []) {
       if (!isRawMerged(node)) continue
+      if (node.repository.isArchived) continue
       items.push({
         repo: node.repository.nameWithOwner,
         number: node.number,
