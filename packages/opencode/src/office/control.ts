@@ -205,7 +205,7 @@ const layer = Layer.effect(
         })
         command.promoted = true
         command.receipt = { ...command.receipt, queued: false }
-        yield* save(command, "admitted")
+        yield* save(command, command.input.intent === "context" ? "completed" : "admitted")
         if (command.input.intent !== "context") yield* start(command, ops)
       })
 
@@ -352,7 +352,19 @@ const layer = Layer.effect(
             bindings.set(sessionID, ops)
             if (input.intent === "cancel") {
               for (const pending of yield* commands(sessionID)) {
-                if (["queued", "starting", "admitted"].includes(pending.state)) yield* save(pending.value, "canceled")
+                if (["queued", "starting", "admitted", "reconciliation_required"].includes(pending.state))
+                  yield* save(
+                    {
+                      ...pending.value,
+                      receipt: {
+                        ...pending.value.receipt,
+                        status: "accepted",
+                        phase: "canceled",
+                        reason: "Canceled explicitly; no queued input was replayed.",
+                      },
+                    },
+                    "canceled",
+                  )
               }
               yield* ops.cancel(target.id).pipe(Effect.provideService(InstanceRef, context))
               yield* save(command, "canceled")

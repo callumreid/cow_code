@@ -176,6 +176,28 @@ it.instance("a late user summary update cannot reopen a completed worker turn", 
   }),
 )
 
+it.instance("context admission is complete and explicit cancellation clears old recovery records", () =>
+  Effect.gen(function* () {
+    const h = yield* harness
+    const session = yield* h.sessions.create({ title: "Disposable context recovery" })
+    yield* h.submit({ id: "context-complete", intent: "context", sessionID: session.id })
+    const record = yield* h.ledger.get<OfficeControl.Command>("command:context-complete")
+    expect(record?.state).toBe("completed")
+    if (!record) throw new Error("Missing context receipt")
+    yield* h.ledger.put({
+      ...record,
+      state: "reconciliation_required",
+      value: { ...record.value, receipt: { ...record.value.receipt, status: "reconciliation_required" } },
+    })
+    yield* h.submit({ id: "cancel-recovered", intent: "cancel", sessionID: session.id })
+    const canceled = yield* h.ledger.get<OfficeControl.Command>(record.id)
+    expect(canceled?.state).toBe("canceled")
+    expect(canceled?.value.receipt.phase).toBe("canceled")
+    expect(canceled?.value.receipt.status).toBe("accepted")
+    expect(h.resumed).toEqual([])
+  }),
+)
+
 it.instance("queues input durably in FIFO order and cancel clears later entries", () =>
   Effect.gen(function* () {
     const h = yield* harness
