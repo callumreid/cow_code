@@ -90,6 +90,7 @@ import { SidebarScheduled } from "./layout/sidebar-scheduled"
 import { ScheduledPanel } from "./layout/scheduled-panel"
 import { createRoutinesStore } from "@/routines/store"
 import { SidebarOffice } from "./layout/sidebar-office"
+import { SidebarOfficeThreads } from "./layout/sidebar-office-threads"
 import { OfficePanel } from "./layout/office-panel"
 import { useOffice } from "@/office/context"
 import { officeOpen } from "@/office/presence"
@@ -2206,6 +2207,7 @@ export default function LegacyLayout(props: ParentProps) {
                 unread={office.unread().length}
                 onOpen={openOffice}
               />
+              <SidebarOfficeThreads onOpen={(thread) => void office.openThread(thread)} />
 
               <div class="flex-1 min-h-0 flex flex-col">
                 <Show
