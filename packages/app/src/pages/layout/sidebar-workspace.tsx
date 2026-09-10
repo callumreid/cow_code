@@ -42,6 +42,7 @@ export type WorkspaceSidebarContext = {
   clearHoverProjectSoon: () => void
   prefetchSession: (session: Session, priority?: "high" | "low") => void
   archiveSession: (session: Session) => Promise<void>
+  isHiddenSession: (session: Session) => boolean
   workspaceName: (directory: string, projectId?: string, branch?: string) => string | undefined
   renameWorkspace: (directory: string, next: string, projectId?: string, branch?: string) => void
   editorOpen: (id: string) => boolean
@@ -319,7 +320,7 @@ export const SortableWorkspace = (props: {
     pendingRename: false,
   })
   const slug = createMemo(() => base64Encode(props.directory))
-  const sessions = createMemo(() => sortedRootSessions(workspaceStore, props.sortNow()))
+  const sessions = createMemo(() => sortedRootSessions(workspaceStore, props.sortNow(), props.ctx.isHiddenSession))
   const local = createMemo(() => props.directory === props.project.worktree)
   const active = createMemo(() => pathKey(props.ctx.currentDir()) === pathKey(props.directory))
   const workspaceValue = createMemo(() => {
@@ -464,7 +465,7 @@ export const LocalWorkspace = (props: {
     return { store, setStore }
   })
   const slug = createMemo(() => base64Encode(props.project.worktree))
-  const sessions = createMemo(() => sortedRootSessions(workspace().store, props.sortNow()))
+  const sessions = createMemo(() => sortedRootSessions(workspace().store, props.sortNow(), props.ctx.isHiddenSession))
   const count = createMemo(() => sessions()?.length ?? 0)
   const fetching = useIsFetching(() => queryOptions().sessions(pathKey(props.project.worktree)))
   const hasMore = createMemo(() => workspace().store.sessionTotal > count())

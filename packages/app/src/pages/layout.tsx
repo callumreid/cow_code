@@ -681,7 +681,7 @@ export default function LegacyLayout(props: ParentProps) {
     const result: Session[] = []
     for (const dir of dirs) {
       const [dirStore] = serverSync().child(dir, { bootstrap: true })
-      const dirSessions = sortedRootSessions(dirStore, now)
+      const dirSessions = sortedRootSessions(dirStore, now, (session) => session.id === office.overseer()?.sessionID)
       result.push(...dirSessions)
     }
     return result
@@ -1967,6 +1967,7 @@ export default function LegacyLayout(props: ParentProps) {
     clearHoverProjectSoon,
     prefetchSession,
     archiveSession,
+    isHiddenSession: (session) => session.id === office.overseer()?.sessionID,
     workspaceName,
     renameWorkspace,
     editorOpen,
@@ -2007,6 +2008,7 @@ export default function LegacyLayout(props: ParentProps) {
     workspacesEnabled: (project) => project.vcs === "git" && layout.sidebar.workspaces(project.worktree)(),
     workspaceIds,
     workspaceLabel,
+    isHiddenSession: (session) => session.id === office.overseer()?.sessionID,
     sessionProps: {
       navList: currentSessions,
       sidebarExpanded,

@@ -188,6 +188,19 @@ describe("layout workspace helpers", () => {
     expect(sortedRootSessions({ path: { directory: "/workspace" }, session: [office, ordinary] }, 3)).toEqual([ordinary])
   })
 
+  test("hides the Office session from its live overseer identity when session metadata is unavailable", () => {
+    const office = session({ id: "ses_office", directory: "/workspace" })
+    const ordinary = session({ id: "ordinary", directory: "/workspace" })
+
+    expect(
+      sortedRootSessions(
+        { path: { directory: "/workspace" }, session: [office, ordinary] },
+        3,
+        (entry) => entry.id === "ses_office",
+      ),
+    ).toEqual([ordinary])
+  })
+
   test("uses id only to break equal session timestamps", () => {
     const sessions = [
       session({ id: "ses_z", directory: "/workspace", time: { created: 1, updated: 2, archived: undefined } }),
