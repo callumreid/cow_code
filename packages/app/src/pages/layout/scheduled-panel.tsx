@@ -3,6 +3,7 @@ import { makeEventListener } from "@solid-primitives/event-listener"
 import { Icon } from "@opencode-ai/ui/icon"
 import { IconButton } from "@opencode-ai/ui/icon-button"
 import { Tooltip } from "@opencode-ai/ui/tooltip"
+import { useLanguage } from "@/context/language"
 import { threadHref } from "@/office/stream"
 import type { RoutinesStore } from "@/routines/store"
 import type { Routine, RoutineRun, RoutineRunStatus } from "@/routines/types"
@@ -15,6 +16,10 @@ const STATUS_DOT: Record<Status, string> = {
   failed: "bg-icon-critical-base",
   skipped: "bg-icon-weak-base",
   never: "bg-icon-weak-base",
+  locked: "bg-icon-weak-base",
+  waiting: "bg-icon-warning-base",
+  canceled: "bg-icon-weak-base",
+  unknown: "bg-icon-weak-base",
 }
 
 const STATUS_TEXT: Record<Status, string> = {
@@ -23,6 +28,10 @@ const STATUS_TEXT: Record<Status, string> = {
   failed: "text-icon-critical-base",
   skipped: "text-text-weak",
   never: "text-text-weak",
+  locked: "text-text-weak",
+  waiting: "text-icon-warning-base",
+  canceled: "text-text-weak",
+  unknown: "text-text-weak",
 }
 
 const STATUS_LABEL: Record<Status, string> = {
@@ -31,6 +40,10 @@ const STATUS_LABEL: Record<Status, string> = {
   failed: "failed",
   skipped: "skipped",
   never: "never ran",
+  locked: "locked",
+  waiting: "waiting",
+  canceled: "canceled",
+  unknown: "unknown",
 }
 
 function clock(time: number) {
@@ -80,6 +93,7 @@ function lastText(routine: Routine, now: number) {
 }
 
 const RunRow = (props: { run: RoutineRun; now: number; onOpen: (href: string) => void }) => {
+  const language = useLanguage()
   const href = () =>
     props.run.sessionID && props.run.directory
       ? threadHref({ directory: props.run.directory, sessionID: props.run.sessionID })
@@ -88,11 +102,30 @@ const RunRow = (props: { run: RoutineRun; now: number; onOpen: (href: string) =>
     <div class="flex items-center gap-2.5 px-3 py-1.5 border-b border-border-weaker-base last:border-b-0">
       <span class={`size-2 shrink-0 rounded-full ${STATUS_DOT[props.run.status]}`} />
       <span class="text-12-mono text-text-weak shrink-0 w-32 truncate">{when(props.run.startedAt, props.now)}</span>
-      <span class={`text-12-regular shrink-0 w-14 ${STATUS_TEXT[props.run.status]}`}>{STATUS_LABEL[props.run.status]}</span>
+      <span class={`text-12-regular shrink-0 w-14 ${STATUS_TEXT[props.run.status]}`}>
+        {STATUS_LABEL[props.run.status]}
+      </span>
       <span class="text-12-mono text-text-weak shrink-0 w-16">
         {duration((props.run.endedAt ?? props.now) - props.run.startedAt)}
       </span>
-      <span class="text-12-regular text-text-base truncate flex-1 min-w-0" title={props.run.summary ?? undefined}>
+      <span
+        class="text-12-regular text-text-base truncate flex-1 min-w-0"
+        title={[
+          props.run.executionID,
+          language.t("routine.process", { status: props.run.processStatus ?? "unknown" }),
+          language.t("routine.agent", { status: props.run.agentStatus ?? "unknown" }),
+          language.t("routine.outcome", { status: props.run.outcome ?? "unverified" }),
+        ]
+          .filter(Boolean)
+          .join("\n")}
+      >
+        <span>
+          {language.t("routine.correlation." + (props.run.correlation ?? "unmatched"))} ·{" "}
+          {language.t("routine.process", { status: props.run.processStatus ?? "unknown" })} ·{" "}
+          {language.t("routine.agent", { status: props.run.agentStatus ?? "unknown" })} ·{" "}
+          {language.t("routine.outcome", { status: props.run.outcome ?? "unverified" })}
+        </span>
+        <br />
         {props.run.summary ?? ""}
       </span>
       <Show when={href()}>
@@ -175,10 +208,15 @@ const RoutineRow = (props: {
           <span class="hidden md:flex flex-col items-end shrink-0 w-56">
             <Show
               when={props.routine.running}
-              fallback={<span class={`text-12-regular ${STATUS_TEXT[status()]}`}>{lastText(props.routine, props.now)}</span>}
+              fallback={
+                <span class={`text-12-regular ${STATUS_TEXT[status()]}`}>{lastText(props.routine, props.now)}</span>
+              }
             >
               {(running) => (
-                <span class="text-12-regular text-icon-info-base truncate max-w-full" title={running().summary ?? undefined}>
+                <span
+                  class="text-12-regular text-icon-info-base truncate max-w-full"
+                  title={running().summary ?? undefined}
+                >
                   running · {duration(props.now - running().startedAt)}
                   <Show when={running().summary}> · {running().summary}</Show>
                 </span>
@@ -226,9 +264,7 @@ const RoutineRow = (props: {
           </Show>
           <div class="flex flex-wrap gap-x-4 gap-y-1 text-12-regular text-text-weak">
             <span class="text-12-mono">{props.routine.label}</span>
-            <Show when={props.routine.model}>
-              {(model) => <span>model {model()}</span>}
-            </Show>
+            <Show when={props.routine.model}>{(model) => <span>model {model()}</span>}</Show>
             <Show when={props.routine.lastExitCode !== undefined && props.routine.lastExitCode !== null}>
               <span>last exit code {props.routine.lastExitCode}</span>
             </Show>
@@ -335,7 +371,12 @@ export const ScheduledPanel = (props: {
               />
             </Tooltip>
             <Tooltip placement="bottom" gutter={2} value="Close">
-              <IconButton icon="close" variant="ghost" aria-label="Close scheduled jobs" onClick={() => props.onClose()} />
+              <IconButton
+                icon="close"
+                variant="ghost"
+                aria-label="Close scheduled jobs"
+                onClick={() => props.onClose()}
+              />
             </Tooltip>
           </div>
         </div>

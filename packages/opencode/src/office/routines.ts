@@ -19,12 +19,26 @@ import type { Thread } from "./office"
  * The packaged sidecar runs under Node, so only Node APIs may be used here.
  */
 
-export const RunStatus = Schema.Literals(["ok", "failed", "skipped", "running"]).annotate({
+export const RunStatus = Schema.Literals([
+  "ok",
+  "failed",
+  "skipped",
+  "locked",
+  "running",
+  "waiting",
+  "canceled",
+  "unknown",
+]).annotate({
   identifier: "RoutineRunStatus",
 })
 export type RunStatus = typeof RunStatus.Type
 
 export const Run = Schema.Struct({
+  executionID: Schema.optional(Schema.String),
+  correlation: Schema.optional(Schema.Literals(["exact", "heuristic", "unmatched"])),
+  processStatus: Schema.optional(RunStatus),
+  agentStatus: Schema.optional(Schema.String),
+  outcome: Schema.optional(Schema.Literals(["unverified", "reported", "verified"])),
   startedAt: Schema.Finite,
   endedAt: Schema.optional(Schema.Finite),
   status: RunStatus,
@@ -73,7 +87,10 @@ export const Snapshot = Schema.Struct({
 }).annotate({ identifier: "RoutinesSnapshot" })
 export type Snapshot = typeof Snapshot.Type
 
-export const RunResult = Schema.Union([Schema.Struct({ ok: Schema.Literal(true) }), Schema.Struct({ error: Schema.String })])
+export const RunResult = Schema.Union([
+  Schema.Struct({ ok: Schema.Literal(true) }),
+  Schema.Struct({ error: Schema.String }),
+])
 export type RunResult = typeof RunResult.Type
 
 export const LogResult = Schema.Struct({ path: Schema.optional(Schema.String), text: Schema.String }).annotate({
@@ -102,10 +119,17 @@ type Plist = {
 }
 /** The gate a script enforces itself: inclusive hour range, optional last start time (h, m), weekdays only. */
 type Window = { hours?: [number, number]; until?: [number, number]; weekdays?: boolean }
-type Meta = { title?: string; description?: string; kind?: "llm" | "shell"; model?: string; log?: string; window?: Window }
+type Meta = {
+  title?: string
+  description?: string
+  kind?: "llm" | "shell"
+  model?: string
+  log?: string
+  window?: Window
+}
 type Registry = { routines?: Record<string, Meta>; services?: Record<string, { title?: string }> }
 type LaunchdState = { loaded: boolean; running: boolean; pid?: number; lastExitCode?: number }
-type Marker = { name: string; startedAt: number; pid: number }
+type Marker = { name: string; startedAt: number; pid: number; executionID?: string }
 
 const INCLUDE = /^dev\.(coval|bronson|cow)\./
 const HISTORY = 20
@@ -199,11 +223,20 @@ async function readLedger() {
       continue
     }
     if (typeof entry.name !== "string" || typeof entry.startedAt !== "number") continue
-    const status: RunStatus = entry.status === "failed" || entry.status === "skipped" ? entry.status : "ok"
+    const status: RunStatus = ["ok", "failed", "skipped", "locked", "running", "waiting", "canceled"].includes(
+      String(entry.status),
+    )
+      ? (entry.status as RunStatus)
+      : "unknown"
     const run: Run = {
       startedAt: entry.startedAt,
       endedAt: typeof entry.endedAt === "number" ? entry.endedAt : undefined,
       status,
+      processStatus: status,
+      outcome: "unverified",
+      executionID: typeof entry.executionID === "string" ? entry.executionID : undefined,
+      sessionID: typeof entry.sessionID === "string" ? entry.sessionID : undefined,
+      directory: typeof entry.directory === "string" ? entry.directory : undefined,
       rc: typeof entry.rc === "number" ? entry.rc : undefined,
       summary: cleanSummary(entry.summary),
     }
@@ -292,7 +325,11 @@ function describeWindow(window?: Window) {
   if (!window) return ""
   const bits: string[] = []
   if (window.weekdays) bits.push("weekdays")
-  const end = window.until ? `${pad(window.until[0])}:${pad(window.until[1])}` : window.hours ? `${pad(window.hours[1])}:59` : undefined
+  const end = window.until
+    ? `${pad(window.until[0])}:${pad(window.until[1])}`
+    : window.hours
+      ? `${pad(window.hours[1])}:59`
+      : undefined
   if (window.hours || window.until) bits.push(`${pad(window.hours?.[0] ?? 0)}:00–${end}`)
   return bits.length ? ` · ${bits.join(" ")}` : ""
 }
@@ -319,7 +356,10 @@ async function tail(file: string, lines: number) {
 
 function orderRoutines(a: Routine, b: Routine) {
   if (!!a.running !== !!b.running) return a.running ? -1 : 1
-  return (a.nextRunAt ?? Number.MAX_SAFE_INTEGER) - (b.nextRunAt ?? Number.MAX_SAFE_INTEGER) || a.title.localeCompare(b.title)
+  return (
+    (a.nextRunAt ?? Number.MAX_SAFE_INTEGER) - (b.nextRunAt ?? Number.MAX_SAFE_INTEGER) ||
+    a.title.localeCompare(b.title)
+  )
 }
 
 async function build(): Promise<Snapshot> {
@@ -373,7 +413,13 @@ async function build(): Promise<Snapshot> {
         const marker = await readMarker(name)
         const startedAt =
           marker && alive(marker.pid) ? marker.startedAt : state.pid ? await startedAtOf(state.pid, now) : undefined
-        running = { startedAt: startedAt ?? now, status: "running" }
+        running = {
+          startedAt: startedAt ?? now,
+          status: "running",
+          processStatus: "running",
+          executionID: marker?.executionID,
+          outcome: "unverified",
+        }
       }
       routines.push({
         name,
@@ -413,10 +459,39 @@ export function withThreads(snapshot: Snapshot, threads: readonly Thread[], now:
     if (!mine.length) return routine
     const attach = (run: Run): Run => {
       const end = run.endedAt ?? now
-      const thread = mine.find((t) => t.time.created >= run.startedAt - 90_000 && t.time.created <= end + 1_000)
-      if (!thread) return run
+      const candidates = mine.filter(
+        (t) => t.time.created >= run.startedAt - 90_000 && t.time.created <= end + 1_000 && !t.executionID,
+      )
+      const thread = run.executionID
+        ? mine.find((t) => t.executionID === run.executionID)
+        : candidates.length === 1
+          ? candidates[0]
+          : undefined
+      if (!thread) return { ...run, correlation: "unmatched", outcome: "unverified" }
       // The thread's own last words beat a captured stdout line while the office still has them.
-      return { ...run, sessionID: thread.sessionID, directory: thread.directory, summary: thread.summary || run.summary }
+      const phase = thread.lifecycle?.phase
+      const status: RunStatus =
+        phase === "waiting"
+          ? "waiting"
+          : phase === "canceled"
+            ? "canceled"
+            : phase === "failed"
+              ? "failed"
+              : phase === "running"
+                ? "running"
+                : run.status
+      return {
+        ...run,
+        status,
+        processStatus: run.processStatus ?? run.status,
+        agentStatus: phase ?? "unknown",
+        outcome: thread.lifecycle?.outcome ?? "unverified",
+        executionID: run.executionID ?? thread.executionID,
+        correlation: run.executionID ? "exact" : "heuristic",
+        sessionID: thread.sessionID,
+        directory: thread.directory,
+        summary: thread.summary || run.summary,
+      }
     }
     const running = routine.running ? attach(routine.running) : undefined
     const runs = routine.runs.map(attach)
@@ -425,9 +500,22 @@ export function withThreads(snapshot: Snapshot, threads: readonly Thread[], now:
       .filter((thread) => !covered.has(thread.sessionID))
       .map(
         (thread): Run => ({
+          executionID: thread.executionID,
+          correlation: thread.executionID ? "exact" : "heuristic",
+          agentStatus: thread.lifecycle?.phase ?? "unknown",
+          outcome: thread.lifecycle?.outcome ?? "unverified",
           startedAt: thread.time.created,
           endedAt: thread.bucket === "working" && running ? undefined : thread.time.updated,
-          status: thread.bucket === "failed" ? "failed" : thread.bucket === "working" && running ? "running" : "ok",
+          status:
+            thread.lifecycle?.phase === "canceled"
+              ? "canceled"
+              : thread.bucket === "needs_you"
+                ? "waiting"
+                : thread.bucket === "failed"
+                  ? "failed"
+                  : thread.bucket === "working"
+                    ? "running"
+                    : "unknown",
           summary: thread.summary,
           sessionID: thread.sessionID,
           directory: thread.directory,

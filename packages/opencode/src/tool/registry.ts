@@ -40,6 +40,8 @@ import {
   OfficeStatusTool,
 } from "./office"
 import { Office } from "@/office/office"
+import { OfficeControl } from "@/office/control"
+import { roleAllowsTool } from "@/office/policy"
 import { Glob } from "@opencode-ai/core/util/glob"
 import path from "path"
 import { pathToFileURL } from "url"
@@ -325,6 +327,7 @@ const layer = Layer.effect(
 
     const tools: Interface["tools"] = Effect.fn("ToolRegistry.tools")(function* (input) {
       const filtered = (yield* all()).filter((tool) => {
+        if (!roleAllowsTool(input.agent.name, tool.id)) return false
         if (tool.id === WebSearchTool.id) {
           return webSearchEnabled(input.providerID, { exa: flags.enableExa, parallel: flags.enableParallel })
         }
@@ -485,6 +488,7 @@ export const node = LayerNode.make({
     Database.node,
     Ripgrep.node,
     Office.node,
+    OfficeControl.node,
   ],
 })
 

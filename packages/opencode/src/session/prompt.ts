@@ -102,6 +102,8 @@ function isOrphanedInterruptedTool(part: SessionV1.ToolPart) {
 export interface Interface {
   readonly cancel: (sessionID: SessionID) => Effect.Effect<void>
   readonly prompt: (input: PromptInput) => Effect.Effect<SessionV1.WithParts, Image.Error>
+  /** Persist input without taking ownership of a provider turn. */
+  readonly admit: (input: PromptInput) => Effect.Effect<SessionV1.WithParts, Image.Error>
   readonly loop: (input: LoopInput) => Effect.Effect<SessionV1.WithParts>
   readonly shell: (input: ShellInput) => Effect.Effect<SessionV1.WithParts, Session.BusyError>
   readonly command: (input: CommandInput) => Effect.Effect<SessionV1.WithParts, Image.Error>
@@ -146,6 +148,8 @@ const layer = Layer.effect(
         cancel: (sessionID: SessionID) => cancel(sessionID),
         resolvePromptParts: (template: string) => resolvePromptParts(template),
         prompt: (input: PromptInput) => prompt(input).pipe(Effect.catch(Effect.die)),
+        admit: (input: PromptInput) => prompt({ ...input, noReply: true }).pipe(Effect.catch(Effect.die)),
+        resume: (input: LoopInput) => loop(input),
       } satisfies TaskPromptOps
     })
 
@@ -1483,6 +1487,7 @@ const layer = Layer.effect(
     return Service.of({
       cancel,
       prompt,
+      admit: (input) => prompt({ ...input, noReply: true }),
       loop,
       shell,
       command,

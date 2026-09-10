@@ -8,19 +8,28 @@
 # else the last line of the job's own log (--log). A job marks itself skipped by writing "skipped"
 # to $COW_ROUTINE_STATUS_FILE (the routine guard does this when another LLM routine holds the lock,
 # the review scripts when they are outside their hour window).
-export HOME=${HOME:-/Users/bronson}
+routine_home="${HOME:-/Users/bronson}"
 name="$1"; shift
 job_log=""
 if [ "$1" = "--log" ]; then job_log="$2"; shift 2; fi
 [ "$1" = "--" ] && shift
 [ -n "$name" ] && [ $# -gt 0 ] || { echo "usage: cow-routine-run.sh <name> [--log <file>] -- <command...>" >&2; exit 64; }
 
-DIR="$HOME/.coval/logs/routines"; mkdir -p "$DIR"
+DIR="${COW_ROUTINE_LEDGER_DIR:-$routine_home/.coval/logs/routines}"; mkdir -p "$DIR"
 started=$(date +%s)
 status_file=$(mktemp "${TMPDIR:-/tmp}/cow-routine-status.XXXXXX")
 out=$(mktemp "${TMPDIR:-/tmp}/cow-routine-out.XXXXXX")
 export COW_ROUTINE_STATUS_FILE="$status_file"
-printf '{"name":"%s","startedAt":%s,"pid":%s}\n' "$name" "$((started * 1000))" "$$" > "$DIR/$name.running"
+export COW_ROUTINE_NAME="$name"
+export COW_ROUTINE_EXECUTION_ID
+COW_ROUTINE_EXECUTION_ID=$(python3 -c 'import uuid; print(uuid.uuid4())')
+result_file=$(mktemp "${TMPDIR:-/tmp}/cow-routine-result.XXXXXX")
+export COW_ROUTINE_RESULT_FILE="$result_file"
+trap 'echo canceled > "$status_file"' INT TERM
+python3 - "$name" "$started" "$$" "$COW_ROUTINE_EXECUTION_ID" > "$DIR/$name.running" <<'PY'
+import json, sys
+print(json.dumps(dict(name=sys.argv[1], startedAt=int(sys.argv[2])*1000, pid=int(sys.argv[3]), executionID=sys.argv[4])))
+PY
 
 "$@" 2>&1 | tee "$out"
 rc=${PIPESTATUS[0]}
@@ -35,11 +44,19 @@ last_line() {
 }
 summary=$(last_line "$out")
 if [ -z "$summary" ] && [ -n "$job_log" ] && [ -f "$job_log" ]; then summary=$(last_line "$job_log"); fi
-python3 - "$name" "$started" "$ended" "$status" "$rc" "$summary" >> "$DIR/ledger.jsonl" <<'PY'
-import json, sys
-name, started, ended, status, rc, summary = sys.argv[1:7]
-print(json.dumps({"name": name, "startedAt": int(started) * 1000, "endedAt": int(ended) * 1000,
-                  "status": status, "rc": int(rc), "summary": summary}))
+python3 - "$name" "$started" "$ended" "$status" "$rc" "$summary" "$COW_ROUTINE_EXECUTION_ID" "$result_file" "$DIR/ledger.jsonl" <<'PY'
+import json, sys, fcntl
+name, started, ended, status, rc, summary, execution, result, ledger = sys.argv[1:]
+try:
+    with open(result) as f: session = json.load(f)
+except (ValueError, OSError): session = {}
+entry = dict(name=name, startedAt=int(started)*1000, endedAt=int(ended)*1000,
+             status=status, rc=int(rc), summary=summary, executionID=execution,
+             sessionID=session.get("sessionID"), directory=session.get("directory"))
+with open(ledger, "a") as f:
+    fcntl.flock(f, fcntl.LOCK_EX)
+    f.write(json.dumps(entry)+"\n")
+    f.flush()
 PY
-rm -f "$DIR/$name.running" "$status_file" "$out"
+rm -f "$DIR/$name.running" "$status_file" "$out" "$result_file"
 exit "$rc"

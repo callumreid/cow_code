@@ -3,6 +3,7 @@ import type { Message, Part } from "@opencode-ai/sdk/v2/client"
 import {
   buildStream,
   isLive,
+  waitingForReport,
   latestOfKind,
   messageItems,
   nextNeedsYou,
@@ -144,4 +145,27 @@ describe("unread and liveness", () => {
     expect(nextNeedsYou(reports, lookup, latest, "r4")?.id).toBe("r3")
     expect(nextNeedsYou(reports, () => undefined, latest, undefined)).toBeUndefined()
   })
+})
+
+test("two exact decisions stay actionable independently and recovery is not an answer", () => {
+  const first = { ...report("first", 1, "permission"), requestID: "one" }
+  const second = { ...report("second", 2, "permission"), requestID: "two" }
+  const worker = thread(undefined)
+  worker.decisions = ["one", "two"].map((id) => ({
+    id,
+    sessionID: worker.sessionID,
+    rootSessionID: worker.sessionID,
+    status: "pending",
+    created: 1,
+    waiting: { kind: "permission", id, permission: "bash", patterns: [], always: [], metadata: {} },
+  }))
+  const latest = latestOfKind([first, second])
+  expect(isLive(first, worker, latest)).toBe(true)
+  expect(isLive(second, worker, latest)).toBe(true)
+  expect(waitingForReport(first, worker)?.kind).toBe("permission")
+  worker.decisions[0].status = "answered"
+  expect(isLive(first, worker, latest)).toBe(false)
+  expect(isLive(second, worker, latest)).toBe(true)
+  worker.decisions[1].status = "reconciliation_required"
+  expect(isLive(second, worker, latest)).toBe(false)
 })

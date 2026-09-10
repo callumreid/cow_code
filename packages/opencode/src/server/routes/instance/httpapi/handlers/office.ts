@@ -1,5 +1,8 @@
 import { Auth } from "@/auth"
 import { Office } from "@/office/office"
+import { OfficeLedger } from "@/office/ledger"
+import { OfficeControl } from "@/office/control"
+import { ConflictError } from "../errors"
 import { OfficeDriver } from "@/office/driver"
 import { Routines } from "@/office/routines"
 import { Effect } from "effect"
@@ -27,38 +30,26 @@ const TTS_MODEL = "gpt-4o-mini-tts"
 const DEFAULT_VOICE_MODEL = "gpt-realtime-2.1"
 const DEFAULT_VOICE = "marin"
 
-const VOICE_INSTRUCTIONS = [
-  "You are the voice of the farmer, who runs the Farmer's Office for Callum: every coding thread reports into the office and the farmer briefs him.",
-  "You do not know the threads yourself. For anything about threads, decisions, approvals, or actions, call ask_overseer with Callum's exact words and speak the reply it returns.",
-  "Say a short phrase like 'checking' before the call, then speak the answer. Keep every reply to two sentences unless Callum asks for detail.",
-  "When a message begins with 'Office report', tell Callum what it says in one or two sentences; if it needs a decision, ask him what to do, then pass his answer to ask_overseer.",
-  "Never claim something happened unless ask_overseer said so. Do not read out ids, JSON, or tool names.",
-].join("\n")
+const VOICE_INSTRUCTIONS =
+  "Voice only the exact Office outcome supplied by the client. Add no claims or actions. Audio transcription is admitted by the client from committed user audio, not by model function calls."
 
 function voiceSession(input: { model: string; voice: string; state: string }) {
   return {
     type: "realtime",
     model: input.model,
     instructions: `${VOICE_INSTRUCTIONS}\n\nOffice state when this call started (may be stale; ask_overseer has the current truth):\n${input.state}`,
-    tools: [
-      {
-        type: "function",
-        name: "ask_overseer",
-        description: "Hand Callum's words to the farmer and get the spoken reply. Use for any question, decision, or instruction about threads.",
-        parameters: {
-          type: "object",
-          properties: { text: { type: "string", description: "Callum's words, verbatim" } },
-          required: ["text"],
-          additionalProperties: false,
-        },
-      },
-    ],
-    tool_choice: "auto",
+    tools: [],
+    tool_choice: "none",
     output_modalities: ["audio"],
     audio: {
       input: {
         transcription: { model: "gpt-4o-mini-transcribe" },
-        turn_detection: { type: "semantic_vad", eagerness: "medium" },
+        turn_detection: {
+          type: "semantic_vad",
+          eagerness: "medium",
+          create_response: false,
+          interrupt_response: false,
+        },
       },
       output: { voice: input.voice },
     },
@@ -69,6 +60,8 @@ export const officeHandlers = HttpApiBuilder.group(RootHttpApi, "office", (handl
   Effect.gen(function* () {
     const office = yield* Office.Service
     const driver = yield* OfficeDriver.Service
+    const ledger = yield* OfficeLedger.Service
+    const control = yield* OfficeControl.Service
     const auth = yield* Auth.Service
     const jobs = yield* Routines.Service
 
@@ -107,14 +100,13 @@ export const officeHandlers = HttpApiBuilder.group(RootHttpApi, "office", (handl
     const threadPrompt = Effect.fn("OfficeHttpApi.threadPrompt")(function* (ctx: {
       payload: typeof ThreadPromptInput.Type
     }) {
-      yield* driver.promptThread(ctx.payload).pipe(Effect.orDie)
-      return { ok: true as const }
+      return yield* driver.promptThread(ctx.payload)
     })
 
     const threadAnswer = Effect.fn("OfficeHttpApi.threadAnswer")(function* (ctx: {
       payload: typeof Office.AnswerInput.Type
     }) {
-      yield* office.answer(ctx.payload).pipe(Effect.orDie)
+      yield* office.answer(ctx.payload).pipe(Effect.mapError((error) => new ConflictError({ message: error.message })))
       return { ok: true as const }
     })
 
@@ -143,7 +135,13 @@ export const officeHandlers = HttpApiBuilder.group(RootHttpApi, "office", (handl
       if (!key) return noKey()
       const bytes = Buffer.from(ctx.payload.audio, "base64")
       if (bytes.byteLength < 800) return HttpServerResponse.jsonUnsafe({ text: "" })
-      const ext = ctx.payload.mime.includes("mp4") ? "m4a" : ctx.payload.mime.includes("ogg") ? "ogg" : ctx.payload.mime.includes("wav") ? "wav" : "webm"
+      const ext = ctx.payload.mime.includes("mp4")
+        ? "m4a"
+        : ctx.payload.mime.includes("ogg")
+          ? "ogg"
+          : ctx.payload.mime.includes("wav")
+            ? "wav"
+            : "webm"
       const form = new FormData()
       form.append("file", new Blob([bytes], { type: ctx.payload.mime }), `clip.${ext}`)
       form.append("model", TRANSCRIBE_MODEL)
@@ -156,9 +154,15 @@ export const officeHandlers = HttpApiBuilder.group(RootHttpApi, "office", (handl
         }),
       ).pipe(Effect.orElseSucceed(() => undefined))
       if (!response) return HttpServerResponse.jsonUnsafe({ error: "Could not reach api.openai.com." }, { status: 502 })
-      const body = (yield* Effect.promise(() => response.json().catch(() => ({})))) as { text?: string; error?: { message?: string } }
+      const body = (yield* Effect.promise(() => response.json().catch(() => ({})))) as {
+        text?: string
+        error?: { message?: string }
+      }
       if (!response.ok)
-        return HttpServerResponse.jsonUnsafe({ error: body.error?.message ?? `OpenAI returned HTTP ${response.status}.` }, { status: 502 })
+        return HttpServerResponse.jsonUnsafe(
+          { error: body.error?.message ?? `OpenAI returned HTTP ${response.status}.` },
+          { status: 502 },
+        )
       // Silence makes the model echo its own vocabulary prompt; treat that as nothing said.
       const text = (body.text ?? "").trim()
       const echoed = text.length > 0 && TRANSCRIBE_PROMPT.toLowerCase().includes(text.toLowerCase().slice(0, 40))
@@ -183,8 +187,13 @@ export const officeHandlers = HttpApiBuilder.group(RootHttpApi, "office", (handl
       ).pipe(Effect.orElseSucceed(() => undefined))
       if (!response) return HttpServerResponse.jsonUnsafe({ error: "Could not reach api.openai.com." }, { status: 502 })
       if (!response.ok) {
-        const body = (yield* Effect.promise(() => response.json().catch(() => ({})))) as { error?: { message?: string } }
-        return HttpServerResponse.jsonUnsafe({ error: body.error?.message ?? `OpenAI returned HTTP ${response.status}.` }, { status: 502 })
+        const body = (yield* Effect.promise(() => response.json().catch(() => ({})))) as {
+          error?: { message?: string }
+        }
+        return HttpServerResponse.jsonUnsafe(
+          { error: body.error?.message ?? `OpenAI returned HTTP ${response.status}.` },
+          { status: 502 },
+        )
       }
       const audio = Buffer.from(yield* Effect.promise(() => response.arrayBuffer())).toString("base64")
       return HttpServerResponse.jsonUnsafe({ audio, mime: "audio/mpeg" })
@@ -224,6 +233,66 @@ export const officeHandlers = HttpApiBuilder.group(RootHttpApi, "office", (handl
     })
 
     return handlers
+      .handle("request", ({ payload }) => driver.request(payload))
+      .handle("requestStatus", ({ payload }) => driver.requestStatus(payload.id))
+      .handle("attention", ({ payload }) => driver.attention(payload))
+      .handle("command", ({ payload }) => driver.command(payload))
+      .handle("commands", () =>
+        control
+          .commands()
+          .pipe(Effect.map((rows) => rows.map((row) => ({ state: row.state, receipt: row.value.receipt })))),
+      )
+      .handle("events", ({ payload }) =>
+        Effect.gen(function* () {
+          const current = yield* office.state()
+          const saved = yield* ledger.get<{ cursor: number }>("cursor:" + payload.clientID)
+          const checkpoint = Math.min(
+            current.cursor ?? 0,
+            Math.max(0, saved?.value.cursor ?? 0, payload.checkpoint ?? 0),
+          )
+          if (payload.checkpoint !== undefined)
+            yield* ledger.put({
+              id: "cursor:" + payload.clientID,
+              kind: "cursor",
+              state: "applied",
+              value: { cursor: checkpoint },
+            })
+          const after = payload.after ?? checkpoint
+          const events = yield* ledger.replay(after > (current.cursor ?? 0) ? 0 : Math.max(0, after))
+          const deliveries = yield* ledger.list<{ clientID: string; eventID: string; channel: string }>("delivery")
+          return {
+            epoch: current.epoch ?? "",
+            cursor: current.cursor ?? 0,
+            checkpoint,
+            more: (events.at(-1)?.cursor ?? after) < (current.cursor ?? 0),
+            events,
+            delivered: deliveries
+              .filter((row) => row.value.clientID === payload.clientID)
+              .map((row) => row.value.channel + ":" + row.value.eventID),
+          }
+        }),
+      )
+      .handle("acknowledge", ({ payload }) =>
+        Effect.gen(function* () {
+          if (payload.channel === "navigation") {
+            const record = yield* ledger.get<{ clientID: string; sessionID: string; directory: string }>(
+              payload.eventID,
+            )
+            if (
+              record?.kind !== "navigation" ||
+              record.value.clientID !== payload.clientID ||
+              record.value.sessionID !== payload.sessionID ||
+              record.value.directory !== payload.directory
+            )
+              return yield* new ConflictError({
+                message: "Navigation acknowledgment does not match this client and target.",
+              })
+            yield* ledger.put({ ...record, state: "acknowledged" })
+          }
+          yield* ledger.acknowledge(payload)
+          return { ok: true as const }
+        }),
+      )
       .handle("state", state)
       .handle("overseer", overseer)
       .handle("ask", ask)

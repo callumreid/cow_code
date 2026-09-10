@@ -21,7 +21,6 @@ import { Tooltip } from "@opencode-ai/ui/tooltip"
 import { TextareaV2 } from "@opencode-ai/ui/v2/textarea-v2"
 import { Markdown } from "@opencode-ai/session-ui/markdown"
 import { readPartText } from "@opencode-ai/session-ui/message-part-text"
-import { useServerSync } from "@/context/server-sync"
 import { useSettings } from "@/context/settings"
 import { errorText, useOffice, type OfficeChip } from "@/office/context"
 import {
@@ -34,8 +33,8 @@ import {
   waitingReason,
 } from "@/office/stream"
 import { HoldToTalk } from "@/office/talk"
-import type { OfficeBucket, OfficeThread } from "@/office/types"
-import { VoiceStrip } from "@/office/voice/strip"
+import { useLanguage } from "@/context/language"
+import type { OfficeBucket, OfficeThread, OfficeOutcome } from "@/office/types"
 import { ReportCard } from "./office-card"
 
 const BUCKET_DOT: Record<OfficeBucket, string> = {
@@ -48,6 +47,7 @@ const BUCKET_DOT: Record<OfficeBucket, string> = {
 
 /** Strip chips in display order; `always` chips show at zero, the rest only when non-empty. */
 const CHIPS: Array<{ chip: OfficeChip; label: (n: number) => string; tone: string; always: boolean }> = [
+  { chip: "done", label: String, tone: "border-border-weak-base text-text-weak", always: false },
   {
     chip: "needs_you",
     label: (n) => `${n} need${n === 1 ? "s" : ""} you`,
@@ -89,7 +89,8 @@ const CHIPS: Array<{ chip: OfficeChip; label: (n: number) => string; tone: strin
 const NEAR_BOTTOM_PX = 80
 
 const RosterRow = (props: { thread: OfficeThread; now: number; onOpen: () => void }) => {
-  const readOnly = () => props.thread.source !== "cow"
+  const language = useLanguage()
+  const readOnly = () => props.thread.source !== "cow" || props.thread.availability === "stale"
   const reason = () => waitingReason(props.thread.waiting)
   return (
     <button
@@ -104,11 +105,14 @@ const RosterRow = (props: { thread: OfficeThread; now: number; onOpen: () => voi
         classList={{ "animate-pulse": props.thread.bucket === "working" }}
       />
       <span class="text-12-mono text-text-weak shrink-0 rounded bg-surface-inset-base px-1 truncate max-w-24 md:max-w-32">
-        {projectLabel(props.thread)}
+        {props.thread.hostName} · {projectLabel(props.thread)}
       </span>
       <span class="flex-1 min-w-0 flex flex-col md:flex-row md:items-baseline md:gap-2">
         <span class="text-14-medium text-text-strong truncate md:max-w-[45%]">{props.thread.title}</span>
-        <span class="text-12-regular text-text-weak truncate md:flex-1 min-w-0">{reason() ?? props.thread.summary}</span>
+        <span class="text-12-regular text-text-weak truncate md:flex-1 min-w-0">
+          {props.thread.lifecycle ? language.t("office.lifecycle." + props.thread.lifecycle.phase) + " · " : ""}
+          {reason() ?? props.thread.summary}
+        </span>
       </span>
       <Show when={readOnly()}>
         <span class="text-12-mono text-text-weak shrink-0 rounded bg-surface-inset-base px-1">read-only</span>
@@ -188,9 +192,30 @@ const AssistantText = (props: { part: TextPart; message: Message; accum: Record<
  * (each expanding a compact roster), then a single stream that interleaves
  * the farmer's own messages with report cards, then the composer.
  */
+const OutcomeText = (props: { outcome: OfficeOutcome; now: number }) => {
+  const office = useOffice()
+  const language = useLanguage()
+  const current = () => {
+    void props.now
+    return office.outcomeCurrent(props.outcome)
+  }
+  onMount(() => {
+    if (current())
+      requestAnimationFrame(() => {
+        if (current()) void office.acknowledgeOutcome(props.outcome.id, "display").catch(() => undefined)
+      })
+  })
+  return (
+    <p class="text-14-regular text-text-strong whitespace-pre-wrap" data-office-outcome={props.outcome.id}>
+      {current() ? props.outcome.text : language.t("office.outcome.stale")}
+    </p>
+  )
+}
+
 export const OfficePanel = (props: { onClose: () => void; onNavigate: (href: string) => void }): JSX.Element => {
   const office = useOffice()
-  const sync = useServerSync()
+  const language = useLanguage()
+  const sync = office.sync
   const settings = useSettings()
   // One mic instance at a time: a bar above the composer on phones, a round button beside it otherwise.
   const phone = createMediaQuery("(max-width: 767px)")
@@ -282,7 +307,13 @@ export const OfficePanel = (props: { onClose: () => void; onNavigate: (href: str
   }
 
   const rows = createMemo(() =>
-    buildStream({ messages: messages(), parts, reports: office.reports(), lastSeen: office.lastSeen() }),
+    buildStream({
+      messages: messages(),
+      parts,
+      reports: office.reports().filter((report) => report.kind !== "auto_allowed"),
+      outcomes: office.outcomes(),
+      lastSeen: office.lastSeen(),
+    }),
   )
   const dividerIndex = createMemo(() => rows().findIndex((row) => row.kind === "divider"))
   const hasNew = createMemo(() => dividerIndex() !== -1 && dividerIndex() < rows().length - 1)
@@ -408,7 +439,9 @@ export const OfficePanel = (props: { onClose: () => void; onNavigate: (href: str
                     <Show when={item.chip === "working" && chipCount("working") > 0}>
                       <span class="size-1.5 rounded-full bg-icon-info-base animate-pulse" />
                     </Show>
-                    {item.label(chipCount(item.chip))}
+                    {item.chip === "done"
+                      ? language.t("office.stoppedCount", { count: chipCount(item.chip) })
+                      : item.label(chipCount(item.chip))}
                   </button>
                 </Show>
               )}
@@ -477,7 +510,11 @@ export const OfficePanel = (props: { onClose: () => void; onNavigate: (href: str
                 >
                   <For each={roster()}>
                     {(thread) => (
-                      <RosterRow thread={thread} now={now()} onOpen={() => props.onNavigate(threadHref(thread))} />
+                      <RosterRow
+                        thread={thread}
+                        now={now()}
+                        onOpen={() => void office.openThread(thread).catch(() => office.refresh())}
+                      />
                     )}
                   </For>
                 </Show>
@@ -487,6 +524,30 @@ export const OfficePanel = (props: { onClose: () => void; onNavigate: (href: str
         </Show>
       </div>
 
+      <div class="mx-auto w-full max-w-[880px] flex flex-wrap gap-2 px-3 py-1 text-12-regular text-text-weak">
+        <For each={office.hosts()}>
+          {(host) => (
+            <span>
+              {host.name} · {language.t(("office.host.status." + host.status) as "office.host.status.available")}
+            </span>
+          )}
+        </For>
+        <For each={Object.entries(office.sources())}>
+          {([name, source]) => (
+            <span>
+              {name} · {language.t("office.host.status." + source.status)}
+            </span>
+          )}
+        </For>
+        <Show when={!office.seeded()}>
+          <span>{language.t("office.loadingRoster")}</span>
+        </Show>
+        <Show when={office.recovery().length}>
+          <span class="text-icon-warning-base">
+            {language.t("office.recovery", { count: office.recovery().length })}
+          </span>
+        </Show>
+      </div>
       <div
         ref={streamRef}
         onScroll={onScroll}
@@ -536,6 +597,9 @@ export const OfficePanel = (props: { onClose: () => void; onNavigate: (href: str
                 <Match when={row.kind === "text" ? row : undefined}>
                   {(item) => <AssistantText part={item().part} message={item().message} accum={accum()} />}
                 </Match>
+                <Match when={row.kind === "outcome" ? row : undefined}>
+                  {(item) => <OutcomeText outcome={item().outcome} now={now()} />}
+                </Match>
                 <Match when={row.kind === "tools" ? row : undefined}>
                   {(item) => <ToolRun parts={item().parts} />}
                 </Match>
@@ -550,7 +614,7 @@ export const OfficePanel = (props: { onClose: () => void; onNavigate: (href: str
                   {(item) => (
                     <ReportCard
                       report={item().report}
-                      thread={office.thread(item().report.sessionID)}
+                      thread={office.thread(item().report.sessionID, item().report.hostID)}
                       now={now()}
                       focused={office.focus()?.id === item().report.id}
                       onNavigate={props.onNavigate}
@@ -566,15 +630,6 @@ export const OfficePanel = (props: { onClose: () => void; onNavigate: (href: str
           </Show>
         </div>
       </div>
-
-      <Show when={office.voice()}>
-        <VoiceStrip
-          token={() => office.voiceToken()}
-          ask={(text) => office.ask(text, "voice")}
-          subscribeReports={(cb) => office.onReport(cb)}
-          onStop={() => office.setVoice(false)}
-        />
-      </Show>
 
       <div class="shrink-0 border-t border-border-weak-base px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:px-6">
         <div class="mx-auto w-full max-w-[880px] flex flex-col gap-2">

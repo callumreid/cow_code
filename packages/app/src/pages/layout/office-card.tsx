@@ -5,9 +5,10 @@ import { DropdownMenu } from "@opencode-ai/ui/dropdown-menu"
 import { Icon } from "@opencode-ai/ui/icon"
 import { IconButton } from "@opencode-ai/ui/icon-button"
 import { Tooltip } from "@opencode-ai/ui/tooltip"
+import { useLanguage } from "@/context/language"
 import { usePlatform } from "@/context/platform"
 import { errorText, useOffice } from "@/office/context"
-import { isLive, projectLabel, relativeAge, threadHref } from "@/office/stream"
+import { isLive, waitingForReport, projectLabel, relativeAge } from "@/office/stream"
 import type { OfficeCardAction, OfficeReport, OfficeReportKind, OfficeThread, OfficeWaiting } from "@/office/types"
 
 type CardKind = Exclude<OfficeReportKind, "auto_allowed">
@@ -17,7 +18,7 @@ const KIND_META: Record<CardKind, { label: string; stripe: string; text: string 
   question: { label: "question", stripe: "bg-icon-warning-base", text: "text-icon-warning-base" },
   error: { label: "error", stripe: "bg-icon-critical-base", text: "text-icon-critical-base" },
   pr: { label: "pr", stripe: "bg-icon-success-base", text: "text-icon-success-base" },
-  finished: { label: "finished", stripe: "bg-icon-success-base", text: "text-icon-success-base" },
+  finished: { label: "finished", stripe: "bg-icon-weak-base", text: "text-text-weak" },
   stalled: { label: "stalled", stripe: "bg-icon-warning-base opacity-50", text: "text-text-weak" },
 }
 
@@ -29,7 +30,6 @@ const RESOLVED_LABEL: Record<OfficeCardAction, string> = {
 }
 
 const RETRY_TEXT = "Please retry the last step and report what failed."
-const NUDGE_TEXT = "Status? If you are blocked say what on."
 
 export const INPUT_CLASS =
   "w-full rounded-md border border-border-weak-base bg-background-base px-2 py-1 text-12-regular text-text-strong outline-none placeholder:text-text-weak focus:border-border-strong-focus disabled:opacity-60"
@@ -64,7 +64,12 @@ const PermissionActions = (props: {
     setState({ busy: true, error: undefined })
     const message = value === "reject" && state.note.trim() ? state.note.trim() : undefined
     office
-      .answer({ sessionID: props.thread.sessionID, permission: { id: props.waiting.id, reply: value, message } })
+      .answer({
+        sessionID: props.thread.sessionID,
+        hostID: props.thread.hostID,
+        runID: props.thread.decisions?.find((decision) => decision.id === props.waiting.id)?.runID,
+        permission: { id: props.waiting.id, reply: value, message },
+      })
       .then(() => props.onAction(value))
       .catch((cause: unknown) => setState("error", errorText(cause)))
       .finally(() => setState("busy", false))
@@ -155,7 +160,12 @@ const QuestionActions = (props: {
     if (state.busy) return
     setState({ busy: true, error: undefined })
     office
-      .answer({ sessionID: props.thread.sessionID, question: { id: props.waiting.id, answers: list } })
+      .answer({
+        sessionID: props.thread.sessionID,
+        hostID: props.thread.hostID,
+        runID: props.thread.decisions?.find((decision) => decision.id === props.waiting.id)?.runID,
+        question: { id: props.waiting.id, answers: list },
+      })
       .then(() => props.onAction("answered"))
       .catch((cause: unknown) => setState("error", errorText(cause)))
       .finally(() => setState("busy", false))
@@ -246,6 +256,7 @@ export const ReportCard = (props: {
   onNavigate: (href: string) => void
 }): JSX.Element => {
   const office = useOffice()
+  const language = useLanguage()
   const platform = usePlatform()
   const [state, setState] = createStore({
     busy: false,
@@ -257,21 +268,25 @@ export const ReportCard = (props: {
   const kind = () => props.report.kind as CardKind
   const meta = () => KIND_META[kind()]
   const live = () => isLive(props.report, props.thread, office.latest())
-  const permission = () =>
-    live() && props.thread?.waiting?.kind === "permission"
-      ? { thread: props.thread, waiting: props.thread.waiting }
-      : undefined
-  const question = () =>
-    live() && props.thread?.waiting?.kind === "question"
-      ? { thread: props.thread, waiting: props.thread.waiting }
-      : undefined
+  const permission = () => {
+    const waiting = waitingForReport(props.report, props.thread)
+    return live() && props.thread && waiting?.kind === "permission" ? { thread: props.thread, waiting } : undefined
+  }
+  const question = () => {
+    const waiting = waitingForReport(props.report, props.thread)
+    return live() && props.thread && waiting?.kind === "question" ? { thread: props.thread, waiting } : undefined
+  }
   const resolved = () => {
+    const decision = props.thread?.decisions?.find((item) => item.id === props.report.requestID)
+    if (decision?.status === "reconciliation_required") return language.t("office.decision.reconcile")
     const action = office.cardAction(props.report.id)
-    return action ? RESOLVED_LABEL[action] : "Handled"
+    return action ? RESOLVED_LABEL[action] : language.t("office.decision.notPending")
   }
   const errorMessage = () =>
     props.thread?.waiting?.kind === "error" ? props.thread.waiting.message : props.report.summary
-  const openThread = () => props.onNavigate(threadHref(props.report))
+  const openThread = () => {
+    void office.openThread(props.report).catch((cause) => setState("error", errorText(cause)))
+  }
   const run = (task: () => Promise<unknown>, done?: () => void) => {
     if (state.busy) return
     setState({ busy: true, error: undefined })
@@ -284,11 +299,12 @@ export const ReportCard = (props: {
     const text = state.text.trim()
     if (!text) return
     run(
-      () => office.prompt(props.report.sessionID, text, "steer"),
+      () => office.prompt(props.report.sessionID, text, "steer", props.report.hostID),
       () => setState({ text: "", steer: false, sent: true }),
     )
   }
-  const mute = () => run(() => office.mark(props.report.sessionID, { muted: !props.thread?.muted }))
+  const mute = () =>
+    run(() => office.mark(props.report.sessionID, { muted: !props.thread?.muted }, props.report.hostID))
 
   return (
     <div
@@ -303,8 +319,18 @@ export const ReportCard = (props: {
       <span class={`w-1 shrink-0 ${meta().stripe}`} />
       <div class="flex-1 min-w-0 flex flex-col gap-2 px-4 py-3">
         <div class="flex items-center gap-2 min-w-0">
-          <span class={`text-12-mono uppercase tracking-wide shrink-0 ${meta().text}`}>{meta().label}</span>
-          <Show when={props.thread}>{(thread) => <Chip>{projectLabel(thread())}</Chip>}</Show>
+          <span class={`text-12-mono uppercase tracking-wide shrink-0 ${meta().text}`}>
+            {kind() === "finished"
+              ? language.t("office.lifecycle." + (props.thread?.lifecycle?.phase ?? "stopped"))
+              : meta().label}
+          </span>
+          <Show when={props.thread}>
+            {(thread) => (
+              <Chip>
+                {thread().hostName} · {projectLabel(thread())}
+              </Chip>
+            )}
+          </Show>
           <span class="text-14-medium text-text-strong truncate flex-1 min-w-0">{props.report.title}</span>
           <Show when={kind() === "pr"}>
             <Chip class="bg-surface-success-weak text-icon-success-base">ready for review</Chip>
@@ -331,7 +357,9 @@ export const ReportCard = (props: {
                 <DropdownMenu.Item
                   disabled={!props.thread}
                   onSelect={() =>
-                    void office.mark(props.report.sessionID, { pinned: !props.thread?.pinned }).catch(() => undefined)
+                    void office
+                      .mark(props.report.sessionID, { pinned: !props.thread?.pinned }, props.report.hostID)
+                      .catch(() => undefined)
                   }
                 >
                   {props.thread?.pinned ? "Unpin" : "Pin"}
@@ -346,6 +374,34 @@ export const ReportCard = (props: {
         </div>
         <span class="text-12-regular text-text-base break-words">{props.report.summary}</span>
 
+        <Show when={props.thread?.lifecycle}>
+          {(lifecycle) => (
+            <div class="flex flex-wrap gap-2 text-12-regular text-text-weak">
+              <span>{language.t("office.outcome." + lifecycle().outcome)}</span>
+              <For each={["implementation", "check", "shipment", "runtime"] as const}>
+                {(kind) => {
+                  const evidence = () => lifecycle().evidence.filter((item) => item.kind === kind)
+                  return (
+                    <span
+                      title={evidence()
+                        .map((item) => item.reference)
+                        .join("\n")}
+                    >
+                      {language.t("office.evidence." + kind)} ·{" "}
+                      {language.t(
+                        evidence().some((item) => item.status === "verified")
+                          ? "office.evidence.verified"
+                          : evidence().length
+                            ? "office.evidence.reported"
+                            : "office.evidence.unverified",
+                      )}
+                    </span>
+                  )
+                }}
+              </For>
+            </div>
+          )}
+        </Show>
         <Switch>
           <Match when={kind() === "permission"}>
             <Show when={permission()} keyed fallback={<Resolved label={resolved()} />}>
@@ -382,7 +438,7 @@ export const ReportCard = (props: {
                 disabled={state.busy || state.sent}
                 onClick={() =>
                   run(
-                    () => office.prompt(props.report.sessionID, RETRY_TEXT, "steer"),
+                    () => office.prompt(props.report.sessionID, RETRY_TEXT, "steer", props.report.hostID),
                     () => setState("sent", true),
                   )
                 }
@@ -402,7 +458,7 @@ export const ReportCard = (props: {
                 disabled={state.busy || state.sent}
                 onClick={() =>
                   run(
-                    () => office.prompt(props.report.sessionID, NUDGE_TEXT, "steer"),
+                    () => office.refresh(),
                     () => setState("sent", true),
                   )
                 }

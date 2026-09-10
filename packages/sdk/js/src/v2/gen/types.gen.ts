@@ -81,6 +81,7 @@ export type Event =
   | EventProjectUpdated
   | EventSessionStatus
   | EventSessionIdle
+  | EventSessionInterrupted
   | EventQuestionAsked
   | EventQuestionReplied
   | EventQuestionRejected
@@ -1507,6 +1508,13 @@ export type GlobalEvent = {
       }
     | {
         id: string
+        type: "session.interrupted"
+        properties: {
+          sessionID: string
+        }
+      }
+    | {
+        id: string
         type: "question.asked"
         properties: {
           id: string
@@ -2027,6 +2035,245 @@ export type Config = {
     mcp_timeout?: number
     policies?: Array<ConfigV2ExperimentalPolicy>
   }
+}
+
+export type ConflictError = {
+  _tag: "ConflictError"
+  message: string
+  resource?: string
+}
+
+export type OfficeOverseer = {
+  sessionID: string
+  directory: string
+}
+
+export type OfficeBucket = "needs_you" | "failed" | "review" | "working" | "done"
+
+export type OfficeWaiting =
+  | {
+      kind: "permission"
+      id: string
+      permission: string
+      patterns: Array<string>
+      always: Array<string>
+      metadata: {
+        [key: string]: unknown
+      }
+      title?: string
+      tier: "auto" | "farmer" | "callum"
+    }
+  | {
+      kind: "question"
+      id: string
+      questions: Array<{
+        question: string
+        header: string
+        options: Array<{
+          label: string
+          description: string
+        }>
+        multiple?: boolean
+        custom?: boolean
+      }>
+    }
+  | {
+      kind: "error"
+      message: string
+    }
+
+export type OfficeThread = {
+  sessionID: string
+  directory: string
+  projectID: string
+  projectName?: string
+  title: string
+  agent?: string
+  routine?: string
+  bucket: OfficeBucket
+  waiting?: OfficeWaiting
+  decisions?: Array<{
+    id: string
+    sessionID: string
+    rootSessionID: string
+    runID?: string
+    waiting: OfficeWaiting
+    status: "pending" | "answered" | "reconciliation_required"
+    created: number
+  }>
+  lifecycle?: {
+    phase: "accepted" | "running" | "waiting" | "stopped" | "failed" | "canceled" | "unknown"
+    runID?: string
+    reason?: string
+    observedAt: number
+    outcome: "unverified" | "reported" | "verified"
+    evidence: Array<{
+      kind: "implementation" | "check" | "shipment" | "runtime"
+      reference: string
+      status: "reported" | "verified"
+    }>
+  }
+  hostID?: string
+  availability?: "available" | "stale" | "unavailable"
+  executionID?: string
+  objective?: string
+  capabilities?: Array<string>
+  summary: string
+  lastText?: string
+  lastTool?: string
+  pr?: string
+  pinned: boolean
+  muted: boolean
+  source: "cow" | "claude" | "codex"
+  time: {
+    created: number
+    updated: number
+    reported?: number
+  }
+}
+
+export type OfficeReportKind = "finished" | "permission" | "question" | "error" | "pr" | "stalled" | "auto_allowed"
+
+export type OfficeReport = {
+  id: string
+  time: number
+  sessionID: string
+  directory: string
+  kind: OfficeReportKind
+  title: string
+  summary: string
+  requestID?: string
+  runID?: string
+}
+
+export type OfficeReminder = {
+  id: string
+  due: number
+  note: string
+  sessionID?: string
+}
+
+export type OfficeAutonomy = "brief" | "act"
+
+export type OfficeState = {
+  outcomes?: Array<{
+    id: string
+    requestID?: string
+    clientID?: string
+    generation?: number
+    sessionID: string
+    text: string
+    time: number
+    reportIDs: Array<string>
+    urgent: boolean
+    observations: Array<{
+      sessionID: string
+      runID?: string
+      updated: number
+    }>
+  }>
+  host?: {
+    id: string
+    name: string
+  }
+  recovery?: Array<{
+    id: string
+    kind: string
+    sessionID?: string
+  }>
+  sources?: {
+    [key: string]: {
+      status: "loading" | "available" | "unavailable"
+      observedAt: number
+    }
+  }
+  epoch?: string
+  cursor?: number
+  seeded?: boolean
+  overseer: OfficeOverseer
+  threads: Array<OfficeThread>
+  reports: Array<OfficeReport>
+  reminders: Array<OfficeReminder>
+  counts: {
+    needs_you: number
+    failed: number
+    review: number
+    working: number
+    done: number
+  }
+  autonomy: OfficeAutonomy
+  updated: number
+}
+
+export type OfficeAnswerInput = {
+  sessionID: string
+  hostID?: string
+  runID?: string
+  permission?: {
+    id: string
+    reply: "once" | "always" | "reject"
+    message?: string
+  }
+  question?: {
+    id: string
+    answers: Array<Array<string>>
+  }
+}
+
+export type RoutineRunStatus = "ok" | "failed" | "skipped" | "locked" | "running" | "waiting" | "canceled" | "unknown"
+
+export type RoutineRun = {
+  executionID?: string
+  correlation?: "exact" | "heuristic" | "unmatched"
+  processStatus?: RoutineRunStatus
+  agentStatus?: string
+  outcome?: "unverified" | "reported" | "verified"
+  startedAt: number
+  endedAt?: number
+  status: RoutineRunStatus
+  rc?: number
+  summary?: string
+  sessionID?: string
+  directory?: string
+}
+
+export type Routine = {
+  name: string
+  label: string
+  title: string
+  description?: string
+  kind: "llm" | "shell"
+  model?: string
+  schedule: string
+  loaded: boolean
+  nextRunAt?: number
+  running?: RoutineRun
+  last?: RoutineRun
+  runs: Array<RoutineRun>
+  lastExitCode?: number
+  log?: string
+}
+
+export type RoutineService = {
+  name: string
+  label: string
+  title: string
+  running: boolean
+  pid?: number
+  lastExitCode?: number
+}
+
+export type RoutinesSnapshot = {
+  available: boolean
+  host: string
+  now: number
+  routines: Array<Routine>
+  services: Array<RoutineService>
+}
+
+export type RoutineLog = {
+  path?: string
+  text: string
 }
 
 export type Model = {
@@ -2711,12 +2958,6 @@ export type PromptInput = {
   agents?: Array<PromptAgentAttachment>
 }
 
-export type ConflictError = {
-  _tag: "ConflictError"
-  message: string
-  resource?: string
-}
-
 export type ServiceUnavailableError = {
   _tag: "ServiceUnavailableError"
   message: string
@@ -2929,6 +3170,7 @@ export type V2Event =
   | ProjectUpdated
   | SessionStatus2
   | SessionIdle
+  | SessionInterrupted
   | QuestionAsked
   | QuestionReplied2
   | QuestionRejected2
@@ -5927,6 +6169,23 @@ export type SessionIdle = {
   }
 }
 
+export type SessionInterrupted = {
+  id: string
+  metadata?: {
+    [key: string]: unknown
+  }
+  type: "session.interrupted"
+  durable?: {
+    aggregateID: string
+    seq: number
+    version: number
+  }
+  location?: LocationRef
+  data: {
+    sessionID: string
+  }
+}
+
 export type QuestionAsked = {
   id: string
   metadata?: {
@@ -6945,6 +7204,14 @@ export type EventSessionIdle = {
   }
 }
 
+export type EventSessionInterrupted = {
+  id: string
+  type: "session.interrupted"
+  properties: {
+    sessionID: string
+  }
+}
+
 export type EventQuestionAsked = {
   id: string
   type: "question.asked"
@@ -7385,6 +7652,731 @@ export type GlobalUpgradeResponses = {
 }
 
 export type GlobalUpgradeResponse = GlobalUpgradeResponses[keyof GlobalUpgradeResponses]
+
+export type OfficeRequestData = {
+  body?: {
+    id: string
+    text: string
+    source?: "text" | "voice"
+    clientID?: string
+    generation?: number
+    decisionIDs?: Array<string>
+  }
+  path?: never
+  query?: never
+  url: "/global/office/request"
+}
+
+export type OfficeRequestErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type OfficeRequestError = OfficeRequestErrors[keyof OfficeRequestErrors]
+
+export type OfficeRequestResponses = {
+  /**
+   * Success
+   */
+  200: {
+    id: string
+    status: "accepted" | "processing" | "completed" | "failed" | "reconciliation_required" | "rejected"
+    text?: string
+    sessionID?: string
+    reason?: string
+  }
+}
+
+export type OfficeRequestResponse = OfficeRequestResponses[keyof OfficeRequestResponses]
+
+export type OfficeRequestStatusData = {
+  body?: {
+    id: string
+  }
+  path?: never
+  query?: never
+  url: "/global/office/request/status"
+}
+
+export type OfficeRequestStatusErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type OfficeRequestStatusError = OfficeRequestStatusErrors[keyof OfficeRequestStatusErrors]
+
+export type OfficeRequestStatusResponses = {
+  /**
+   * Success
+   */
+  200: {
+    id: string
+    status: "accepted" | "processing" | "completed" | "failed" | "reconciliation_required" | "rejected"
+    text?: string
+    sessionID?: string
+    reason?: string
+  }
+}
+
+export type OfficeRequestStatusResponse = OfficeRequestStatusResponses[keyof OfficeRequestStatusResponses]
+
+export type OfficeAttentionData = {
+  body?: {
+    clientID: string
+    generation: number
+    mode: "active" | "paused" | "off"
+  }
+  path?: never
+  query?: never
+  url: "/global/office/attention"
+}
+
+export type OfficeAttentionErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type OfficeAttentionError = OfficeAttentionErrors[keyof OfficeAttentionErrors]
+
+export type OfficeAttentionResponses = {
+  /**
+   * Success
+   */
+  200: {
+    clientID: string
+    generation: number
+    mode: "active" | "paused" | "off"
+  }
+}
+
+export type OfficeAttentionResponse = OfficeAttentionResponses[keyof OfficeAttentionResponses]
+
+export type OfficeCommandData = {
+  body?: {
+    id: string
+    intent: "new" | "amend" | "steer" | "queue" | "context" | "cancel" | "resume" | "status"
+    hostID?: string
+    sessionID?: string
+    directory?: string
+    title?: string
+    text: string
+    agent?: string
+    model?: {
+      providerID: string
+      modelID: string
+      variant?: string
+    }
+    executionID?: string
+    outputScope?: string
+    placement?: "auto" | "worktree" | "shared"
+  }
+  path?: never
+  query?: never
+  url: "/global/office/command"
+}
+
+export type OfficeCommandErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type OfficeCommandError = OfficeCommandErrors[keyof OfficeCommandErrors]
+
+export type OfficeCommandResponses = {
+  /**
+   * Success
+   */
+  200: {
+    commandID: string
+    sessionID: string
+    inputID?: string
+    phase?: string
+    outcome?: string
+    status: "accepted" | "rejected" | "reconciliation_required"
+    queued: boolean
+    directory?: string
+    time: number
+    reason?: string
+  }
+}
+
+export type OfficeCommandResponse = OfficeCommandResponses[keyof OfficeCommandResponses]
+
+export type OfficeCommandsData = {
+  body?: never
+  path?: never
+  query?: never
+  url: "/global/office/commands"
+}
+
+export type OfficeCommandsErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type OfficeCommandsError = OfficeCommandsErrors[keyof OfficeCommandsErrors]
+
+export type OfficeCommandsResponses = {
+  /**
+   * Success
+   */
+  200: Array<{
+    state: string
+    receipt: {
+      commandID: string
+      sessionID: string
+      inputID?: string
+      phase?: string
+      outcome?: string
+      status: "accepted" | "rejected" | "reconciliation_required"
+      queued: boolean
+      directory?: string
+      time: number
+      reason?: string
+    }
+  }>
+}
+
+export type OfficeCommandsResponse = OfficeCommandsResponses[keyof OfficeCommandsResponses]
+
+export type OfficeEventsData = {
+  body?: {
+    after?: number
+    checkpoint?: number
+    clientID: string
+  }
+  path?: never
+  query?: never
+  url: "/global/office/events"
+}
+
+export type OfficeEventsErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type OfficeEventsError = OfficeEventsErrors[keyof OfficeEventsErrors]
+
+export type OfficeEventsResponses = {
+  /**
+   * Success
+   */
+  200: {
+    epoch: string
+    cursor: number
+    checkpoint: number
+    more: boolean
+    events: Array<{
+      cursor: number
+      id: string
+      kind: string
+      sessionID?: string
+      value: unknown
+      time: number
+    }>
+    delivered: Array<string>
+  }
+}
+
+export type OfficeEventsResponse = OfficeEventsResponses[keyof OfficeEventsResponses]
+
+export type OfficeAcknowledgeData = {
+  body?: {
+    clientID: string
+    eventID: string
+    channel: "display" | "spoken" | "navigation"
+    sessionID?: string
+    directory?: string
+  }
+  path?: never
+  query?: never
+  url: "/global/office/acknowledge"
+}
+
+export type OfficeAcknowledgeErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * ConflictError
+   */
+  409: ConflictError
+}
+
+export type OfficeAcknowledgeError = OfficeAcknowledgeErrors[keyof OfficeAcknowledgeErrors]
+
+export type OfficeAcknowledgeResponses = {
+  /**
+   * Success
+   */
+  200: {
+    ok: true
+  }
+}
+
+export type OfficeAcknowledgeResponse = OfficeAcknowledgeResponses[keyof OfficeAcknowledgeResponses]
+
+export type OfficeStateData = {
+  body?: never
+  path?: never
+  query?: never
+  url: "/global/office/state"
+}
+
+export type OfficeStateErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type OfficeStateError = OfficeStateErrors[keyof OfficeStateErrors]
+
+export type OfficeStateResponses = {
+  /**
+   * Farmer's Office state
+   */
+  200: OfficeState
+}
+
+export type OfficeStateResponse = OfficeStateResponses[keyof OfficeStateResponses]
+
+export type OfficeOverseerData = {
+  body?: never
+  path?: never
+  query?: never
+  url: "/global/office/overseer"
+}
+
+export type OfficeOverseerErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type OfficeOverseerError = OfficeOverseerErrors[keyof OfficeOverseerErrors]
+
+export type OfficeOverseerResponses = {
+  /**
+   * The farmer's session
+   */
+  200: OfficeOverseer
+}
+
+export type OfficeOverseerResponse = OfficeOverseerResponses[keyof OfficeOverseerResponses]
+
+export type OfficeAskData = {
+  body?: {
+    text: string
+    source?: "text" | "voice"
+    clientID?: string
+    generation?: number
+    decisionIDs?: Array<string>
+  }
+  path?: never
+  query?: never
+  url: "/global/office/ask"
+}
+
+export type OfficeAskErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type OfficeAskError = OfficeAskErrors[keyof OfficeAskErrors]
+
+export type OfficeAskResponses = {
+  /**
+   * The farmer's reply
+   */
+  200: {
+    text: string
+    sessionID: string
+  }
+}
+
+export type OfficeAskResponse = OfficeAskResponses[keyof OfficeAskResponses]
+
+export type OfficeBriefData = {
+  body?: {
+    since: number
+    clientID?: string
+  }
+  path?: never
+  query?: never
+  url: "/global/office/brief"
+}
+
+export type OfficeBriefErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type OfficeBriefError = OfficeBriefErrors[keyof OfficeBriefErrors]
+
+export type OfficeBriefResponses = {
+  /**
+   * What changed since Callum last looked
+   */
+  200: {
+    text: string
+    sessionID: string
+    skipped: boolean
+  }
+}
+
+export type OfficeBriefResponse = OfficeBriefResponses[keyof OfficeBriefResponses]
+
+export type OfficeThreadPromptData = {
+  body?: {
+    id?: string
+    sessionID: string
+    text: string
+    mode: "steer" | "queue" | "context" | "amend" | "cancel" | "resume"
+  }
+  path?: never
+  query?: never
+  url: "/global/office/thread/prompt"
+}
+
+export type OfficeThreadPromptErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type OfficeThreadPromptError = OfficeThreadPromptErrors[keyof OfficeThreadPromptErrors]
+
+export type OfficeThreadPromptResponses = {
+  /**
+   * Success
+   */
+  200: {
+    commandID: string
+    sessionID: string
+    inputID?: string
+    phase?: string
+    outcome?: string
+    status: "accepted" | "rejected" | "reconciliation_required"
+    queued: boolean
+    directory?: string
+    time: number
+    reason?: string
+  }
+}
+
+export type OfficeThreadPromptResponse = OfficeThreadPromptResponses[keyof OfficeThreadPromptResponses]
+
+export type OfficeThreadAnswerData = {
+  body?: OfficeAnswerInput
+  path?: never
+  query?: never
+  url: "/global/office/thread/answer"
+}
+
+export type OfficeThreadAnswerErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * ConflictError
+   */
+  409: ConflictError
+}
+
+export type OfficeThreadAnswerError = OfficeThreadAnswerErrors[keyof OfficeThreadAnswerErrors]
+
+export type OfficeThreadAnswerResponses = {
+  /**
+   * Success
+   */
+  200: {
+    ok: true
+  }
+}
+
+export type OfficeThreadAnswerResponse = OfficeThreadAnswerResponses[keyof OfficeThreadAnswerResponses]
+
+export type OfficeThreadMarkData = {
+  body?: {
+    sessionID: string
+    pinned?: boolean
+    muted?: boolean
+  }
+  path?: never
+  query?: never
+  url: "/global/office/thread/mark"
+}
+
+export type OfficeThreadMarkErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type OfficeThreadMarkError = OfficeThreadMarkErrors[keyof OfficeThreadMarkErrors]
+
+export type OfficeThreadMarkResponses = {
+  /**
+   * Success
+   */
+  200: {
+    ok: true
+  }
+}
+
+export type OfficeThreadMarkResponse = OfficeThreadMarkResponses[keyof OfficeThreadMarkResponses]
+
+export type OfficeAutonomyData = {
+  body?: {
+    mode: OfficeAutonomy
+  }
+  path?: never
+  query?: never
+  url: "/global/office/autonomy"
+}
+
+export type OfficeAutonomyErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type OfficeAutonomyError = OfficeAutonomyErrors[keyof OfficeAutonomyErrors]
+
+export type OfficeAutonomyResponses = {
+  /**
+   * Success
+   */
+  200: {
+    ok: true
+  }
+}
+
+export type OfficeAutonomyResponse = OfficeAutonomyResponses[keyof OfficeAutonomyResponses]
+
+export type OfficeVoiceTokenData = {
+  body?: {
+    model?: string
+    voice?: string
+  }
+  path?: never
+  query?: never
+  url: "/global/office/voice/token"
+}
+
+export type OfficeVoiceTokenErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type OfficeVoiceTokenError = OfficeVoiceTokenErrors[keyof OfficeVoiceTokenErrors]
+
+export type OfficeVoiceTokenResponses = {
+  /**
+   * Ephemeral Realtime client secret
+   */
+  200:
+    | {
+        value: string
+        expiresAt: number
+        model: string
+        voice: string
+        session: {
+          [key: string]: unknown
+        }
+      }
+    | {
+        error: string
+      }
+}
+
+export type OfficeVoiceTokenResponse = OfficeVoiceTokenResponses[keyof OfficeVoiceTokenResponses]
+
+export type OfficeVoiceTranscribeData = {
+  body?: {
+    /**
+     * base64 audio clip
+     */
+    audio: string
+    /**
+     * e.g. audio/webm, audio/mp4
+     */
+    mime: string
+  }
+  path?: never
+  query?: never
+  url: "/global/office/voice/transcribe"
+}
+
+export type OfficeVoiceTranscribeErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type OfficeVoiceTranscribeError = OfficeVoiceTranscribeErrors[keyof OfficeVoiceTranscribeErrors]
+
+export type OfficeVoiceTranscribeResponses = {
+  /**
+   * Transcript of the clip
+   */
+  200:
+    | {
+        text: string
+      }
+    | {
+        error: string
+      }
+}
+
+export type OfficeVoiceTranscribeResponse = OfficeVoiceTranscribeResponses[keyof OfficeVoiceTranscribeResponses]
+
+export type OfficeVoiceSpeakData = {
+  body?: {
+    text: string
+    voice?: string
+  }
+  path?: never
+  query?: never
+  url: "/global/office/voice/speak"
+}
+
+export type OfficeVoiceSpeakErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type OfficeVoiceSpeakError = OfficeVoiceSpeakErrors[keyof OfficeVoiceSpeakErrors]
+
+export type OfficeVoiceSpeakResponses = {
+  /**
+   * Spoken audio for a reply
+   */
+  200:
+    | {
+        audio: string
+        mime: string
+      }
+    | {
+        error: string
+      }
+}
+
+export type OfficeVoiceSpeakResponse = OfficeVoiceSpeakResponses[keyof OfficeVoiceSpeakResponses]
+
+export type OfficeRoutinesData = {
+  body?: never
+  path?: never
+  query?: never
+  url: "/global/office/routines"
+}
+
+export type OfficeRoutinesErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type OfficeRoutinesError = OfficeRoutinesErrors[keyof OfficeRoutinesErrors]
+
+export type OfficeRoutinesResponses = {
+  /**
+   * Scheduled jobs and always-on services on this machine
+   */
+  200: RoutinesSnapshot
+}
+
+export type OfficeRoutinesResponse = OfficeRoutinesResponses[keyof OfficeRoutinesResponses]
+
+export type OfficeRoutinesRunData = {
+  body?: {
+    name: string
+  }
+  path?: never
+  query?: never
+  url: "/global/office/routines/run"
+}
+
+export type OfficeRoutinesRunErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type OfficeRoutinesRunError = OfficeRoutinesRunErrors[keyof OfficeRoutinesRunErrors]
+
+export type OfficeRoutinesRunResponses = {
+  /**
+   * Whether launchd started the job
+   */
+  200:
+    | {
+        ok: true
+      }
+    | {
+        error: string
+      }
+}
+
+export type OfficeRoutinesRunResponse = OfficeRoutinesRunResponses[keyof OfficeRoutinesRunResponses]
+
+export type OfficeRoutinesLogData = {
+  body?: {
+    name: string
+    lines?: number
+  }
+  path?: never
+  query?: never
+  url: "/global/office/routines/log"
+}
+
+export type OfficeRoutinesLogErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type OfficeRoutinesLogError = OfficeRoutinesLogErrors[keyof OfficeRoutinesLogErrors]
+
+export type OfficeRoutinesLogResponses = {
+  /**
+   * Tail of the job's log
+   */
+  200: RoutineLog
+}
+
+export type OfficeRoutinesLogResponse = OfficeRoutinesLogResponses[keyof OfficeRoutinesLogResponses]
 
 export type EventSubscribeData = {
   body?: never

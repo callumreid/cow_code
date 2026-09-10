@@ -70,7 +70,13 @@ describe("routines joined with office threads", () => {
   test("attaches the thread each run produced and the live thread's summary", () => {
     const threads = [
       thread({ sessionID: "ses_old", created: wednesday - 3_590_000, updated: wednesday - 3_001_000 }),
-      thread({ sessionID: "ses_live", created: wednesday - 100_000, updated: wednesday, bucket: "working", summary: "working: bash" }),
+      thread({
+        sessionID: "ses_live",
+        created: wednesday - 100_000,
+        updated: wednesday,
+        bucket: "working",
+        summary: "working: bash",
+      }),
     ]
     const joined = withThreads(base, threads, wednesday)
     const routine = joined.routines[0]
@@ -83,7 +89,13 @@ describe("routines joined with office threads", () => {
 
   test("counts threads without a ledger entry as runs, newest first", () => {
     const threads = [
-      thread({ sessionID: "ses_unrecorded", created: wednesday - 7_200_000, updated: wednesday - 6_600_000, bucket: "failed", summary: "rate limited" }),
+      thread({
+        sessionID: "ses_unrecorded",
+        created: wednesday - 7_200_000,
+        updated: wednesday - 6_600_000,
+        bucket: "failed",
+        summary: "rate limited",
+      }),
     ]
     const joined = withThreads(base, threads, wednesday)
     const runs = joined.routines[0].runs
@@ -109,4 +121,59 @@ describe("routines window with a last start time", () => {
     expect(next.getHours()).toBe(8)
     expect(next.getMinutes()).toBe(0)
   })
+})
+
+test("exact executions override timestamps and preserve process versus agent outcomes", () => {
+  const now = Date.now()
+  const runs = [
+    { executionID: "one", startedAt: now, endedAt: now + 100, status: "ok" as const, rc: 0 },
+    { executionID: "two", startedAt: now, endedAt: now + 100, status: "ok" as const, rc: 0 },
+  ]
+  const snapshot: Snapshot = {
+    available: true,
+    host: "test",
+    now,
+    services: [],
+    routines: [
+      {
+        name: "pr-review-sweep",
+        label: "fixture",
+        title: "Fixture",
+        kind: "llm",
+        loaded: true,
+        schedule: "test",
+        runs,
+      },
+    ],
+  }
+  const first = {
+    ...thread({ sessionID: "first", created: now, updated: now }),
+    executionID: "one",
+    lifecycle: { phase: "failed" as const, observedAt: now, outcome: "unverified" as const, evidence: [] },
+  }
+  const second = {
+    ...thread({ sessionID: "second", created: now, updated: now }),
+    executionID: "two",
+    lifecycle: { phase: "waiting" as const, observedAt: now, outcome: "unverified" as const, evidence: [] },
+  }
+  const result = withThreads(snapshot, [second, first], now).routines[0].runs
+  expect(result.find((run) => run.executionID === "one")).toMatchObject({
+    sessionID: "first",
+    status: "failed",
+    processStatus: "ok",
+    correlation: "exact",
+    outcome: "unverified",
+  })
+  expect(result.find((run) => run.executionID === "two")).toMatchObject({
+    sessionID: "second",
+    status: "waiting",
+    processStatus: "ok",
+    correlation: "exact",
+  })
+  const unknown = withThreads(
+    { ...snapshot, routines: [{ ...snapshot.routines[0], runs: [{ ...runs[0], executionID: "missing" }] }] },
+    [first],
+    now,
+  )
+  expect(unknown.routines[0].runs.find((run) => run.executionID === "missing")?.sessionID).toBeUndefined()
 })

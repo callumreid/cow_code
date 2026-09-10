@@ -7,6 +7,7 @@ import { Effect, Latch, Layer, Scope, Context } from "effect"
 import { Session } from "./session"
 import { SessionID } from "./schema"
 import { SessionStatus } from "./status"
+import { EventV2Bridge } from "@/event-v2-bridge"
 
 export interface Interface {
   readonly assertNotBusy: (sessionID: SessionID) => Effect.Effect<void, Session.BusyError>
@@ -31,6 +32,7 @@ const layer = Layer.effect(
   Effect.gen(function* () {
     const background = yield* BackgroundJob.Service
     const status = yield* SessionStatus.Service
+    const events = yield* EventV2Bridge.Service
 
     const state = yield* InstanceState.make(
       Effect.fn("SessionRunState.state")(function* () {
@@ -82,6 +84,7 @@ const layer = Layer.effect(
         yield* status.set(sessionID, { type: "idle" })
         return
       }
+      if (existing.busy) yield* events.publish(SessionStatus.Event.Interrupted, { sessionID })
       yield* existing.cancel
     })
 
@@ -146,6 +149,10 @@ function busyError(sessionID: SessionID) {
   return new Session.BusyError({ sessionID })
 }
 
-export const node = LayerNode.make({ service: Service, layer: layer, deps: [BackgroundJob.node, SessionStatus.node] })
+export const node = LayerNode.make({
+  service: Service,
+  layer: layer,
+  deps: [BackgroundJob.node, SessionStatus.node, EventV2Bridge.node],
+})
 
 export * as SessionRunState from "./run-state"

@@ -15,6 +15,8 @@ import { controlPlaneHandlers } from "../../src/server/routes/instance/httpapi/h
 import { globalHandlers } from "../../src/server/routes/instance/httpapi/handlers/global"
 import { officeHandlers } from "../../src/server/routes/instance/httpapi/handlers/office"
 import { Office } from "../../src/office/office"
+import { OfficeLedger } from "../../src/office/ledger"
+import { OfficeControl } from "../../src/office/control"
 import { OfficeDriver } from "../../src/office/driver"
 import { Routines } from "../../src/office/routines"
 import { authorizationLayer } from "../../src/server/routes/instance/httpapi/middleware/authorization"
@@ -37,6 +39,8 @@ const apiLayer = HttpRouter.serve(
   Layer.provide(Layer.mock(MoveSession.Service)({})),
   Layer.provide(Layer.mock(Office.Service)({ directory: "/tmp/office", onReport: () => () => {} })),
   Layer.provide(Layer.mock(OfficeDriver.Service)({})),
+  Layer.provide(Layer.mock(OfficeLedger.Service)({})),
+  Layer.provide(Layer.mock(OfficeControl.Service)({})),
   Layer.provide(Layer.mock(Routines.Service)({})),
   Layer.provide(
     Layer.mock(Installation.Service)({

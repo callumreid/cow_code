@@ -20,6 +20,8 @@ import { LSP } from "@/lsp/lsp"
 import { MCP } from "@/mcp"
 import { McpAuth } from "@/mcp/auth"
 import { Office } from "@/office/office"
+import { OfficeLedger } from "@/office/ledger"
+import { OfficeControl } from "@/office/control"
 import { OfficeDriver } from "@/office/driver"
 import { Routines } from "@/office/routines"
 import { Permission } from "@/permission"
@@ -241,6 +243,8 @@ const app = LayerNode.group([
   SessionStatus.node,
   Office.node,
   OfficeDriver.node,
+  OfficeLedger.node,
+  OfficeControl.node,
   Routines.node,
   BackgroundJob.node,
   RuntimeFlags.node,

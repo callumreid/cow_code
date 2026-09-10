@@ -1,6 +1,11 @@
-export type RoutineRunStatus = "ok" | "failed" | "skipped" | "running"
+export type RoutineRunStatus = "ok" | "failed" | "skipped" | "locked" | "running" | "waiting" | "canceled" | "unknown"
 
 export type RoutineRun = {
+  executionID?: string
+  correlation?: "exact" | "heuristic" | "unmatched"
+  processStatus?: RoutineRunStatus
+  agentStatus?: string
+  outcome?: "unverified" | "reported" | "verified"
   startedAt: number
   endedAt?: number | null
   status: RoutineRunStatus

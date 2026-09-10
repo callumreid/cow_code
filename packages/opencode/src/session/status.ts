@@ -38,13 +38,12 @@ const layer = Layer.effect(
 
     const set = Effect.fn("SessionStatus.set")(function* (sessionID: SessionID, status: Info) {
       const data = yield* InstanceState.get(state)
+      // Event listeners may immediately admit the next queued input. Make the
+      // authoritative status visible before waking them.
+      if (status.type === "idle") data.delete(sessionID)
+      else data.set(sessionID, status)
       yield* events.publish(Event.Status, { sessionID, status })
-      if (status.type === "idle") {
-        yield* events.publish(Event.Idle, { sessionID })
-        data.delete(sessionID)
-        return
-      }
-      data.set(sessionID, status)
+      if (status.type === "idle") yield* events.publish(Event.Idle, { sessionID })
     })
 
     return Service.of({ get, list, set })

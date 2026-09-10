@@ -55,6 +55,7 @@ import { LanguageProvider, type Locale, useLanguage } from "@/context/language"
 import { LayoutProvider } from "@/context/layout"
 import { ModelsProvider } from "@/context/models"
 import { NotificationProvider } from "@/context/notification"
+import { OfficeVoice } from "@/office/voice/owner"
 import { OfficeProvider } from "@/office/context"
 import { PermissionProvider } from "@/context/permission"
 import { usePlatform } from "@/context/platform"
@@ -393,9 +394,22 @@ function SharedProviders(props: ParentProps) {
       <CommandProvider>
         <DesktopCommands />
         <ProjectsFromUrl />
-        <HighlightsProvider>{props.children}</HighlightsProvider>
+        <HighlightsProvider>
+          <OfficeProvider>
+            <OfficeVoice />
+            <OfficeContent>{props.children}</OfficeContent>
+          </OfficeProvider>
+        </HighlightsProvider>
       </CommandProvider>
     </>
+  )
+}
+
+function OfficeContent(props: ParentProps) {
+  return (
+    <div class="flex-1 min-h-0 min-w-0 flex flex-col" style={{ "padding-bottom": "var(--office-voice-inset, 0px)" }}>
+      {props.children}
+    </div>
   )
 }
 
@@ -447,9 +461,7 @@ function ServerScopedProviders(props: ServerScopedShellProps) {
 function LegacyServerScopedShell(props: ServerScopedShellProps) {
   return (
     <ServerScopedProviders directory={props.directory} serverScoped={props.serverScoped}>
-      <OfficeProvider>
-        <LegacyLayout>{props.children}</LegacyLayout>
-      </OfficeProvider>
+      <LegacyLayout>{props.children}</LegacyLayout>
     </ServerScopedProviders>
   )
 }
@@ -458,9 +470,7 @@ function NewAppLayout(props: ParentProps<{ serverScoped?: JSX.Element }>) {
   return (
     <SelectedServerProviders>
       <ServerScopedProviders serverScoped={props.serverScoped}>
-        <OfficeProvider>
-          <NewLayout>{props.children}</NewLayout>
-        </OfficeProvider>
+        <NewLayout>{props.children}</NewLayout>
       </ServerScopedProviders>
     </SelectedServerProviders>
   )

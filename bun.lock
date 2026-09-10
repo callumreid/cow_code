@@ -380,6 +380,9 @@
         "drizzle-kit": "catalog:",
       },
     },
+    "packages/cow-eyes": {
+      "name": "@opencode-ai/cow-eyes",
+    },
     "packages/desktop": {
       "name": "@opencode-ai/desktop",
       "version": "1.18.23",
@@ -839,7 +842,6 @@
       "name": "@opencode-ai/slack",
       "version": "1.18.23",
       "dependencies": {
-        "@opencode-ai/sdk": "workspace:*",
         "@slack/bolt": "^3.17.1",
       },
       "devDependencies": {
@@ -1966,6 +1968,8 @@
     "@opencode-ai/console-support": ["@opencode-ai/console-support@workspace:packages/console/support"],
 
     "@opencode-ai/core": ["@opencode-ai/core@workspace:packages/core"],
+
+    "@opencode-ai/cow-eyes": ["@opencode-ai/cow-eyes@workspace:packages/cow-eyes"],
 
     "@opencode-ai/desktop": ["@opencode-ai/desktop@workspace:packages/desktop"],
 

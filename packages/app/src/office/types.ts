@@ -27,7 +27,49 @@ export type OfficeWaiting =
     }
   | { kind: "error"; message: string }
 
+export type OfficeDecision = {
+  id: string
+  sessionID: string
+  rootSessionID: string
+  runID?: string
+  waiting: OfficeWaiting
+  status: "pending" | "answered" | "reconciliation_required"
+  created: number
+}
+export type OfficeLifecycle = {
+  phase: "accepted" | "running" | "waiting" | "stopped" | "failed" | "canceled" | "unknown"
+  runID?: string
+  reason?: string
+  observedAt: number
+  outcome: "unverified" | "reported" | "verified"
+  evidence: Array<{
+    kind: "implementation" | "check" | "shipment" | "runtime"
+    reference: string
+    status: "reported" | "verified"
+  }>
+}
+export type OfficeOutcome = {
+  id: string
+  requestID?: string
+  clientID?: string
+  generation?: number
+  sessionID: string
+  text: string
+  time: number
+  reportIDs: string[]
+  urgent: boolean
+  observations: Array<{ sessionID: string; runID?: string; updated: number }>
+}
 export type OfficeThread = {
+  hostID?: string
+  hostName?: string
+  availability?: "available" | "stale" | "unavailable"
+  lifecycle?: OfficeLifecycle
+  decisions?: OfficeDecision[]
+  capabilities?: string[]
+  objective?: string
+  executionID?: string
+  routine?: string
   sessionID: string
   directory: string
   projectID: string
@@ -48,6 +90,10 @@ export type OfficeThread = {
 
 export type OfficeReportKind = "finished" | "permission" | "question" | "error" | "pr" | "stalled" | "auto_allowed"
 export type OfficeReport = {
+  hostID?: string
+  hostName?: string
+  requestID?: string
+  runID?: string
   id: string
   time: number
   sessionID: string
@@ -58,6 +104,13 @@ export type OfficeReport = {
 }
 
 export type OfficeState = {
+  outcomes?: OfficeOutcome[]
+  host?: { id: string; name: string }
+  recovery?: Array<{ id: string; kind: string; sessionID?: string }>
+  sources?: Record<string, { status: "loading" | "available" | "unavailable"; observedAt: number }>
+  epoch?: string
+  cursor?: number
+  seeded?: boolean
   overseer: { sessionID: string; directory: string } | null
   threads: OfficeThread[]
   reports: OfficeReport[] // newest last, max 100

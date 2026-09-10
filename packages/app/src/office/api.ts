@@ -1,3 +1,10 @@
+import type {
+  OfficeCommandData,
+  OfficeCommandResponse,
+  OfficeRequestData,
+  OfficeRequestResponse,
+  OfficeEventsResponse,
+} from "@opencode-ai/sdk/v2/client"
 import type { ServerSDK } from "@/context/server-sdk"
 import { authTokenFromCredentials } from "@/utils/server"
 import type { OfficeBrief, OfficeState, VoiceToken } from "./types"
@@ -15,6 +22,8 @@ export type OfficeFetchInit = {
 
 export type OfficeAnswer = {
   sessionID: string
+  hostID?: string
+  runID?: string
   permission?: { id: string; reply: "once" | "always" | "reject"; message?: string }
   question?: { id: string; answers: string[][] }
 }
@@ -60,6 +69,43 @@ export function getState(sdk: OfficeSdk, init?: OfficeFetchInit) {
   return json<OfficeState>(sdk, "/global/office/state", init)
 }
 
+export function requestOffice(sdk: OfficeSdk, input: NonNullable<OfficeRequestData["body"]>, init?: OfficeFetchInit) {
+  return json<OfficeRequestResponse>(sdk, "/global/office/request", post(input, init))
+}
+export function requestStatus(sdk: OfficeSdk, id: string, init?: OfficeFetchInit) {
+  return json<OfficeRequestResponse>(sdk, "/global/office/request/status", post({ id }, init))
+}
+export function command(sdk: OfficeSdk, input: NonNullable<OfficeCommandData["body"]>, init?: OfficeFetchInit) {
+  return json<OfficeCommandResponse>(sdk, "/global/office/command", post(input, init))
+}
+export function attention(
+  sdk: OfficeSdk,
+  input: { clientID: string; generation: number; mode: "active" | "paused" | "off" },
+  init?: OfficeFetchInit,
+) {
+  return json<typeof input>(sdk, "/global/office/attention", post(input, init))
+}
+export function replay(
+  sdk: OfficeSdk,
+  input: { clientID: string; after?: number; checkpoint?: number },
+  init?: OfficeFetchInit,
+) {
+  return json<OfficeEventsResponse>(sdk, "/global/office/events", post(input, init))
+}
+export function acknowledge(
+  sdk: OfficeSdk,
+  input: {
+    clientID: string
+    eventID: string
+    channel: "display" | "spoken" | "navigation"
+    sessionID?: string
+    directory?: string
+  },
+  init?: OfficeFetchInit,
+) {
+  return json<{ ok: true }>(sdk, "/global/office/acknowledge", post(input, init))
+}
+
 export function ensureOverseer(sdk: OfficeSdk, init?: OfficeFetchInit) {
   return json<{ sessionID: string; directory: string }>(sdk, "/global/office/overseer", post(undefined, init))
 }
@@ -72,11 +118,12 @@ export function ask(sdk: OfficeSdk, input: { text: string; source?: "text" | "vo
  * "Since you last looked": one short farmer brief on what changed after `since`.
  * A server without the route (older build) behaves as if nothing happened.
  */
-export function brief(sdk: OfficeSdk, input: { since: number }, init?: OfficeFetchInit): Promise<OfficeBrief> {
-  return json<OfficeBrief>(sdk, "/global/office/brief", post(input, init)).catch((error: unknown) => {
-    if (isOfficeUnavailable(error)) return { text: "", sessionID: "", skipped: true }
-    throw error
-  })
+export function brief(
+  sdk: OfficeSdk,
+  input: { since: number; clientID?: string },
+  init?: OfficeFetchInit,
+): Promise<OfficeBrief> {
+  return json<OfficeBrief>(sdk, "/global/office/brief", post(input, init))
 }
 
 export function promptThread(
@@ -84,7 +131,14 @@ export function promptThread(
   input: { sessionID: string; text: string; mode: "steer" | "context" },
   init?: OfficeFetchInit,
 ) {
-  return json<{ ok: true }>(sdk, "/global/office/thread/prompt", post(input, init))
+  return json<OfficeCommandResponse>(
+    sdk,
+    "/global/office/thread/prompt",
+    post({ id: crypto.randomUUID(), ...input }, init),
+  ).then((receipt) => {
+    if (receipt.status !== "accepted") throw new OfficeRequestError(receipt.reason ?? receipt.status, 409)
+    return receipt
+  })
 }
 
 export function answerThread(sdk: OfficeSdk, input: OfficeAnswer, init?: OfficeFetchInit) {

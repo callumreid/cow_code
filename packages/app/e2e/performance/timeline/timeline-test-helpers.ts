@@ -8,6 +8,7 @@ export async function installTimelineSettings(page: Page) {
     localStorage.setItem(
       "settings.v3",
       JSON.stringify({
+        office: { openOnLaunch: false },
         general: {
           newLayoutDesigns: true,
           editToolPartsExpanded: true,
@@ -41,6 +42,9 @@ export async function installStressSessionTabs(page: Page, input?: { draftID?: s
   const server = stressServer()
   await page.addInitScript(
     ({ directory, sessionIDs, dirBase64, server, draftID }) => {
+      // Timeline benchmarks measure the session, without an automatic Office overlay.
+      const settings = JSON.parse(localStorage.getItem("settings.v3") ?? "{}")
+      localStorage.setItem("settings.v3", JSON.stringify({ ...settings, office: { openOnLaunch: false } }))
       localStorage.setItem(
         "opencode.global.dat:server",
         JSON.stringify({

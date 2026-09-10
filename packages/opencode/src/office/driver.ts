@@ -1,57 +1,76 @@
-// Drives the farmer: owns the overseer session, turns reports into farmer turns
-// under the attention policy, and carries Callum's words to threads.
+// Durable admission and interpretation for the Farmer. Provider execution stays
+// serialized; status, attention and receipts never wait on that model turn.
 import { LayerNode } from "@opencode-ai/core/effect/layer-node"
 import { EffectBridge } from "@/effect/bridge"
 import { InstanceStore } from "@/project/instance-store"
 import { SessionPrompt } from "@/session/prompt"
 import { Session } from "@/session/session"
-import { SessionID } from "@/session/schema"
-import { Context, Effect, Layer, Scope, Semaphore } from "effect"
+import { MessageID, PartID, SessionID } from "@/session/schema"
+import { Cause, Context, Effect, Layer, Schema, Scope, Semaphore } from "effect"
+import { GlobalBus } from "@/bus/global"
+import { randomUUID } from "crypto"
 import { Office } from "./office"
+import { OfficeControl } from "./control"
+import { OfficeLedger } from "./ledger"
 
+export const Attention = Schema.Struct({
+  clientID: Schema.String,
+  generation: Schema.Finite,
+  mode: Schema.Literals(["active", "paused", "off"]),
+})
+export const Request = Schema.Struct({
+  id: Schema.String,
+  text: Schema.String,
+  source: Schema.optional(Schema.Literals(["text", "voice"])),
+  clientID: Schema.optional(Schema.String),
+  generation: Schema.optional(Schema.Finite),
+  decisionIDs: Schema.optional(Schema.Array(Schema.String)),
+})
+export type Request = typeof Request.Type
+export const RequestReceipt = Schema.Struct({
+  id: Schema.String,
+  status: Schema.Literals(["accepted", "processing", "completed", "failed", "reconciliation_required", "rejected"]),
+  text: Schema.optional(Schema.String),
+  sessionID: Schema.optional(Schema.String),
+  reason: Schema.optional(Schema.String),
+})
+export type RequestReceipt = typeof RequestReceipt.Type
+export { Outcome } from "./outcome"
+import { Outcome } from "./outcome"
+
+type PendingRequest = { input: Request; receipt: RequestReceipt; messageID: string; epoch: string }
 export interface Interface {
-  readonly ensureOverseer: () => Effect.Effect<Office.OverseerRef>
-  readonly ask: (input: { text: string; source?: "text" | "voice" }) => Effect.Effect<{ text: string; sessionID: string }>
-  readonly brief: (input: { since: number }) => Effect.Effect<{ text: string; sessionID: string; skipped: boolean }>
-  readonly promptThread: (input: {
+  ensureOverseer(): Effect.Effect<Office.OverseerRef>
+  request(input: Request): Effect.Effect<RequestReceipt>
+  requestStatus(id: string): Effect.Effect<RequestReceipt>
+  attention(input: typeof Attention.Type): Effect.Effect<typeof Attention.Type>
+  ask(input: {
+    text: string
+    source?: "text" | "voice"
+    clientID?: string
+    generation?: number
+    decisionIDs?: readonly string[]
+  }): Effect.Effect<{ text: string; sessionID: string }>
+  brief(input: {
+    since: number
+    clientID?: string
+  }): Effect.Effect<{ text: string; sessionID: string; skipped: boolean }>
+  command(input: OfficeControl.Input, origin?: OfficeControl.Origin): Effect.Effect<OfficeControl.Receipt>
+  promptThread(input: {
+    id?: string
     sessionID: string
     text: string
-    mode: "steer" | "context"
-  }) => Effect.Effect<void, Office.OfficeError>
-  readonly dispatch: (input: {
+    mode: "steer" | "queue" | "context" | "amend" | "cancel" | "resume"
+  }): Effect.Effect<OfficeControl.Receipt>
+  dispatch(input: {
     directory: string
     title: string
     prompt: string
     agent?: string
-  }) => Effect.Effect<{ sessionID: string }>
+  }): Effect.Effect<OfficeControl.Receipt>
 }
-
 export class Service extends Context.Service<Service, Interface>()("@opencode/OfficeDriver") {}
-
-// Every report worth a look wakes the farmer, coalesced over a few seconds so a
-// burst becomes one turn. Finishes get an outcome read (what was done, what it
-// means, what is next) rather than a status line; auto-allowed permissions stay quiet.
-const DIGEST_MS = 8_000
 const URGENT = new Set<Office.ReportKind>(["permission", "question", "error", "stalled"])
-const QUIET = new Set<Office.ReportKind>(["auto_allowed"])
-
-function renderReports(reports: Office.Report[]) {
-  const lines = reports.map((report) => `- ${report.kind} · [${report.sessionID}] "${report.title}": ${report.summary}`)
-  const urgent = reports.some((report) => URGENT.has(report.kind))
-  const instruction = urgent
-    ? [
-        "Handle what is yours to handle first, then brief Callum only on what needs him.",
-        "A question is answered with office_answer(question_id, answers=[[exact option label]]) — office_prompt does not unblock it. Tier farmer permissions you may answer; tier callum you present with at most three options and a recommended default.",
-        "For any finished thread in this batch, read it with office_read and give the outcome: what it did, what that means, and the next step, in two to four sentences.",
-        "Never open with a status line; skip anything that needs nothing.",
-      ].join(" ")
-    : [
-        "These threads finished. For each, call office_read, then tell Callum the outcome in two to four sentences: what was done (exact numbers, file counts, PR links), what it means for him, and the recommended next step.",
-        "If the thread stopped short of its goal or left something for him to decide, say so plainly and offer at most three options. If the obvious next step is safe and clearly what he wanted, send it with office_prompt and say that you did.",
-        "Do not write status lines like 'nothing needs you'; if there is genuinely nothing to add, one short sentence on what finished is enough.",
-      ].join(" ")
-  return ["<office_reports>", ...lines, "</office_reports>", instruction].join("\n")
-}
 
 const layer = Layer.effect(
   Service,
@@ -60,12 +79,15 @@ const layer = Layer.effect(
     const sessions = yield* Session.Service
     const prompt = yield* SessionPrompt.Service
     const instances = yield* InstanceStore.Service
+    const ledger = yield* OfficeLedger.Service
+    const control = yield* OfficeControl.Service
     const scope = yield* Scope.Scope
     const bridge = yield* EffectBridge.make()
     const semaphore = Semaphore.makeUnsafe(1)
-
-    const pending: Office.Report[] = []
-    const clock = { first: 0, urgent: false }
+    const admission = Semaphore.makeUnsafe(1)
+    const epoch = randomUUID()
+    const queue: PendingRequest[] = []
+    const work = { running: false }
 
     const ensureOverseer = Effect.fn("OfficeDriver.ensureOverseer")(function* () {
       const known = yield* office.overseer()
@@ -89,176 +111,447 @@ const layer = Layer.effect(
       return ref
     })
 
-    // One farmer turn at a time; reports that land mid-turn wait for the next one.
-    const turn = (input: { text: string; synthetic: boolean; hint?: string }) =>
-      semaphore.withPermits(1)(
+    const voiceAllowed = (input: Request) =>
+      Effect.gen(function* () {
+        if (input.source !== "voice") return true
+        if (!input.clientID || input.generation === undefined) return false
+        const current = yield* ledger.get<typeof Attention.Type>("attention:" + input.clientID)
+        return current?.value.mode === "active" && current.value.generation === input.generation
+      })
+
+    const attention: Interface["attention"] = (input) =>
+      admission.withPermit(
         Effect.gen(function* () {
-          const ref = yield* ensureOverseer()
-          const block = yield* office.render()
-          const result = yield* instances.provide(
-            { directory: office.directory },
-            prompt.prompt({
-              sessionID: SessionID.make(ref.sessionID),
-              agent: "farmer",
-              system: input.hint ? `${block}\n\n${input.hint}` : block,
-              parts: [{ type: "text", text: input.text, synthetic: input.synthetic }],
-            }),
-          )
-          const text = result.parts.findLast((part) => part.type === "text")
-          return { text: text && text.type === "text" ? text.text : "", sessionID: ref.sessionID }
+          const previous = yield* ledger.get<typeof Attention.Type>("attention:" + input.clientID)
+          if (previous && previous.value.generation > input.generation) return previous.value
+          yield* ledger.put({ id: "attention:" + input.clientID, kind: "attention", state: input.mode, value: input })
+          return input
         }),
       )
 
-    const flush = Effect.gen(function* () {
-      if (pending.length === 0) return
-      const batch = pending.splice(0, pending.length)
-      clock.first = 0
-      clock.urgent = false
-      yield* turn({ text: renderReports(batch), synthetic: true }).pipe(
-        Effect.catchCause((cause) => Effect.logError("farmer turn failed", { cause })),
+    const publish = (input: {
+      text: string
+      sessionID: string
+      request?: Request
+      reports?: readonly Office.Report[]
+      basis?: Office.State
+    }) =>
+      Effect.gen(function* () {
+        const reports = input.reports ?? []
+        const current = yield* office.state()
+        const targets = new Set(
+          reports.length
+            ? reports.map((report) => report.sessionID)
+            : current.threads.filter((thread) => thread.source === "cow").map((thread) => thread.sessionID),
+        )
+        const observed = current.threads.filter((thread) => targets.has(thread.sessionID))
+        const changed =
+          input.basis &&
+          observed.some((thread) => {
+            const before = input.basis!.threads.find((item) => item.sessionID === thread.sessionID)
+            return (
+              !before ||
+              before.lifecycle?.runID !== thread.lifecycle?.runID ||
+              before.time.updated !== thread.time.updated
+            )
+          })
+        const text = changed
+          ? "Worker state changed during that reply. Current observations: " +
+            observed
+              .slice(0, 5)
+              .map((thread) => thread.title + ": " + (thread.lifecycle?.phase ?? thread.bucket))
+              .join("; ") +
+            ". Objective, shipping and live results require the task evidence."
+          : input.text
+        const outcome: Outcome = {
+          id: "outcome:" + (input.request?.id ?? randomUUID()),
+          requestID: input.request?.id,
+          clientID: input.request?.clientID,
+          generation: input.request?.generation,
+          sessionID: input.sessionID,
+          text,
+          time: Date.now(),
+          reportIDs: reports.map((report) => report.id),
+          urgent: reports.some((report) => URGENT.has(report.kind)),
+          observations: current.threads
+            .filter((thread) => targets.has(thread.sessionID))
+            .map((thread) => ({
+              sessionID: thread.sessionID,
+              runID: thread.lifecycle?.runID,
+              updated: thread.time.updated,
+            })),
+        }
+        yield* ledger.put(
+          { id: outcome.id, kind: "outcome", state: "ready", value: outcome },
+          { id: outcome.id, kind: "office.outcome", value: outcome },
+        )
+        GlobalBus.emit("event", { directory: "global", payload: { type: "office.outcome", properties: outcome } })
+        return outcome
+      })
+
+    // An exact user-message ID binds tools to the genuine input. Synthetic report
+    // text never inherits user authority, even when a worker quotes an approval.
+    const turn = (input: {
+      text: string
+      synthetic: boolean
+      request?: Request
+      messageID?: string
+      reports?: readonly Office.Report[]
+    }) =>
+      semaphore.withPermit(
+        Effect.gen(function* () {
+          if (input.request && !(yield* voiceAllowed(input.request)))
+            return yield* Effect.die("Voice request held: attention changed before execution.")
+          const ref = yield* ensureOverseer()
+          const state = yield* office.state()
+          const pending = state.threads
+            .flatMap((thread) => thread.decisions ?? [])
+            .filter((decision) => decision.status === "pending")
+          const ids =
+            input.request?.decisionIDs ??
+            (pending.length === 1
+              ? [pending[0].id]
+              : pending.filter((decision) => input.text.includes(decision.id)).map((decision) => decision.id))
+          const messageID = MessageID.make(input.messageID ?? MessageID.ascending())
+          const block = yield* office.render()
+          const hint =
+            input.request?.source === "voice"
+              ? "This reply will be spoken. Use under forty words, plain sentences. A receipt proves admission only; distinguish checks, shipping and live proof."
+              : ""
+          yield* control.recordOrigin({
+            id: ref.sessionID + ":" + messageID,
+            sessionID: ref.sessionID,
+            messageID,
+            source: input.synthetic ? "coordinator" : "user",
+            text: input.text,
+            clientID: input.request?.clientID,
+            attentionGeneration: input.request?.source === "voice" ? input.request.generation : undefined,
+            decisionIDs: ids.filter((id) => pending.some((decision) => decision.id === id)),
+          })
+          yield* instances.provide(
+            { directory: office.directory },
+            prompt.admit({
+              sessionID: SessionID.make(ref.sessionID),
+              messageID,
+              agent: "farmer",
+              system: block + "\n\n" + hint,
+              parts: [{ id: PartID.ascending(), type: "text", text: input.text, synthetic: input.synthetic }],
+            }),
+          )
+          const result = yield* instances.provide(
+            { directory: office.directory },
+            prompt.loop({ sessionID: SessionID.make(ref.sessionID) }),
+          )
+          if (result.info.role === "assistant" && result.info.error) return yield* Effect.die(result.info.error)
+          const part = result.parts.findLast((part) => part.type === "text")
+          const text =
+            part?.type === "text"
+              ? part.text
+              : "The Farmer turn stopped without an answer; inspect the task before continuing."
+          const outcome = yield* publish({
+            text,
+            sessionID: ref.sessionID,
+            request: input.request,
+            reports: input.reports,
+            basis: state,
+          })
+          return { text: outcome.text, sessionID: ref.sessionID }
+        }),
+      )
+
+    const saveRequest = (item: PendingRequest) =>
+      ledger
+        .put(
+          { id: "request:" + item.input.id, kind: "request", state: item.receipt.status, value: item },
+          { kind: "office.request", value: item.receipt },
+        )
+        .pipe(Effect.asVoid)
+
+    const runRequest = (item: PendingRequest) =>
+      Effect.gen(function* () {
+        item.receipt = { id: item.input.id, status: "processing" }
+        yield* saveRequest(item)
+        yield* turn({ text: item.input.text, synthetic: false, request: item.input, messageID: item.messageID }).pipe(
+          Effect.matchCauseEffect({
+            onSuccess: (result) =>
+              Effect.gen(function* () {
+                item.receipt = { id: item.input.id, status: "completed", ...result }
+                yield* saveRequest(item)
+              }),
+            onFailure: (cause) =>
+              Effect.gen(function* () {
+                item.receipt = { id: item.input.id, status: "failed", reason: Cause.pretty(cause).slice(0, 500) }
+                yield* saveRequest(item)
+                yield* publish({
+                  sessionID: (yield* office.overseer())?.sessionID ?? "",
+                  request: item.input,
+                  text: "The Farmer request failed. Its receipt has the error; check the worker before retrying.",
+                })
+              }),
+          }),
+        )
+      })
+
+    const drain = Effect.gen(function* () {
+      if (work.running) return
+      work.running = true
+      yield* Effect.gen(function* () {
+        while (queue.length) {
+          const item = queue[0]
+          yield* runRequest(item)
+          queue.shift()
+        }
+      }).pipe(
+        Effect.ensuring(
+          Effect.sync(() => {
+            work.running = false
+          }),
+        ),
       )
     })
 
-    const handleReport = (report: Office.Report) =>
-      Effect.gen(function* () {
-        if (QUIET.has(report.kind)) return
-        if (report.kind === "permission") {
-          const thread = yield* office.thread(report.sessionID)
-          const waiting = thread?.waiting
-          if (waiting?.kind === "permission" && waiting.tier === "auto") {
-            yield* office.answer({ sessionID: report.sessionID, permission: { id: waiting.id, reply: "once" } }).pipe(
-              Effect.catchCause((cause) => Effect.logWarning("auto allow failed", { cause })),
+    const request: Interface["request"] = (input) =>
+      admission.withPermit(
+        Effect.gen(function* () {
+          const prior = yield* ledger.get<PendingRequest>("request:" + input.id)
+          if (prior) {
+            if (
+              JSON.stringify(Object.entries(prior.value.input).sort(([a], [b]) => a.localeCompare(b))) !==
+              JSON.stringify(Object.entries(input).sort(([a], [b]) => a.localeCompare(b)))
             )
-            yield* office.note({
-              kind: "auto_allowed",
-              sessionID: report.sessionID,
-              directory: report.directory,
-              title: report.title,
-              summary: `allowed automatically (read-only): ${report.summary}`,
-            })
-            return
+              return { id: input.id, status: "rejected", reason: "Request ID already belongs to another input." }
+            return prior.value.receipt
           }
-        }
-        if (pending.length === 0) clock.first = Date.now()
-        if (URGENT.has(report.kind)) clock.urgent = true
-        pending.push(report)
+          if (!input.text.trim() || !(yield* voiceAllowed(input)))
+            return {
+              id: input.id,
+              status: "rejected",
+              reason: "Input is empty or voice attention is no longer active.",
+            }
+          const item: PendingRequest = {
+            input,
+            messageID: MessageID.ascending(),
+            epoch,
+            receipt: { id: input.id, status: "accepted" },
+          }
+          yield* saveRequest(item)
+          queue.push(item)
+          bridge.fork(
+            drain.pipe(Effect.catchCause((cause) => Effect.logError("office request queue failed", { cause }))),
+          )
+          return { id: input.id, status: "accepted" }
+        }),
+      )
+
+    const requestStatus: Interface["requestStatus"] = (id) =>
+      ledger
+        .get<PendingRequest>("request:" + id)
+        .pipe(Effect.map((item) => item?.value.receipt ?? { id, status: "rejected", reason: "Unknown request." }))
+
+    // Execution ownership cannot be inferred after a crash. Keep the admission
+    // and report available for inspection, without replaying provider side effects.
+    for (const row of yield* ledger.list<PendingRequest>("request")) {
+      if (!["accepted", "processing"].includes(row.state)) continue
+      const item = row.value
+      item.receipt = {
+        ...item.receipt,
+        status: "reconciliation_required",
+        reason: "Server restarted. Inspect the Farmer and worker before explicitly continuing.",
+      }
+      yield* saveRequest(item)
+    }
+    for (const kind of ["report", "reminder"]) {
+      for (const row of yield* ledger.list(kind, "processing"))
+        yield* ledger.put({ ...row, state: "reconciliation_required" })
+    }
+
+    const currentReport = (report: Office.Report) =>
+      Effect.gen(function* () {
+        const thread = yield* office.thread(report.sessionID)
+        if (!thread || thread.muted) return false
+        if (report.runID && report.runID !== thread.lifecycle?.runID) return false
+        if (
+          report.requestID &&
+          !thread.decisions?.some((decision) => decision.id === report.requestID && decision.status === "pending")
+        )
+          return false
+        return true
       })
 
-    const unsubscribe = office.onReport((report) => {
-      bridge.fork(handleReport(report).pipe(Effect.catchCause((cause) => Effect.logWarning("report failed", { cause }))))
-    })
+    const reportState = (report: Office.Report, state: string) =>
+      ledger.put({ id: report.id, kind: "report", state, sessionID: report.sessionID, value: report })
+    const handleReport = (report: Office.Report) =>
+      Effect.gen(function* () {
+        if (
+          report.kind === "auto_allowed" ||
+          (report.kind === "finished" && (yield* office.thread(report.sessionID))?.routine)
+        ) {
+          yield* reportState(report, "delivered")
+          return
+        }
+        if (report.kind !== "permission") return
+        const thread = yield* office.thread(report.sessionID)
+        const waiting = thread?.decisions?.find(
+          (decision) => decision.id === report.requestID && decision.status === "pending",
+        )?.waiting
+        if (waiting?.kind !== "permission" || waiting.tier !== "auto") return
+        const answered = yield* office
+          .answer({ sessionID: report.sessionID, permission: { id: waiting.id, reply: "once" } })
+          .pipe(Effect.result)
+        if (answered._tag === "Failure") {
+          yield* Effect.logWarning("auto allow failed", { error: answered.failure })
+          return
+        }
+        yield* reportState(report, "delivered")
+        yield* office.note({
+          kind: "auto_allowed",
+          sessionID: report.sessionID,
+          directory: report.directory,
+          title: report.title,
+          requestID: report.requestID,
+          summary: "Read-only permission acknowledged by the worker.",
+        })
+      })
+    const unsubscribe = office.onReport((report) => bridge.fork(handleReport(report)))
     yield* Effect.addFinalizer(() => Effect.sync(unsubscribe))
 
     const tick = Effect.gen(function* () {
-      if (pending.length === 0) return
-      if (!clock.urgent && Date.now() - clock.first < DIGEST_MS) return
-      yield* flush
+      if (work.running || queue.length || !(yield* office.state()).seeded) return
+      const stored = yield* ledger.list<Office.Report>("report", "pending")
+      const batch: Office.Report[] = []
+      for (const row of stored) {
+        if (
+          row.value.kind === "auto_allowed" ||
+          (row.value.kind === "finished" && (yield* office.thread(row.value.sessionID))?.routine)
+        ) {
+          yield* reportState(row.value, "delivered")
+          continue
+        }
+        if (!(yield* currentReport(row.value))) {
+          yield* reportState(row.value, "superseded")
+          continue
+        }
+        if (Date.now() - row.created < 8_000 && !URGENT.has(row.value.kind)) continue
+        batch.push(row.value)
+      }
+      if (!batch.length) return
+      for (const report of batch) yield* reportState(report, "processing")
+      const text = [
+        "<office_reports>",
+        ...batch.map((report) => JSON.stringify(report)),
+        "</office_reports>",
+        "Read current worker evidence before acting or reporting. Resolve only your allowed decisions. Summarize outcomes and remaining user decisions in plain sentences. A stopped turn proves no objective, shipping or runtime result. Do not repeat routine success noise.",
+      ].join("\n")
+      yield* turn({ text, synthetic: true, reports: batch }).pipe(
+        Effect.matchCauseEffect({
+          onSuccess: () => Effect.forEach(batch, (report) => reportState(report, "delivered"), { discard: true }),
+          onFailure: (cause) =>
+            Effect.gen(function* () {
+              for (const report of batch) yield* reportState(report, "reconciliation_required")
+              const current = [] as Office.Report[]
+              for (const report of batch)
+                if (URGENT.has(report.kind) && (yield* currentReport(report))) current.push(report)
+              if (current.length)
+                yield* publish({
+                  sessionID: (yield* office.overseer())?.sessionID ?? "",
+                  reports: current,
+                  text:
+                    "The Farmer could not interpret this update. " +
+                    current.map((report) => report.title + ": " + report.kind + " requires attention.").join(" "),
+                })
+              yield* Effect.logError("farmer report interpretation failed; retained for reconciliation", { cause })
+            }),
+        }),
+      )
     })
-    yield* Effect.forever(Effect.sleep("2 seconds").pipe(Effect.andThen(tick))).pipe(
-      Effect.forkIn(scope, { startImmediately: true }),
-    )
+    yield* Effect.forever(Effect.sleep("2 seconds").pipe(Effect.andThen(tick))).pipe(Effect.forkIn(scope))
 
     const reminders = Effect.gen(function* () {
-      const due = yield* office.dueReminders()
-      if (due.length === 0) return
-      const lines = due.map((reminder) => `- ${reminder.note}${reminder.sessionID ? ` (thread ${reminder.sessionID})` : ""}`)
+      if (work.running || queue.length) return
+      const due = [] as Office.Reminder[]
+      for (const item of yield* office.dueReminders())
+        if ((yield* ledger.get(item.id))?.state === "pending") due.push(item)
+      if (!due.length) return
+      for (const item of due) yield* ledger.put({ id: item.id, kind: "reminder", state: "processing", value: item })
       yield* turn({
-        text: ["<office_reminders>", ...lines, "</office_reminders>", "These reminders are due. Check the threads they name with office_read and act or brief Callum."].join("\n"),
+        text: "Check the current worker state for these due reminders: " + JSON.stringify(due),
         synthetic: true,
-      }).pipe(Effect.catchCause((cause) => Effect.logError("reminder turn failed", { cause })))
-    })
-    yield* Effect.forever(Effect.sleep("30 seconds").pipe(Effect.andThen(reminders))).pipe(
-      Effect.forkIn(scope, { startImmediately: true }),
-    )
-
-    const ask = Effect.fn("OfficeDriver.ask")(function* (input: { text: string; source?: "text" | "voice" }) {
-      // The voice hint rides in the system prompt so the user's bubble shows only their words.
-      const hint =
-        input.source === "voice"
-          ? "This message was spoken and the reply will be read aloud: keep it under forty words, plain sentences, no markdown, no lists."
-          : undefined
-      return yield* turn({ text: input.text, synthetic: false, hint }).pipe(Effect.orDie)
-    })
-
-    // "Since you last looked": one short brief when Callum opens the office, and
-    // no model call at all when nothing happened.
-    // A brief is only worth a turn once per batch of news: reloads and re-opens
-    // with nothing reported since the last brief get `skipped`, not "nothing new".
-    const briefed = { at: 0, needs: "" }
-    const brief = Effect.fn("OfficeDriver.brief")(function* (input: { since: number }) {
-      const state = yield* office.state()
-      const floor = Math.max(input.since, briefed.at)
-      const since = state.reports.filter((report) => report.time > floor && report.kind !== "auto_allowed")
-      const needs = state.threads.filter((thread) => thread.bucket === "needs_you" || thread.bucket === "failed")
-      const needsKey = needs.map((thread) => `${thread.sessionID}:${thread.waiting?.kind ?? thread.bucket}`).sort().join(",")
-      if (since.length === 0 && (needs.length === 0 || needsKey === briefed.needs)) {
-        const ref = yield* ensureOverseer()
-        return { text: "", sessionID: ref.sessionID, skipped: true }
-      }
-      briefed.at = Date.now()
-      briefed.needs = needsKey
-      const lines = since.map((report) => `- ${report.kind} · "${report.title}": ${report.summary}`)
-      const text = [
-        "<office_since_last_look>",
-        ...(lines.length ? lines : ["- nothing new was reported"]),
-        "</office_since_last_look>",
-        `Callum just opened the office. In at most three sentences, tell him what changed since he last looked and what needs him now (${needs.length} thread${needs.length === 1 ? "" : "s"} need a decision or failed). Lead with what needs him. Do not repeat anything you already told him unless it still needs him.`,
-      ].join("\n")
-      const result = yield* turn({ text, synthetic: true }).pipe(Effect.orDie)
-      return { ...result, skipped: false }
-    })
-
-    const directoryOf = Effect.fn("OfficeDriver.directoryOf")(function* (sessionID: string) {
-      const thread = yield* office.thread(sessionID)
-      if (thread) return thread.directory
-      const info = yield* sessions.get(SessionID.make(sessionID)).pipe(Effect.orElseSucceed(() => undefined))
-      if (!info) return yield* new Office.OfficeError({ message: `unknown thread ${sessionID}` })
-      return info.directory
-    })
-
-    const promptThread = Effect.fn("OfficeDriver.promptThread")(function* (input: {
-      sessionID: string
-      text: string
-      mode: "steer" | "context"
-    }) {
-      const directory = yield* directoryOf(input.sessionID)
-      yield* instances
-        .provide(
-          { directory },
-          prompt.prompt({
-            sessionID: SessionID.make(input.sessionID),
-            noReply: input.mode === "context",
-            parts: [{ type: "text", text: input.text }],
-          }),
-        )
-        .pipe(
-          Effect.catchCause((cause) => Effect.logError("thread prompt failed", { sessionID: input.sessionID, cause })),
-          Effect.forkIn(scope, { startImmediately: true }),
-        )
-    })
-
-    const dispatch = Effect.fn("OfficeDriver.dispatch")(function* (input: {
-      directory: string
-      title: string
-      prompt: string
-      agent?: string
-    }) {
-      const created = yield* instances.provide(
-        { directory: input.directory },
-        sessions.create({ title: input.title, agent: input.agent }),
+      }).pipe(
+        Effect.matchCauseEffect({
+          onSuccess: () => office.acknowledgeReminders(due.map((item) => item.id)),
+          onFailure: (cause) =>
+            Effect.gen(function* () {
+              for (const item of due)
+                yield* ledger.put({ id: item.id, kind: "reminder", state: "reconciliation_required", value: item })
+              yield* Effect.logError("reminder interpretation failed; reminder retained", { cause })
+            }),
+        }),
       )
-      yield* promptThread({ sessionID: created.id, text: input.prompt, mode: "steer" }).pipe(Effect.orDie)
-      return { sessionID: created.id }
     })
+    yield* Effect.forever(Effect.sleep("30 seconds").pipe(Effect.andThen(reminders))).pipe(Effect.forkIn(scope))
 
-    return Service.of({ ensureOverseer, ask, brief, promptThread, dispatch })
+    const ask: Interface["ask"] = (input) =>
+      turn({ text: input.text, synthetic: false, request: { ...input, id: randomUUID() } }).pipe(Effect.orDie)
+    const brief: Interface["brief"] = (input) =>
+      Effect.gen(function* () {
+        const current = yield* office.state()
+        const needs = new Set(
+          current.threads
+            .filter((thread) => thread.bucket === "needs_you" || thread.bucket === "failed")
+            .map((thread) => thread.sessionID),
+        )
+        const reports = current.reports.filter(
+          (report) => (report.time > input.since || needs.has(report.sessionID)) && report.kind !== "auto_allowed",
+        )
+        if (!reports.length) return { text: "", sessionID: current.overseer?.sessionID ?? "", skipped: true }
+        const result = yield* turn({
+          text:
+            "Give one fresh, short catch-up on current decisions and outcomes. Verify these reports against the current roster: " +
+            JSON.stringify(reports),
+          synthetic: true,
+          reports,
+          request: { id: randomUUID(), text: "Current catch-up", clientID: input.clientID },
+        }).pipe(Effect.orDie)
+        return { ...result, skipped: false }
+      })
+    const command: Interface["command"] = (input, origin) =>
+      control.execute(
+        input,
+        {
+          resolvePromptParts: prompt.resolvePromptParts,
+          prompt: (input) => prompt.prompt(input).pipe(Effect.orDie),
+          admit: (input) => prompt.admit(input).pipe(Effect.orDie),
+          resume: prompt.loop,
+          cancel: prompt.cancel,
+        },
+        origin ?? { id: "http:" + input.id, source: "user", text: input.text },
+      )
+    return Service.of({
+      ensureOverseer,
+      request,
+      requestStatus,
+      attention,
+      ask,
+      brief,
+      command,
+      promptThread: (input) =>
+        command({ id: input.id ?? randomUUID(), intent: input.mode, sessionID: input.sessionID, text: input.text }),
+      dispatch: (input) =>
+        command({
+          id: randomUUID(),
+          intent: "new",
+          directory: input.directory,
+          title: input.title,
+          text: input.prompt,
+          agent: input.agent,
+        }),
+    })
   }),
 )
 
 export const node = LayerNode.make({
   service: Service,
   layer,
-  deps: [Office.node, Session.node, SessionPrompt.node, InstanceStore.node],
+  deps: [Office.node, OfficeLedger.node, OfficeControl.node, Session.node, SessionPrompt.node, InstanceStore.node],
 })
-
 export * as OfficeDriver from "./driver"

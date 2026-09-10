@@ -48,4 +48,9 @@ export const Idle = Event.define({
   },
 })
 
-export const Definitions = Event.inventory(Status, Idle)
+export const Interrupted = Event.define({
+  type: "session.interrupted",
+  schema: { sessionID: SessionID },
+})
+
+export const Definitions = Event.inventory(Status, Idle, Interrupted)

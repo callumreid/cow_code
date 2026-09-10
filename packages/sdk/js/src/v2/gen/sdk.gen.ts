@@ -113,6 +113,50 @@ import type {
   McpStatusResponses,
   ModelRef,
   MoveSessionDestination,
+  OfficeAcknowledgeErrors,
+  OfficeAcknowledgeResponses,
+  OfficeAnswerInput,
+  OfficeAskErrors,
+  OfficeAskResponses,
+  OfficeAttentionErrors,
+  OfficeAttentionResponses,
+  OfficeAutonomy,
+  OfficeAutonomyErrors,
+  OfficeAutonomyResponses,
+  OfficeBriefErrors,
+  OfficeBriefResponses,
+  OfficeCommandErrors,
+  OfficeCommandResponses,
+  OfficeCommandsErrors,
+  OfficeCommandsResponses,
+  OfficeEventsErrors,
+  OfficeEventsResponses,
+  OfficeOverseerErrors,
+  OfficeOverseerResponses,
+  OfficeRequestErrors,
+  OfficeRequestResponses,
+  OfficeRequestStatusErrors,
+  OfficeRequestStatusResponses,
+  OfficeRoutinesErrors,
+  OfficeRoutinesLogErrors,
+  OfficeRoutinesLogResponses,
+  OfficeRoutinesResponses,
+  OfficeRoutinesRunErrors,
+  OfficeRoutinesRunResponses,
+  OfficeStateErrors,
+  OfficeStateResponses,
+  OfficeThreadAnswerErrors,
+  OfficeThreadAnswerResponses,
+  OfficeThreadMarkErrors,
+  OfficeThreadMarkResponses,
+  OfficeThreadPromptErrors,
+  OfficeThreadPromptResponses,
+  OfficeVoiceSpeakErrors,
+  OfficeVoiceSpeakResponses,
+  OfficeVoiceTokenErrors,
+  OfficeVoiceTokenResponses,
+  OfficeVoiceTranscribeErrors,
+  OfficeVoiceTranscribeResponses,
   OutputFormat,
   Part as Part2,
   PartDeleteErrors,
@@ -1379,6 +1423,653 @@ export class Global extends HeyApiClient {
   private _config?: Config
   get config(): Config {
     return (this._config ??= new Config({ client: this.client }))
+  }
+}
+
+export class Request extends HeyApiClient {
+  /**
+   * Read a durable request receipt
+   */
+  public status<ThrowOnError extends boolean = false>(
+    parameters?: {
+      id?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams([parameters], [{ args: [{ in: "body", key: "id" }] }])
+    return (options?.client ?? this.client).post<OfficeRequestStatusResponses, OfficeRequestStatusErrors, ThrowOnError>(
+      {
+        url: "/global/office/request/status",
+        ...options,
+        ...params,
+        headers: {
+          "Content-Type": "application/json",
+          ...options?.headers,
+          ...params.headers,
+        },
+      },
+    )
+  }
+}
+
+export class Thread extends HeyApiClient {
+  /**
+   * Send text into a thread
+   */
+  public prompt<ThrowOnError extends boolean = false>(
+    parameters?: {
+      id?: string
+      sessionID?: string
+      text?: string
+      mode?: "steer" | "queue" | "context" | "amend" | "cancel" | "resume"
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "body", key: "id" },
+            { in: "body", key: "sessionID" },
+            { in: "body", key: "text" },
+            { in: "body", key: "mode" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<OfficeThreadPromptResponses, OfficeThreadPromptErrors, ThrowOnError>({
+      url: "/global/office/thread/prompt",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Answer a thread's permission or question
+   */
+  public answer<ThrowOnError extends boolean = false>(
+    parameters?: {
+      officeAnswerInput?: OfficeAnswerInput
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams([parameters], [{ args: [{ key: "officeAnswerInput", map: "body" }] }])
+    return (options?.client ?? this.client).post<OfficeThreadAnswerResponses, OfficeThreadAnswerErrors, ThrowOnError>({
+      url: "/global/office/thread/answer",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Pin or mute a thread
+   */
+  public mark<ThrowOnError extends boolean = false>(
+    parameters?: {
+      sessionID?: string
+      pinned?: boolean
+      muted?: boolean
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "body", key: "sessionID" },
+            { in: "body", key: "pinned" },
+            { in: "body", key: "muted" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<OfficeThreadMarkResponses, OfficeThreadMarkErrors, ThrowOnError>({
+      url: "/global/office/thread/mark",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+}
+
+export class Voice extends HeyApiClient {
+  /**
+   * Mint a Realtime client secret for the office voice
+   */
+  public token<ThrowOnError extends boolean = false>(
+    parameters?: {
+      model?: string
+      voice?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "body", key: "model" },
+            { in: "body", key: "voice" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<OfficeVoiceTokenResponses, OfficeVoiceTokenErrors, ThrowOnError>({
+      url: "/global/office/voice/token",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Transcribe a hold-to-talk clip
+   */
+  public transcribe<ThrowOnError extends boolean = false>(
+    parameters?: {
+      audio?: string
+      mime?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "body", key: "audio" },
+            { in: "body", key: "mime" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      OfficeVoiceTranscribeResponses,
+      OfficeVoiceTranscribeErrors,
+      ThrowOnError
+    >({
+      url: "/global/office/voice/transcribe",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Voice a farmer reply
+   */
+  public speak<ThrowOnError extends boolean = false>(
+    parameters?: {
+      text?: string
+      voice?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "body", key: "text" },
+            { in: "body", key: "voice" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<OfficeVoiceSpeakResponses, OfficeVoiceSpeakErrors, ThrowOnError>({
+      url: "/global/office/voice/speak",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+}
+
+export class Routines extends HeyApiClient {
+  /**
+   * Start a scheduled job now
+   */
+  public run<ThrowOnError extends boolean = false>(
+    parameters?: {
+      name?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams([parameters], [{ args: [{ in: "body", key: "name" }] }])
+    return (options?.client ?? this.client).post<OfficeRoutinesRunResponses, OfficeRoutinesRunErrors, ThrowOnError>({
+      url: "/global/office/routines/run",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Read the tail of a job's log
+   */
+  public log<ThrowOnError extends boolean = false>(
+    parameters?: {
+      name?: string
+      lines?: number
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "body", key: "name" },
+            { in: "body", key: "lines" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<OfficeRoutinesLogResponses, OfficeRoutinesLogErrors, ThrowOnError>({
+      url: "/global/office/routines/log",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+}
+
+export class Office extends HeyApiClient {
+  /**
+   * Admit a Farmer request without waiting for reasoning
+   */
+  public request<ThrowOnError extends boolean = false>(
+    parameters?: {
+      id?: string
+      text?: string
+      source?: "text" | "voice"
+      clientID?: string
+      generation?: number
+      decisionIDs?: Array<string>
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "body", key: "id" },
+            { in: "body", key: "text" },
+            { in: "body", key: "source" },
+            { in: "body", key: "clientID" },
+            { in: "body", key: "generation" },
+            { in: "body", key: "decisionIDs" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<OfficeRequestResponses, OfficeRequestErrors, ThrowOnError>({
+      url: "/global/office/request",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Set client voice attention and admission generation
+   */
+  public attention<ThrowOnError extends boolean = false>(
+    parameters?: {
+      clientID?: string
+      generation?: number
+      mode?: "active" | "paused" | "off"
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "body", key: "clientID" },
+            { in: "body", key: "generation" },
+            { in: "body", key: "mode" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<OfficeAttentionResponses, OfficeAttentionErrors, ThrowOnError>({
+      url: "/global/office/attention",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Admit an exact worker command
+   */
+  public command<ThrowOnError extends boolean = false>(
+    parameters?: {
+      id?: string
+      intent?: "new" | "amend" | "steer" | "queue" | "context" | "cancel" | "resume" | "status"
+      hostID?: string
+      sessionID?: string
+      directory?: string
+      title?: string
+      text?: string
+      agent?: string
+      model?: {
+        providerID: string
+        modelID: string
+        variant?: string
+      }
+      executionID?: string
+      outputScope?: string
+      placement?: "auto" | "worktree" | "shared"
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "body", key: "id" },
+            { in: "body", key: "intent" },
+            { in: "body", key: "hostID" },
+            { in: "body", key: "sessionID" },
+            { in: "body", key: "directory" },
+            { in: "body", key: "title" },
+            { in: "body", key: "text" },
+            { in: "body", key: "agent" },
+            { in: "body", key: "model" },
+            { in: "body", key: "executionID" },
+            { in: "body", key: "outputScope" },
+            { in: "body", key: "placement" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<OfficeCommandResponses, OfficeCommandErrors, ThrowOnError>({
+      url: "/global/office/command",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Read worker command receipts and execution state
+   */
+  public commands<ThrowOnError extends boolean = false>(options?: Options<never, ThrowOnError>) {
+    return (options?.client ?? this.client).get<OfficeCommandsResponses, OfficeCommandsErrors, ThrowOnError>({
+      url: "/global/office/commands",
+      ...options,
+    })
+  }
+
+  /**
+   * Replay durable Office events
+   */
+  public events<ThrowOnError extends boolean = false>(
+    parameters?: {
+      after?: number
+      checkpoint?: number
+      clientID?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "body", key: "after" },
+            { in: "body", key: "checkpoint" },
+            { in: "body", key: "clientID" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<OfficeEventsResponses, OfficeEventsErrors, ThrowOnError>({
+      url: "/global/office/events",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Acknowledge display, speech or targeted navigation
+   */
+  public acknowledge<ThrowOnError extends boolean = false>(
+    parameters?: {
+      clientID?: string
+      eventID?: string
+      channel?: "display" | "spoken" | "navigation"
+      sessionID?: string
+      directory?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "body", key: "clientID" },
+            { in: "body", key: "eventID" },
+            { in: "body", key: "channel" },
+            { in: "body", key: "sessionID" },
+            { in: "body", key: "directory" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<OfficeAcknowledgeResponses, OfficeAcknowledgeErrors, ThrowOnError>({
+      url: "/global/office/acknowledge",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Get office state
+   */
+  public state<ThrowOnError extends boolean = false>(options?: Options<never, ThrowOnError>) {
+    return (options?.client ?? this.client).get<OfficeStateResponses, OfficeStateErrors, ThrowOnError>({
+      url: "/global/office/state",
+      ...options,
+    })
+  }
+
+  /**
+   * Get or create the farmer's session
+   */
+  public overseer<ThrowOnError extends boolean = false>(options?: Options<never, ThrowOnError>) {
+    return (options?.client ?? this.client).post<OfficeOverseerResponses, OfficeOverseerErrors, ThrowOnError>({
+      url: "/global/office/overseer",
+      ...options,
+    })
+  }
+
+  /**
+   * Ask the farmer
+   */
+  public ask<ThrowOnError extends boolean = false>(
+    parameters?: {
+      text?: string
+      source?: "text" | "voice"
+      clientID?: string
+      generation?: number
+      decisionIDs?: Array<string>
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "body", key: "text" },
+            { in: "body", key: "source" },
+            { in: "body", key: "clientID" },
+            { in: "body", key: "generation" },
+            { in: "body", key: "decisionIDs" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<OfficeAskResponses, OfficeAskErrors, ThrowOnError>({
+      url: "/global/office/ask",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Brief on what changed since a time
+   */
+  public brief<ThrowOnError extends boolean = false>(
+    parameters?: {
+      since?: number
+      clientID?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "body", key: "since" },
+            { in: "body", key: "clientID" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<OfficeBriefResponses, OfficeBriefErrors, ThrowOnError>({
+      url: "/global/office/brief",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Set the farmer's autonomy
+   */
+  public autonomy<ThrowOnError extends boolean = false>(
+    parameters?: {
+      mode?: OfficeAutonomy
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams([parameters], [{ args: [{ in: "body", key: "mode" }] }])
+    return (options?.client ?? this.client).post<OfficeAutonomyResponses, OfficeAutonomyErrors, ThrowOnError>({
+      url: "/global/office/autonomy",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * List scheduled jobs and their runs
+   */
+  public routines<ThrowOnError extends boolean = false>(options?: Options<never, ThrowOnError>) {
+    return (options?.client ?? this.client).get<OfficeRoutinesResponses, OfficeRoutinesErrors, ThrowOnError>({
+      url: "/global/office/routines",
+      ...options,
+    })
+  }
+
+  private _request?: Request
+  get request2(): Request {
+    return (this._request ??= new Request({ client: this.client }))
+  }
+
+  private _thread?: Thread
+  get thread(): Thread {
+    return (this._thread ??= new Thread({ client: this.client }))
+  }
+
+  private _voice?: Voice
+  get voice(): Voice {
+    return (this._voice ??= new Voice({ client: this.client }))
+  }
+
+  private _routines?: Routines
+  get routines2(): Routines {
+    return (this._routines ??= new Routines({ client: this.client }))
   }
 }
 
@@ -6316,7 +7007,7 @@ export class Credential extends HeyApiClient {
   }
 }
 
-export class Request extends HeyApiClient {
+export class Request2 extends HeyApiClient {
   /**
    * List pending permission requests
    *
@@ -6393,9 +7084,9 @@ export class Saved extends HeyApiClient {
 }
 
 export class Permission3 extends HeyApiClient {
-  private _request?: Request
-  get request(): Request {
-    return (this._request ??= new Request({ client: this.client }))
+  private _request?: Request2
+  get request(): Request2 {
+    return (this._request ??= new Request2({ client: this.client }))
   }
 
   private _saved?: Saved
@@ -6812,7 +7503,7 @@ export class Pty2 extends HeyApiClient {
   }
 }
 
-export class Request2 extends HeyApiClient {
+export class Request3 extends HeyApiClient {
   /**
    * List pending question requests
    *
@@ -6841,9 +7532,9 @@ export class Request2 extends HeyApiClient {
 }
 
 export class Question3 extends HeyApiClient {
-  private _request?: Request2
-  get request(): Request2 {
-    return (this._request ??= new Request2({ client: this.client }))
+  private _request?: Request3
+  get request(): Request3 {
+    return (this._request ??= new Request3({ client: this.client }))
   }
 }
 
@@ -7100,6 +7791,11 @@ export class OpencodeClient extends HeyApiClient {
   private _global?: Global
   get global(): Global {
     return (this._global ??= new Global({ client: this.client }))
+  }
+
+  private _office?: Office
+  get office(): Office {
+    return (this._office ??= new Office({ client: this.client }))
   }
 
   private _event?: Event

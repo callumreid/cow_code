@@ -24,6 +24,27 @@ export default {
         );
       `)
       yield* tx.run(`
+        CREATE TABLE \`office_event\` (
+          \`cursor\` integer PRIMARY KEY AUTOINCREMENT,
+          \`id\` text NOT NULL UNIQUE,
+          \`kind\` text NOT NULL,
+          \`session_id\` text,
+          \`value\` text NOT NULL,
+          \`time_created\` integer NOT NULL
+        );
+      `)
+      yield* tx.run(`
+        CREATE TABLE \`office_record\` (
+          \`id\` text PRIMARY KEY,
+          \`kind\` text NOT NULL,
+          \`session_id\` text,
+          \`state\` text NOT NULL,
+          \`value\` text NOT NULL,
+          \`time_created\` integer NOT NULL,
+          \`time_updated\` integer NOT NULL
+        );
+      `)
+      yield* tx.run(`
         CREATE TABLE \`account_state\` (
           \`id\` integer PRIMARY KEY,
           \`active_account_id\` text,
@@ -236,6 +257,8 @@ export default {
           CONSTRAINT \`fk_session_share_session_id_session_id_fk\` FOREIGN KEY (\`session_id\`) REFERENCES \`session\`(\`id\`) ON DELETE CASCADE
         );
       `)
+      yield* tx.run(`CREATE INDEX \`office_event_session\` ON \`office_event\` (\`session_id\`,\`cursor\`);`)
+      yield* tx.run(`CREATE INDEX \`office_record_kind\` ON \`office_record\` (\`kind\`,\`time_created\`);`)
       yield* tx.run(`CREATE UNIQUE INDEX \`event_aggregate_seq_idx\` ON \`event\` (\`aggregate_id\`,\`seq\`);`)
       yield* tx.run(`CREATE INDEX \`event_aggregate_type_seq_idx\` ON \`event\` (\`aggregate_id\`,\`type\`,\`seq\`);`)
       yield* tx.run(

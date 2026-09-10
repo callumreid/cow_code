@@ -26,13 +26,11 @@ const READ_ONLY = new Set([
 
 const REVERSIBLE = new Set(["edit", "write", "apply_patch", "patch", "task", "external_directory", "question"])
 
-// Commands that only read or verify: version control reads, listings, test and lint runners.
-const SAFE_COMMAND =
-  /^\s*(git\s+(status|log|diff|show|branch|fetch|rev-parse|ls-files|blame|stash\s+list|worktree\s+list)|ls|cat|head|tail|wc|grep|rg|find|pwd|echo|which|env|printenv|bun\s+(test|typecheck|run\s+(test|typecheck|lint|build))|bunx\s+(tsc|vitest|eslint|prettier|playwright\s+test)|npm\s+(test|run\s+(test|typecheck|lint|build))|pnpm\s+(test|typecheck|lint|build)|npx\s+(tsc|vitest|eslint|prettier)|pytest|ruff|cargo\s+(check|test|build|clippy)|go\s+(test|build|vet)|make\s+(test|check|lint))\b/
-
-// Anything that deletes, publishes, deploys, or touches shared state stays with Callum.
-const DANGEROUS_COMMAND =
-  /\b(rm\s+-r|rm\s+-f|git\s+push|git\s+reset\s+--hard|git\s+clean|git\s+rebase|git\s+checkout\s+\.|sudo|curl\s+.*-X\s*(POST|PUT|DELETE|PATCH)|terraform\s+(apply|destroy)|aws\s+\S+\s+(delete|put|update|create|run|start|stop|terminate|modify)|kubectl\s+(apply|delete|scale|rollout)|npm\s+publish|docker\s+(rm|rmi|push)|drop\s+table|truncate|chmod\s+-R|mkfs|dd\s+if=|>\s*\/dev\/|launchctl|killall|pkill)\b/i
+// Automatic approval is deliberately a small, whole-command grammar. Shell
+// operators, substitutions, redirects and script runners can conceal writes.
+const READ_COMMAND =
+  /^(?:pwd|(?:ls|cat|head|tail|wc|rg|grep|which)\b[^;&|`$<>\n\r]*|git\s+(?:status|log|diff|show|rev-parse|ls-files|blame)(?:\s+[^;&|`$<>\n\r]*)?)$/
+const SHELL_SYNTAX = /[;&|`$<>\n\r]|\\/
 
 export function classify(
   input: { permission: string; patterns: ReadonlyArray<string>; metadata?: Record<string, unknown> },
@@ -51,24 +49,54 @@ function base(input: {
   if (READ_ONLY.has(input.permission)) return "auto"
   if (REVERSIBLE.has(input.permission)) return "farmer"
   if (input.permission !== "bash") return "callum"
-  const command = [
-    ...(typeof input.metadata?.command === "string" ? [input.metadata.command] : []),
-    ...input.patterns,
-  ].join("\n")
-  if (DANGEROUS_COMMAND.test(command)) return "callum"
-  if (command.split("\n").every((line) => SAFE_COMMAND.test(line))) return "auto"
-  return "farmer"
+  const commands = typeof input.metadata?.command === "string" ? [input.metadata.command] : input.patterns
+  if (
+    commands.length &&
+    commands.every((command) => {
+      const text = command.trim()
+      return (
+        !SHELL_SYNTAX.test(text) &&
+        !/(?:^|\s)--(?:output|ext-diff|textconv|pre|pre-glob|exec-path|config-env)(?:[=\s]|$)/.test(text) &&
+        READ_COMMAND.test(text)
+      )
+    })
+  )
+    return "auto"
+  return "callum"
 }
 
 // The only thing that approves a "callum" tier action is Callum's own words.
 export function looksLikeApproval(text: string | undefined) {
-  if (!text) return false
-  return /\b(yes|yep|yeah|approve|approved|do it|run it|go ahead|ship it|confirmed|confirm|allow|allowed|send it)\b/i.test(
-    text,
+  if (!text || looksLikeDenial(text)) return false
+  return /^(?:(?:yes|yep|yeah|approve|approved|do it|run it|go ahead|ship it|confirmed|confirm|allow|allowed|send it)\b|(?:i approve|please allow|you may proceed|you can proceed)\b)/i.test(
+    text.trim(),
   )
 }
 
 export function looksLikeDenial(text: string | undefined) {
   if (!text) return false
   return /\b(no|nope|deny|denied|don'?t|do not|stop|cancel|reject|hold off)\b/i.test(text)
+}
+
+// The quoted tool argument is never evidence of user authority. The caller must
+// resolve this origin from the assistant's real parent message in the ledger.
+export function authorizesDecision(
+  origin: {
+    source: string
+    text: string
+    decisionIDs?: string[]
+  },
+  id: string,
+  reply: "once" | "always" | "reject",
+  quote?: string,
+) {
+  if (reply === "reject") return true
+  if (origin.source !== "user" || !origin.decisionIDs?.includes(id)) return false
+  if (!looksLikeApproval(origin.text)) return false
+  if (quote && !origin.text.includes(quote)) return false
+  return reply !== "always" || /\b(always|remember|standing)\b/i.test(origin.text)
+}
+
+export function roleAllowsTool(agent: string, tool: string) {
+  return agent === "farmer" ? tool.startsWith("office_") : !tool.startsWith("office_")
 }

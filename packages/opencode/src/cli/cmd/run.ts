@@ -16,7 +16,7 @@ import { FSUtil } from "@opencode-ai/core/fs-util"
 import type { Argv } from "yargs"
 import path from "path"
 import { pathToFileURL } from "url"
-import { open } from "node:fs/promises"
+import { open, writeFile } from "node:fs/promises"
 import { Effect } from "effect"
 import { UI } from "../ui"
 import { effectCmd } from "../effect-cmd"
@@ -27,6 +27,18 @@ import { FormatError, FormatUnknownError } from "../error"
 import { INTERACTIVE_INPUT_ERROR, resolveInteractiveStdin } from "./run/runtime.stdin"
 
 type ModelInput = Parameters<OpencodeClient["session"]["prompt"]>[0]["model"]
+
+async function recordRoutineSession(info: { id: string; directory?: string }) {
+  if (!process.env.COW_ROUTINE_EXECUTION_ID || !process.env.COW_ROUTINE_RESULT_FILE) return
+  await writeFile(
+    process.env.COW_ROUTINE_RESULT_FILE,
+    JSON.stringify({
+      executionID: process.env.COW_ROUTINE_EXECUTION_ID,
+      sessionID: info.id,
+      directory: info.directory,
+    }),
+  )
+}
 
 function pick(value: string | undefined): ModelInput | undefined {
   if (!value) return undefined
@@ -517,9 +529,19 @@ export const RunCommand = effectCmd({
 
         const name = title()
         const result = await sdk.session.create({
+          ...(process.env.COW_ROUTINE_EXECUTION_ID
+            ? {
+                metadata: {
+                  executionID: process.env.COW_ROUTINE_EXECUTION_ID,
+                  routineName: process.env.COW_ROUTINE_NAME,
+                  officeOrigin: "routine",
+                },
+              }
+            : {}),
           title: name,
           permission: [...rules],
         })
+        if (result.data) await recordRoutineSession(result.data)
         const id = result.data?.id
         if (!id) {
           return
@@ -552,6 +574,15 @@ export const RunCommand = effectCmd({
         input: { agent: string | undefined; model: ModelInput | undefined; variant: string | undefined },
       ): Promise<SessionInfo> {
         const result = await sdk.session.create({
+          ...(process.env.COW_ROUTINE_EXECUTION_ID
+            ? {
+                metadata: {
+                  executionID: process.env.COW_ROUTINE_EXECUTION_ID,
+                  routineName: process.env.COW_ROUTINE_NAME,
+                  officeOrigin: "routine",
+                },
+              }
+            : {}),
           title: args.title !== undefined && args.title !== "" ? args.title : undefined,
           agent: input.agent,
           model: input.model
@@ -568,6 +599,7 @@ export const RunCommand = effectCmd({
           throw new Error("Failed to create session")
         }
 
+        await recordRoutineSession(result.data!)
         void share(sdk, id).catch(() => {})
         return {
           id,

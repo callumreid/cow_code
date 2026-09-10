@@ -1,7 +1,7 @@
 import type { Message, Part, TextPart, ToolPart } from "@opencode-ai/sdk/v2/client"
 import { base64Encode } from "@opencode-ai/core/util/encode"
 import { getFilename } from "@opencode-ai/core/util/path"
-import type { OfficeReport, OfficeThread, OfficeWaiting } from "./types"
+import type { OfficeReport, OfficeThread, OfficeWaiting, OfficeOutcome } from "./types"
 
 /**
  * The office stream is one chronological list: the farmer's own conversation
@@ -12,6 +12,7 @@ export type StreamItem =
   | { kind: "user"; id: string; time: number; text: string }
   | { kind: "text"; id: string; time: number; part: TextPart; message: Message }
   | { kind: "tools"; id: string; time: number; parts: ToolPart[] }
+  | { kind: "outcome"; id: string; time: number; outcome: OfficeOutcome }
   | { kind: "report"; id: string; time: number; report: OfficeReport }
 
 export type StreamRow = StreamItem | { kind: "divider"; id: "divider"; time: number }
@@ -113,8 +114,22 @@ export function buildStream(input: {
   parts: (messageID: string) => Part[]
   reports: OfficeReport[]
   lastSeen: number
+  outcomes?: OfficeOutcome[]
 }): StreamRow[] {
-  return withDivider(mergeStream(messageItems(input.messages, input.parts), input.reports), input.lastSeen)
+  const items = messageItems(input.messages, input.parts).filter(
+    (item) => input.outcomes === undefined || item.kind !== "text",
+  )
+  const rows = mergeStream(items, input.reports)
+  if (input.outcomes)
+    rows.push(
+      ...input.outcomes.map(
+        (outcome): StreamItem => ({ kind: "outcome", id: outcome.id, time: outcome.time, outcome }),
+      ),
+    )
+  return withDivider(
+    rows.sort((a, b) => a.time - b.time),
+    input.lastSeen,
+  )
 }
 
 export function unreadReports(reports: OfficeReport[], lastSeen: number) {
@@ -127,25 +142,32 @@ export function unreadReports(reports: OfficeReport[], lastSeen: number) {
  */
 export function latestOfKind(reports: OfficeReport[]) {
   const seen = new Map<string, string>()
-  reports.forEach((report) => seen.set(`${report.sessionID}:${report.kind}`, report.id))
+  reports.forEach((report) => seen.set(`${report.hostID ?? ""}:${report.sessionID}:${report.kind}`, report.id))
   return new Set(seen.values())
 }
 
-/** A needs-you card is live while its thread still waits on the same kind of answer. */
+export function waitingForReport(report: OfficeReport, thread: OfficeThread | undefined) {
+  if (report.requestID)
+    return thread?.decisions?.find((decision) => decision.id === report.requestID && decision.status === "pending")
+      ?.waiting
+  return thread?.waiting ?? undefined
+}
+
+/** Each card is bound to its exact request; older servers keep the legacy fallback. */
 export function isLive(report: OfficeReport, thread: OfficeThread | undefined, latest: Set<string>) {
   if (!NEEDS_YOU_KINDS.has(report.kind)) return false
-  if (!latest.has(report.id)) return false
-  return thread?.waiting?.kind === report.kind
+  if (report.requestID) return waitingForReport(report, thread)?.kind === report.kind
+  return latest.has(report.id) && thread?.waiting?.kind === report.kind
 }
 
 /** The live needs-you card after `current` (oldest first, wrapping), for `office.next`. */
 export function nextNeedsYou(
   reports: OfficeReport[],
-  thread: (sessionID: string) => OfficeThread | undefined,
+  thread: (sessionID: string, hostID?: string) => OfficeThread | undefined,
   latest: Set<string>,
   current: string | undefined,
 ) {
-  const live = reports.filter((report) => isLive(report, thread(report.sessionID), latest))
+  const live = reports.filter((report) => isLive(report, thread(report.sessionID, report.hostID), latest))
   if (live.length === 0) return
   const index = live.findIndex((report) => report.id === current)
   return live[(index + 1) % live.length]
