@@ -1,19 +1,26 @@
-import { createEffect, Show, Suspense, type ParentProps } from "solid-js"
+import { createEffect, createSignal, Show, Suspense, type ParentProps } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useNavigate } from "@solidjs/router"
 import { DebugBar } from "@/components/debug-bar"
 import { TabsInfoPopup } from "@/components/help-button"
 import { Titlebar, type TitlebarUpdate } from "@/components/titlebar"
 import { usePlatform } from "@/context/platform"
+import { useServerSDK } from "@/context/server-sdk"
 import { useOffice } from "@/office/context"
 import { OfficePanel } from "@/pages/layout/office-panel"
+import { ScheduledPanel } from "@/pages/layout/scheduled-panel"
+import { createRoutinesStore } from "@/routines/store"
 import { setV2Toast, ToastRegion } from "@/utils/toast"
 
 export default function NewLayout(props: ParentProps) {
   const platform = usePlatform()
   const office = useOffice()
+  const sdk = useServerSDK()
   const navigate = useNavigate()
   const [state, setState] = createStore({ debugTools: true })
+  // The Scheduled view shares the overlay slot with the office: opening one closes the other.
+  const [scheduled, setScheduled] = createSignal(false)
+  const routines = createRoutinesStore(() => sdk(), () => platform.fetch, scheduled)
 
   createEffect(() => setV2Toast(true))
 
@@ -25,6 +32,16 @@ export default function NewLayout(props: ParentProps) {
     },
     installing: () => platform.updater?.state().status === "installing",
     install: () => void platform.updater?.install(),
+  }
+
+  const openOffice = () => {
+    setScheduled(false)
+    office.open()
+  }
+  const toggleScheduled = () => {
+    const next = !scheduled()
+    if (next) office.close()
+    setScheduled(next)
   }
 
   return (
@@ -39,8 +56,13 @@ export default function NewLayout(props: ParentProps) {
         update={update}
         office={{
           opened: office.opened,
-          toggle: () => (office.opened() ? office.close() : office.open()),
+          toggle: () => (office.opened() ? office.close() : openOffice()),
         }}
+        scheduled={
+          routines.available() && routines.data()?.available !== false
+            ? { opened: scheduled, toggle: toggleScheduled, running: routines.runningCount }
+            : undefined
+        }
         debugTools={
           import.meta.env.DEV
             ? { visible: state.debugTools, toggle: () => setState("debugTools", (value) => !value) }
@@ -56,6 +78,18 @@ export default function NewLayout(props: ParentProps) {
             onClose={() => office.close()}
             onNavigate={(href) => {
               office.close()
+              navigate(href)
+            }}
+          />
+        </div>
+      </Show>
+      <Show when={scheduled()}>
+        <div class="absolute inset-x-0 top-9 bottom-0 z-50 overflow-hidden bg-v2-background-bg-base">
+          <ScheduledPanel
+            store={routines}
+            onClose={() => setScheduled(false)}
+            onNavigate={(href) => {
+              setScheduled(false)
               navigate(href)
             }}
           />
