@@ -10,6 +10,7 @@ import {
   type PrMergedHistory,
   type PrReviewState,
 } from "@opencode-ai/app/pr-dashboard/types"
+import type { PastureHerd, PasturePullRequest, PastureRequest } from "@opencode-ai/app/pasture/types"
 
 // Electron does not inherit the login shell PATH, so `gh` is not on PATH by
 // default. Same list the PR-status badge fetcher uses.
@@ -277,6 +278,100 @@ function toOpenSummary(node: RawOpenSummary): OpenPullRequest {
 }
 
 export type PrDashboardRunner = (args: string[]) => Promise<string>
+
+const PASTURE_PAGE_SIZE = 50
+const MAX_PASTURE_PAGES = 6
+const PASTURE_CACHE_MS = 2 * 60_000
+const PASTURE_QUERY = `
+query($q: String!, $cursor: String) {
+  search(query: $q, type: ISSUE, first: ${PASTURE_PAGE_SIZE}, after: $cursor) {
+    pageInfo { hasNextPage endCursor }
+    nodes {
+      ... on PullRequest {
+        number title url mergedAt additions deletions changedFiles baseRefName
+        author { login avatarUrl }
+        mergedBy { login }
+        repository { nameWithOwner isArchived }
+        labels(first: 10) { nodes { name } }
+      }
+    }
+  }
+}`
+
+type RawPasture = {
+  number: number
+  title: string
+  url: string
+  mergedAt: string
+  additions?: number | null
+  deletions?: number | null
+  changedFiles?: number | null
+  baseRefName?: string | null
+  author?: { login?: string | null; avatarUrl?: string | null } | null
+  mergedBy?: { login?: string | null } | null
+  repository: { nameWithOwner: string; isArchived?: boolean | null }
+  labels?: { nodes?: { name: string }[] | null } | null
+}
+
+function isRawPasture(node: unknown): node is RawPasture {
+  return !!node && typeof node === "object" && "mergedAt" in node && "number" in node && "repository" in node
+}
+
+/** One cow per merged PR: every merge in the org (or just @me) inside the window, newest first. */
+export async function fetchPrPasture(input: PastureRequest, now: number, runner: PrDashboardRunner = runGh): Promise<PastureHerd> {
+  const days = Math.max(1, Math.min(366, Math.floor(input.days) || 7))
+  const since = new Date(now - days * 86_400_000).toISOString().replace(/\.\d{3}Z$/, "Z")
+  const query = `is:pr is:merged org:coval-ai merged:>=${since}${input.scope === "mine" ? " author:@me" : ""} sort:updated-desc`
+  const items: PasturePullRequest[] = []
+  let cursor: string | undefined
+  let truncated = false
+  for (let page = 0; page < MAX_PASTURE_PAGES; page++) {
+    const fields = [`q=${query}`]
+    if (cursor) fields.push(`cursor=${cursor}`)
+    const parsed = (await request(runner, PASTURE_QUERY, fields)) as {
+      data?: { search?: { pageInfo?: { hasNextPage?: boolean; endCursor?: string | null }; nodes?: unknown[] } }
+    }
+    for (const node of parsed.data?.search?.nodes ?? []) {
+      if (!isRawPasture(node) || node.repository.isArchived) continue
+      items.push({
+        repo: node.repository.nameWithOwner,
+        number: node.number,
+        title: node.title,
+        url: node.url,
+        mergedAt: node.mergedAt,
+        author: node.author?.login ?? "unknown",
+        authorAvatar: node.author?.avatarUrl ?? null,
+        mergedBy: node.mergedBy?.login ?? null,
+        additions: node.additions ?? 0,
+        deletions: node.deletions ?? 0,
+        changedFiles: node.changedFiles ?? 0,
+        base: node.baseRefName ?? "main",
+        labels: (node.labels?.nodes ?? []).map((label) => label.name),
+      })
+    }
+    const info = parsed.data?.search?.pageInfo
+    if (!info?.hasNextPage || !info.endCursor) break
+    cursor = info.endCursor
+    if (page === MAX_PASTURE_PAGES - 1) truncated = true
+  }
+  items.sort((a, b) => Date.parse(b.mergedAt) - Date.parse(a.mergedAt))
+  return { items, fetchedAt: now, days, scope: input.scope, truncated: truncated ? items.length : undefined }
+}
+
+const pastureCache = new Map<string, { at: number; value: Promise<PastureHerd> }>()
+
+export function getPrPasture(input: PastureRequest, force = false): Promise<PastureHerd> {
+  const key = `${input.days}:${input.scope}`
+  const now = Date.now()
+  const cached = pastureCache.get(key)
+  if (!force && cached && now - cached.at < PASTURE_CACHE_MS) return cached.value
+  const value = fetchPrPasture(input, now).catch((error: Error) => {
+    pastureCache.delete(key)
+    throw error
+  })
+  pastureCache.set(key, { at: now, value })
+  return value
+}
 
 /**
  * One `gh api graphql` call per page. Open PRs come back on the first page

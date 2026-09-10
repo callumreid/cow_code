@@ -221,7 +221,10 @@ const createPlatform = (windowState: DesktopWindowState): Platform => {
       fetchMerged(force?: boolean) {
         return window.api.prDashboardMerged(force)
       },
-      setAutomation(repo: string, number: number, key: "keepUpdated" | "autoFix", on: boolean) {
+      fetchPasture(input: { days: number; scope: "mine" | "everyone" }, force?: boolean) {
+        return window.api.prPasture(input, force)
+      },
+      setAutomation(repo: string, number: number, key: "keepUpdated" | "autoFix" | "merge", on: boolean) {
         return window.api.prAutomationSet(repo, number, key, on)
       },
     },

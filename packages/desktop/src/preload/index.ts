@@ -101,6 +101,7 @@ const api: ElectronAPI = {
   prStatus: (url) => ipcRenderer.invoke("pr-status", url),
   prDashboard: (force) => ipcRenderer.invoke("pr-dashboard", force),
   prDashboardMerged: (force) => ipcRenderer.invoke("pr-dashboard-merged", force),
+  prPasture: (input, force) => ipcRenderer.invoke("pr-pasture", input, force),
   prAutomationSet: (repo, number, key, on) => ipcRenderer.invoke("pr-automation-set", repo, number, key, on),
   openLocalFile: (url) => ipcRenderer.send("open-local-file", url),
   openPath: (path, app) => ipcRenderer.invoke("open-path", path, app),

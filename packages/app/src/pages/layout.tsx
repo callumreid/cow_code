@@ -91,6 +91,9 @@ import { createPrDashboardStore } from "@/pr-dashboard/store"
 import { SidebarScheduled } from "./layout/sidebar-scheduled"
 import { ScheduledPanel } from "./layout/scheduled-panel"
 import { createRoutinesStore } from "@/routines/store"
+import { SidebarPasture } from "./layout/sidebar-pasture"
+import { PasturePanel } from "./layout/pasture-panel"
+import { createPastureStore } from "@/pasture/store"
 import { SidebarOffice } from "./layout/sidebar-office"
 import { OfficePanel } from "./layout/office-panel"
 import { useOffice } from "@/office/context"
@@ -171,6 +174,7 @@ export default function LegacyLayout(props: ParentProps) {
     peek: undefined as string | undefined,
     pullRequests: false,
     scheduled: false,
+    pasture: false,
     peeked: false,
     debugTools: true,
   })
@@ -181,6 +185,10 @@ export default function LegacyLayout(props: ParentProps) {
     () => platform.fetch,
     () => state.scheduled,
   )
+  const pasture = createPastureStore(
+    () => platform.prDashboard,
+    () => state.pasture,
+  )
   const location = useLocation()
   // Opening a session has to reveal it, so the panel gives the main area back.
   // `navigateWithSidebarReset` covers the same-route cases this effect cannot see.
@@ -190,6 +198,7 @@ export default function LegacyLayout(props: ParentProps) {
       () => {
         setState("pullRequests", false)
         setState("scheduled", false)
+        setState("pasture", false)
         office.close()
       },
       { defer: true },
@@ -199,19 +208,29 @@ export default function LegacyLayout(props: ParentProps) {
   const openPullRequests = () => {
     office.close()
     setState("scheduled", false)
+    setState("pasture", false)
     setState("pullRequests", true)
     layout.mobileSidebar.hide()
   }
   const openOffice = () => {
     setState("pullRequests", false)
     setState("scheduled", false)
+    setState("pasture", false)
     office.open()
     layout.mobileSidebar.hide()
   }
   const openScheduled = () => {
     office.close()
     setState("pullRequests", false)
+    setState("pasture", false)
     setState("scheduled", true)
+    layout.mobileSidebar.hide()
+  }
+  const openPasture = () => {
+    office.close()
+    setState("pullRequests", false)
+    setState("scheduled", false)
+    setState("pasture", true)
     layout.mobileSidebar.hide()
   }
 
@@ -383,6 +402,7 @@ export default function LegacyLayout(props: ParentProps) {
     clearSidebarHoverState()
     setState("pullRequests", false)
     setState("scheduled", false)
+    setState("pasture", false)
     office.close()
     navigate(href)
     layout.mobileSidebar.hide()
@@ -1135,6 +1155,7 @@ export default function LegacyLayout(props: ParentProps) {
         onSelect: () => {
           setState("pullRequests", false)
           setState("scheduled", false)
+          setState("pasture", false)
           office.next()
         },
       },
@@ -2239,6 +2260,7 @@ export default function LegacyLayout(props: ParentProps) {
                 unread={office.unread().length}
                 onOpen={openOffice}
               />
+              <SidebarPasture store={pasture} active={state.pasture} onOpen={openPasture} />
 
               <div class="flex-1 min-h-0 flex flex-col">
                 <Show
@@ -2524,6 +2546,11 @@ export default function LegacyLayout(props: ParentProps) {
                   />
                 </div>
               </Show>
+              <Show when={state.pasture}>
+                <div class="absolute inset-0 z-10 overflow-hidden rounded-ss-[12px] border-t border-s border-border-weak-base bg-background-base">
+                  <PasturePanel store={pasture} onClose={() => setState("pasture", false)} />
+                </div>
+              </Show>
               <Show when={office.opened()}>
                 {/* The sidebar is always open and at least 244px, so on a phone the office takes the whole viewport under the titlebar instead of the sliver beside it. */}
                 <div class="absolute inset-0 z-10 overflow-hidden rounded-ss-[12px] border-t border-s border-border-weak-base bg-background-base max-md:fixed max-md:inset-x-0 max-md:top-10 max-md:bottom-0 max-md:z-50 max-md:rounded-none max-md:border-s-0">
@@ -2533,7 +2560,7 @@ export default function LegacyLayout(props: ParentProps) {
               <ToolPictureInPicture
                 directory={currentDir}
                 sessionID={() => params.id}
-                visible={() => !office.opened() && !state.pullRequests && !state.scheduled}
+                visible={() => !office.opened() && !state.pullRequests && !state.scheduled && !state.pasture}
               />
             </div>
 

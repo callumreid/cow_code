@@ -1,3 +1,4 @@
+import type { PastureHerd, PastureRequest } from "@/pasture/types"
 /**
  * Shared shape for the sidebar pull-request dashboard.
  *
@@ -97,6 +98,8 @@ export type PrDashboardPlatform = {
   fetch(force?: boolean): Promise<PrDashboard>
   /** Merged history. Deferred: it pages the whole window and costs seconds. */
   fetchMerged(force?: boolean): Promise<PrMergedHistory>
+  /** The merged pull requests behind the Pasture, for a timeframe and a scope. */
+  fetchPasture?(input: PastureRequest, force?: boolean): Promise<PastureHerd>
 }
 
 const CHECKS_RANK: Record<PrCheckState, number> = { failure: 0, pending: 1, none: 2, success: 3 }
