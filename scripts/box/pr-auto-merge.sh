@@ -21,8 +21,9 @@ DRY=0; ONLY=""
 if [ "${1:-}" = "--dry-run" ]; then DRY=1; [ $# -ge 3 ] && ONLY="$2 $3"; fi
 
 if ! mkdir "$LOCK" 2>/dev/null; then echo "$(date -Iseconds): previous run still going, skipping" >> "$LOG"; exit 0; fi
-trap 'rmdir "$LOCK" 2>/dev/null' EXIT
 source "$HOME/bin/cow-routine-guard.sh"
+# The guard installs its own EXIT trap; this one replaces it, so it releases the routine lock too.
+trap 'routine_release; rmdir "$LOCK" 2>/dev/null' EXIT
 [ -s "$STATE" ] || echo '{}' > "$STATE"
 
 log() { echo "$(date -Iseconds): $*" >> "$LOG"; [ "$DRY" = 1 ] && echo "$*"; }
@@ -183,7 +184,6 @@ while IFS= read -r line; do
       else
         # Only the fix step needs the box's one-LLM-at-a-time lock; a busy lock just means next cycle.
         if COW_ROUTINE_STATUS_FILE= routine_acquire "pr-auto-merge"; then
-          trap 'rm -rf "$ROUTINE_LOCK"; rmdir "$LOCK" 2>/dev/null' EXIT
           log "$key: removed from the merge queue at $extra ($detail); investigating (bounce $((bounces + 1)) of $MAX_BOUNCES)"
           fix_bounce "$repo" "$number" "$url" "$head" "$branch" "$detail" "$extra"
         else

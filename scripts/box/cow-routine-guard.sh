@@ -1,9 +1,16 @@
 #!/bin/bash
-# Shared guard for the LLM routines on the box (sweep, queue, fixer): only one runs at a time, and
-# when a run ends its server sessions are aborted so nothing keeps retrying in the background.
-# Usage: source it, then  routine_acquire <name> || exit 0 ; ... ; routine_finish "<title prefix>"
+# Shared guard for the LLM routines on the box (sweep, queue, fixer, merge-when-ready): only one runs
+# at a time, and when a run ends its server sessions are aborted so nothing keeps retrying in the
+# background. Usage: source it, then  routine_acquire <name> || exit 0 ; ... ; routine_finish "<title prefix>"
 # routine_skip "<why>" records a run as skipped in the Scheduled view (via cow-routine-run.sh).
 ROUTINE_LOCK="$HOME/.coval/logs/routine-llm.lock"
+ROUTINE_HELD=""
+routine_release() { if [ -n "$ROUTINE_HELD" ]; then rm -rf "$ROUTINE_LOCK"; ROUTINE_HELD=""; fi; }
+# zsh runs an EXIT trap that was set inside a function as soon as that function returns, which used
+# to release the lock right after taking it. So the release hook is installed here, at top level:
+# zshexit() for zsh (it runs at shell exit whatever traps a script sets later), an EXIT trap for bash
+# (a bash script that installs its own EXIT trap must call routine_release from it).
+if [ -n "${ZSH_VERSION:-}" ]; then zshexit() { routine_release; }; else trap 'routine_release' EXIT; fi
 routine_skip() {
   echo "$(date -Iseconds): $1"
   [ -n "${COW_ROUTINE_STATUS_FILE:-}" ] && echo skipped > "$COW_ROUTINE_STATUS_FILE"
@@ -11,11 +18,10 @@ routine_skip() {
 }
 routine_acquire() {
   mkdir -p "$HOME/.coval/logs"
-  if mkdir "$ROUTINE_LOCK" 2>/dev/null; then echo "$1 $(date -Iseconds)" > "$ROUTINE_LOCK/owner"; trap 'rm -rf "$ROUTINE_LOCK"' EXIT; return 0; fi
+  if mkdir "$ROUTINE_LOCK" 2>/dev/null; then echo "$1 $(date -Iseconds)" > "$ROUTINE_LOCK/owner"; ROUTINE_HELD=1; return 0; fi
   # stale after 90 minutes
-  if [ -n "$(find "$ROUTINE_LOCK" -maxdepth 0 -mmin +90 2>/dev/null)" ]; then rm -rf "$ROUTINE_LOCK"; mkdir "$ROUTINE_LOCK" 2>/dev/null && { echo "$1 $(date -Iseconds)" > "$ROUTINE_LOCK/owner"; trap 'rm -rf "$ROUTINE_LOCK"' EXIT; return 0; }; fi
+  if [ -n "$(find "$ROUTINE_LOCK" -maxdepth 0 -mmin +90 2>/dev/null)" ]; then rm -rf "$ROUTINE_LOCK"; mkdir "$ROUTINE_LOCK" 2>/dev/null && { echo "$1 $(date -Iseconds)" > "$ROUTINE_LOCK/owner"; ROUTINE_HELD=1; return 0; }; fi
   routine_skip "another LLM routine is running ($(cat "$ROUTINE_LOCK/owner" 2>/dev/null)); skipping $1"
-  [ -n "${COW_ROUTINE_STATUS_FILE:-}" ] && echo locked > "$COW_ROUTINE_STATUS_FILE"
   return 1
 }
 routine_finish() {  # abort any still-busy server session whose title starts with $1
@@ -23,9 +29,9 @@ routine_finish() {  # abort any still-busy server session whose title starts wit
   local D="x-opencode-directory: /Users/bronson/coval"
   curl -s -u "cow:$PW" -H "$D" http://127.0.0.1:4096/session 2>/dev/null | python3 -c "
 import json,sys
-execution=sys.argv[1]
+prefix=sys.argv[1]
 for s in json.load(sys.stdin):
-    if execution and s.get('metadata',{}).get('executionID') == execution: print(s['id'])" "${COW_ROUTINE_EXECUTION_ID:-}" 2>/dev/null | while read -r sid; do
+    if s.get('title','').startswith(prefix): print(s['id'])" "$1" 2>/dev/null | while read -r sid; do
     curl -s -o /dev/null -u "cow:$PW" -H "$D" -X POST "http://127.0.0.1:4096/session/$sid/abort" 2>/dev/null
   done
 }
