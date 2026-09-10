@@ -2,8 +2,8 @@ import type { Session } from "@opencode-ai/sdk/v2/client"
 import { Avatar } from "@opencode-ai/ui/avatar"
 import { Icon } from "@opencode-ai/ui/icon"
 import { Icon as IconV2 } from "@opencode-ai/ui/v2/icon"
-import { IconButton } from "@opencode-ai/ui/icon-button"
 import { Spinner } from "@opencode-ai/ui/spinner"
+import { CowReady, CowWorking } from "@/components/cow-activity"
 import { Tooltip } from "@opencode-ai/ui/tooltip"
 import { getFilename } from "@opencode-ai/core/util/path"
 import { A, useParams } from "@solidjs/router"
@@ -15,8 +15,11 @@ import { useNotification } from "@/context/notification"
 import { usePermission } from "@/context/permission"
 import { messageAgentColor } from "@/utils/agent"
 import { sessionTitle } from "@/utils/session-title"
+import { officeOpen } from "@/office/presence"
 import { sessionPermissionRequest } from "../session/composer/session-request-tree"
+import { useServerSDK } from "@/context/server-sdk"
 import { childSessionOnPath, getProjectAvatarSource, hasProjectPermissions } from "./helpers"
+import { createInlineEditorController } from "./inline-editor"
 
 export const ProjectIcon = (props: {
   project: LocalProject
@@ -103,8 +106,10 @@ const SessionRow = (props: {
   sidebarOpened: Accessor<boolean>
   warmPress: () => void
   warmFocus: () => void
+  editor: ReturnType<typeof createInlineEditorController>
+  onRename: (next: string) => void
 }): JSX.Element => {
-  const title = () => sessionTitle(props.session.title)
+  const title = () => sessionTitle(props.session.title) ?? ""
 
   return (
     <A
@@ -124,7 +129,7 @@ const SessionRow = (props: {
         >
           <Switch>
             <Match when={props.isWorking()}>
-              <Spinner class="size-[15px]" />
+              <CowWorking seed={props.session.id} class="size-[19px]" title="Working" />
             </Match>
             <Match when={props.hasPermissions()}>
               <div class="size-1.5 rounded-full bg-surface-warning-strong" />
@@ -133,20 +138,26 @@ const SessionRow = (props: {
               <div class="size-1.5 rounded-full bg-text-diff-delete-base" />
             </Match>
             <Match when={props.unseenCount() > 0}>
-              <div class="size-1.5 rounded-full bg-text-interactive-base" />
+              <CowReady class="size-[19px]" title="Ready for you" />
             </Match>
           </Switch>
         </div>
       </Show>
-      <span class="text-14-regular text-text-strong min-w-0 flex-1 truncate">{title()}</span>
+      <props.editor.InlineEditor
+        id={props.session.id}
+        value={title}
+        onSave={props.onRename}
+        class="text-14-regular text-text-strong min-w-0 flex-1 truncate"
+        displayClass="text-14-regular text-text-strong min-w-0 flex-1 truncate"
+      />
     </A>
   )
 }
 
 export const SessionItem = (props: SessionItemProps): JSX.Element => {
   const params = useParams()
-  const layout = useLayout()
   const language = useLanguage()
+  const layout = useLayout()
   const notification = useNotification()
   const permission = usePermission()
   const serverSync = useServerSync()
@@ -171,6 +182,15 @@ export const SessionItem = (props: SessionItemProps): JSX.Element => {
   const tint = createMemo(() =>
     messageAgentColor(serverSync().session.data.message[props.session.id], sessionStore.agent),
   )
+  const serverSDK = useServerSDK()
+  const pinned = createMemo(() => layout.pins.isPinned(props.session.id))
+  const editor = createInlineEditorController()
+  const renameSession = (next: string) => {
+    if (next === sessionTitle(props.session.title)) return
+    void serverSDK()
+      .api.session.rename({ sessionID: props.session.id, title: next })
+      .catch(() => {})
+  }
   const tooltip = createMemo(() => props.showTooltip ?? (props.mobile || !props.sidebarExpanded()))
   const currentChild = createMemo(() => {
     if (!props.showChild) return
@@ -212,6 +232,8 @@ export const SessionItem = (props: SessionItemProps): JSX.Element => {
       sidebarOpened={layout.sidebar.opened}
       warmPress={() => warm(2, "high")}
       warmFocus={() => warm(2, "high")}
+      editor={editor}
+      onRename={renameSession}
     />
   )
 
@@ -219,7 +241,8 @@ export const SessionItem = (props: SessionItemProps): JSX.Element => {
     <>
       <div
         data-session-id={props.session.id}
-        class="group/session relative w-full min-w-0 rounded-md cursor-default pr-3 transition-colors hover:bg-surface-raised-base-hover [&:has(:focus-visible)]:bg-surface-raised-base-hover has-[[data-expanded]]:bg-surface-raised-base-hover has-[.active]:bg-surface-base-active"
+        class="group/session relative w-full min-w-0 rounded-md cursor-default pr-3 transition-colors hover:bg-surface-raised-base-hover [&:has(:focus-visible)]:bg-surface-raised-base-hover has-[[data-expanded]]:bg-surface-raised-base-hover"
+        classList={{ "has-[.active]:bg-surface-base-active": !officeOpen() }}
         style={{ "padding-left": `${8 + (props.level ?? 0) * 16}px` }}
       >
         <div class="flex min-w-0 items-center gap-1">
@@ -241,28 +264,48 @@ export const SessionItem = (props: SessionItemProps): JSX.Element => {
             </Show>
           </div>
 
-          <Show when={!props.level}>
+          <Show when={!props.level || pinned()}>
             <div
-              class="shrink-0 overflow-hidden transition-[width,opacity]"
+              class="shrink-0 flex items-center overflow-hidden transition-[width,opacity]"
               classList={{
-                "w-6 opacity-100 pointer-events-auto": !!props.mobile,
-                "w-0 opacity-0 pointer-events-none": !props.mobile,
-                "group-hover/session:w-6 group-hover/session:opacity-100 group-hover/session:pointer-events-auto": true,
-                "group-focus-within/session:w-6 group-focus-within/session:opacity-100 group-focus-within/session:pointer-events-auto": true,
+                "w-12 opacity-100 pointer-events-auto": !!props.mobile,
+                "w-6 opacity-100 pointer-events-auto": !props.mobile && pinned(),
+                "w-0 opacity-0 pointer-events-none": !props.mobile && !pinned(),
+                "group-hover/session:w-12 group-hover/session:opacity-100 group-hover/session:pointer-events-auto": true,
+                "group-focus-within/session:w-12 group-focus-within/session:opacity-100 group-focus-within/session:pointer-events-auto": true,
               }}
             >
-              <Tooltip value={language.t("common.archive")} placement="top">
-                <IconButton
-                  icon="archive"
-                  variant="ghost"
-                  class="size-6 rounded-md"
-                  aria-label={language.t("common.archive")}
+              <Tooltip
+                value={pinned() ? language.t("sidebar.session.bell.off") : language.t("sidebar.session.bell.on")}
+                placement="top"
+              >
+                <button
+                  type="button"
+                  class="size-6 shrink-0 rounded-md flex items-center justify-center text-[13px] leading-none cursor-pointer hover:bg-surface-raised-base-hover"
+                  classList={{ "opacity-100": pinned(), "opacity-45": !pinned() }}
+                  aria-label={pinned() ? language.t("sidebar.session.bell.off") : language.t("sidebar.session.bell.on")}
+                  onClick={(event) => {
+                    event.preventDefault()
+                    event.stopPropagation()
+                    layout.pins.toggle(props.session.id)
+                  }}
+                >
+                  🔔
+                </button>
+              </Tooltip>
+              <Tooltip value={language.t("sidebar.session.pasture")} placement="top">
+                <button
+                  type="button"
+                  class="size-6 shrink-0 rounded-md flex items-center justify-center text-[13px] leading-none cursor-pointer opacity-45 hover:opacity-100 hover:bg-surface-raised-base-hover"
+                  aria-label={language.t("sidebar.session.pasture")}
                   onClick={(event) => {
                     event.preventDefault()
                     event.stopPropagation()
                     void props.archiveSession(props.session)
                   }}
-                />
+                >
+                  🌾
+                </button>
               </Tooltip>
             </div>
           </Show>
@@ -308,7 +351,10 @@ export const NewSessionItem = (props: {
   )
 
   return (
-    <div class="group/session relative w-full min-w-0 rounded-md cursor-default transition-colors pl-2 pr-3 hover:bg-surface-raised-base-hover [&:has(:focus-visible)]:bg-surface-raised-base-hover has-[.active]:bg-surface-base-active">
+    <div
+      class="group/session relative w-full min-w-0 rounded-md cursor-default transition-colors pl-2 pr-3 hover:bg-surface-raised-base-hover [&:has(:focus-visible)]:bg-surface-raised-base-hover"
+      classList={{ "has-[.active]:bg-surface-base-active": !officeOpen() }}
+    >
       <Show
         when={!tooltip()}
         fallback={

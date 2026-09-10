@@ -10,6 +10,7 @@ type Local = {
 type ModelSelection = {
   model: {
     current(): { id: string; provider: { id: string } } | undefined
+    picked(): { providerID: string; modelID: string } | undefined
     set(model: { providerID: string; modelID: string }): void
     variant: {
       current(): string | undefined
@@ -48,6 +49,11 @@ export const syncPromptModel = (local: ModelSelection, prompt: PromptState) => {
 }
 
 export const restorePromptModel = (local: ModelSelection, prompt: PromptState) => {
+  // A model picked for this session outranks the composer draft. The draft also
+  // holds whatever the session merely resolved to while its pick was still
+  // loading, so restoring it turns that substitute into a choice the user never
+  // made — and the conversation silently changes model on the way back to it.
+  if (local.model.picked()) return true
   const model = prompt.model.current()
   if (!model) return false
   const current = local.model.current()

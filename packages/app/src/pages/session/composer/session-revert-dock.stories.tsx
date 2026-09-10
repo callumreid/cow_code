@@ -88,7 +88,7 @@ function Stage(props: { count: number }) {
             "text-text-weak": !v2(),
           }}
         >
-          Ask anything...
+          you got this, big dog...
         </DockShell>
       </div>
 

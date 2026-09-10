@@ -1,0 +1,9 @@
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 2147483646;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='800' height='600' viewBox='0 0 800 600'%3E%3Cg fill='%23000000'%3E%3Cpath fill-opacity='0.05' d='M120 80c40-25 95-20 120 10s10 75-25 95-90 15-115-15-20-65 20-90z'/%3E%3Cpath fill-opacity='0.045' d='M520 320c50-30 120-20 145 15s5 85-40 110-110 15-140-20-15-75 35-105z'/%3E%3Cpath fill-opacity='0.05' d='M300 480c35-20 80-15 100 10s5 60-25 78-75 12-95-12-15-56 20-76z'/%3E%3C/g%3E%3Cg fill='%23ffffff'%3E%3Cpath fill-opacity='0.10' d='M350 120c45-28 105-20 130 12s8 78-32 100-98 14-125-16-18-68 27-96z'/%3E%3Cpath fill-opacity='0.09' d='M80 320c40-24 92-18 115 12s6 70-30 92-88 13-112-15-13-65 27-89z'/%3E%3Cpath fill-opacity='0.10' d='M620 60c30-18 70-14 88 9s4 52-22 68-66 10-84-11-12-48 18-66z'/%3E%3C/g%3E%3C/svg%3E");
+  background-size: 800px 600px;
+}

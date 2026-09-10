@@ -156,6 +156,17 @@
       unicode-bidi: isolate;
     }
 
+    [data-highlight="url"] {
+      color: var(--v2-text-text-accent);
+      direction: ltr;
+      unicode-bidi: isolate;
+
+      &:hover {
+        text-decoration: underline;
+        text-underline-offset: 2px;
+      }
+    }
+
     max-width: 100%;
   }
 
@@ -1417,6 +1428,10 @@ body:not([data-new-layout]) {
       background: var(--surface-base);
       border: 1px solid var(--border-weak-base);
       border-radius: 6px;
+
+      [data-highlight="url"] {
+        color: var(--text-interactive-base);
+      }
     }
 
     .text-text-strong {

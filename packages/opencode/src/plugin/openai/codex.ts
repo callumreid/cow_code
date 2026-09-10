@@ -11,6 +11,9 @@ const CLIENT_ID = "app_EMoamEEZ73f0CkXaXp7hrann"
 const ISSUER = "https://auth.openai.com"
 const CODEX_API_ENDPOINT = "https://chatgpt.com/backend-api/codex/responses"
 const OAUTH_PORT = 1455
+// The ChatGPT subscription can live under its own provider id (e.g. "chatgpt") so an OpenAI API key
+// under "openai" keeps serving the models the subscription excludes (gpt-5.6, pro tiers, realtime).
+const PROVIDER_ID = process.env.OPENCODE_CODEX_PROVIDER_ID || "openai"
 const OAUTH_POLLING_SAFETY_MARGIN_MS = 3000
 const ALLOWED_MODELS = new Set(["gpt-5.5", "gpt-5.3-codex-spark", "gpt-5.4", "gpt-5.4-mini"])
 const DISALLOWED_MODELS = new Set(["gpt-5.5-pro"])
@@ -286,7 +289,7 @@ export async function CodexAuthPlugin(input: PluginInput, options: CodexAuthPlug
       for (const websocketFetch of websocketFetches) websocketFetch.remove(input.event.properties.info.id)
     },
     provider: {
-      id: "openai",
+      id: PROVIDER_ID,
       async models(provider, ctx) {
         if (ctx.auth?.type !== "oauth") return provider.models
 
@@ -323,7 +326,7 @@ export async function CodexAuthPlugin(input: PluginInput, options: CodexAuthPlug
       },
     },
     auth: {
-      provider: "openai",
+      provider: PROVIDER_ID,
       async loader(getAuth) {
         const auth = await getAuth()
         const websocketFetch = options.experimentalWebSockets
@@ -423,9 +426,18 @@ export async function CodexAuthPlugin(input: PluginInput, options: CodexAuthPlug
               if (residency) headers.set("x-openai-internal-codex-residency", residency)
             }
 
+            // The Codex backend rejects max_output_tokens ("Unsupported parameter"); Codex CLI never sends it.
+            let body = init?.body
+            if (rewrite && typeof body === "string" && body.includes("max_output_tokens")) {
+              try {
+                const json = JSON.parse(body) as Record<string, unknown>
+                delete json.max_output_tokens
+                body = JSON.stringify(json)
+              } catch {}
+            }
             const requestInit = {
               ...init,
-              body: init?.body,
+              body,
               headers,
             }
             if (websocketFetch && parsed.pathname.endsWith("/responses")) return websocketFetch(url, requestInit)

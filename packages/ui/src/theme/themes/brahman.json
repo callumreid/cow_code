@@ -1,0 +1,33 @@
+{
+  "$schema": "https://opencode.ai/desktop-theme.json",
+  "name": "Brahman",
+  "id": "brahman",
+  "light": {
+    "palette": {
+      "neutral": "#f7f8f9",
+      "ink": "#23262b",
+      "primary": "#5c6570",
+      "accent": "#8d99a6",
+      "success": "#428a5a",
+      "warning": "#b47734",
+      "error": "#b64041",
+      "info": "#3a7d95",
+      "diffAdd": "#428a5a",
+      "diffDelete": "#b64041"
+    }
+  },
+  "dark": {
+    "palette": {
+      "neutral": "#14161a",
+      "ink": "#e9edf2",
+      "primary": "#aeb9c6",
+      "accent": "#cdd6e0",
+      "success": "#82c794",
+      "warning": "#de9e54",
+      "error": "#da7079",
+      "info": "#6fb5c6",
+      "diffAdd": "#82c794",
+      "diffDelete": "#da7079"
+    }
+  }
+}

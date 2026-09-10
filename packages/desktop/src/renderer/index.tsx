@@ -211,6 +211,20 @@ const createPlatform = (windowState: DesktopWindowState): Platform => {
     openExternal(url: string) {
       window.api.openExternal(url)
     },
+    prStatus(url: string) {
+      return window.api.prStatus(url)
+    },
+    prDashboard: {
+      fetch(force?: boolean) {
+        return window.api.prDashboard(force)
+      },
+      fetchMerged(force?: boolean) {
+        return window.api.prDashboardMerged(force)
+      },
+      setAutomation(repo: string, number: number, key: "keepUpdated" | "autoFix", on: boolean) {
+        return window.api.prAutomationSet(repo, number, key, on)
+      },
+    },
     openLocalFile(url: string) {
       window.api.openLocalFile(url)
     },
@@ -241,6 +255,10 @@ const createPlatform = (windowState: DesktopWindowState): Platform => {
     },
 
     exportDebugLogs: () => window.api.exportDebugLogs(),
+
+    companionInfo: () => window.api.companionInfo(),
+
+    prDetails: (url: string) => window.api.prDetails(url),
 
     setForceFocus: (enabled) => window.api.setForceFocus(enabled),
 

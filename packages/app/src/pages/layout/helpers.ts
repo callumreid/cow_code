@@ -15,16 +15,24 @@ export function compareSessionTime(a: Session, b: Session) {
   return a.id < b.id ? -1 : a.id > b.id ? 1 : 0
 }
 
-const isRootVisibleSession = (session: Session, directory: string) =>
-  pathKey(session.directory) === pathKey(directory) && !session.parentID && !session.time?.archived
+/** The Farmer's Office owns its overseer session; it is not an ordinary session row. */
+export const isOfficeOverseerSession = (session: Session) => session.metadata?.office === "overseer"
 
-export const roots = (store: SessionStore) =>
-  (store.session ?? []).filter((session) => isRootVisibleSession(session, store.path.directory))
+const isRootVisibleSession = (session: Session, directory: string, hidden?: (session: Session) => boolean) =>
+  pathKey(session.directory) === pathKey(directory) &&
+  !session.parentID &&
+  !session.time?.archived &&
+  !isOfficeOverseerSession(session) &&
+  !hidden?.(session)
 
-export const sortedRootSessions = (store: SessionStore, _now: number) => roots(store).sort(compareSessionTime)
+export const roots = (store: SessionStore, hidden?: (session: Session) => boolean) =>
+  (store.session ?? []).filter((session) => isRootVisibleSession(session, store.path.directory, hidden))
 
-export const latestRootSession = (stores: SessionStore[], _now: number) =>
-  stores.flatMap(roots).sort(compareSessionTime)[0]
+export const sortedRootSessions = (store: SessionStore, _now: number, hidden?: (session: Session) => boolean) =>
+  roots(store, hidden).sort(compareSessionTime)
+
+export const latestRootSession = (stores: SessionStore[], _now: number, hidden?: (session: Session) => boolean) =>
+  stores.flatMap((store) => roots(store, hidden)).sort(compareSessionTime)[0]
 
 export function hasProjectPermissions<T>(
   request: Record<string, T[] | undefined> | undefined,

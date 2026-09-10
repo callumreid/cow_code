@@ -185,13 +185,12 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
 
       const sidebar = value.sidebar
       const migratedSidebar = (() => {
-        if (!isRecord(sidebar)) return sidebar
-        if (typeof sidebar.workspaces !== "boolean") return sidebar
-        return {
-          ...sidebar,
-          workspaces: {},
-          workspacesDefault: sidebar.workspaces,
-        }
+        if (!isRecord(sidebar)) return { opened: true, workspaces: {}, workspacesDefault: false }
+        const base =
+          typeof sidebar.workspaces === "boolean"
+            ? { ...sidebar, workspaces: {}, workspacesDefault: sidebar.workspaces }
+            : sidebar
+        return { ...base, opened: true }
       })()
 
       const review = value.review
@@ -272,11 +271,12 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
       { ...target, migrate },
       createStore({
         sidebar: {
-          opened: false,
+          opened: true,
           width: DEFAULT_SIDEBAR_WIDTH,
           workspaces: {} as Record<string, boolean>,
           workspacesDefault: false,
         },
+        pins: [] as string[],
         terminal: {
           height: DEFAULT_TERMINAL_HEIGHT,
           opened: false,
@@ -660,7 +660,7 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
         },
       },
       sidebar: {
-        opened: createMemo(() => store.sidebar.opened),
+        opened: createMemo(() => true),
         open() {
           setStore("sidebar", "opened", true)
         },
@@ -683,6 +683,12 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
         toggleWorkspaces(directory: string) {
           const current = store.sidebar.workspaces[directory] ?? store.sidebar.workspacesDefault ?? false
           setStore("sidebar", "workspaces", directory, !current)
+        },
+      },
+      pins: {
+        isPinned: (id: string) => store.pins.includes(id),
+        toggle(id: string) {
+          setStore("pins", (pins) => (pins.includes(id) ? pins.filter((item) => item !== id) : [id, ...pins]))
         },
       },
       terminal: {

@@ -13,6 +13,7 @@ import { ExternalLink } from "../external-link"
 import { SettingsListV2 } from "./parts/list"
 import { SettingsRowV2 } from "./parts/row"
 import { LayoutRetirementNotice, LayoutTransitionToggle } from "./interface-transition"
+import { SettingsOfficeV2 } from "./office"
 import {
   createAppearanceSettingsController,
   createPermissionScopeController,
@@ -557,6 +558,8 @@ export const SettingsGeneralV2: Component<{
         <NotificationsSection />
 
         <SoundsSection controller={sounds} />
+
+        <SettingsOfficeV2 />
 
         <Show when={desktop()}>
           <UpdatesSection />

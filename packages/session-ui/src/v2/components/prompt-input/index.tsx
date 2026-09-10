@@ -117,7 +117,7 @@ export function PromptInputV2(props: PromptInputV2Props) {
         }}
         onSubmit={(event) => {
           event.preventDefault()
-          if (!props.disabled) props.controller.submit()
+          if (!props.disabled) props.controller.submit({ steer: true })
         }}
         onDragEnter={props.controller.onDragEnter}
         onDragOver={props.controller.onDragOver}
@@ -174,7 +174,7 @@ export function PromptInputV2(props: PromptInputV2Props) {
               if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
                 event.preventDefault()
                 if (event.repeat) return
-                props.controller.submit()
+                props.controller.submit({ steer: event.metaKey || event.ctrlKey })
               }
             }}
             onKeyUp={updateCursor}
@@ -260,7 +260,7 @@ export function PromptInputV2(props: PromptInputV2Props) {
             disabled={!props.controller.canSubmit()}
             sendLabel={i18n.t("ui.promptInput.send")}
             stopLabel={i18n.t("ui.promptInput.stop")}
-            onSubmit={props.controller.submit}
+            onSubmit={() => props.controller.submit({ steer: true })}
             onStop={props.controller.stop}
           />
         </div>

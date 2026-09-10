@@ -1794,6 +1794,16 @@ export default function Page() {
     return followupMutation.mutateAsync({ sessionID, id, manual: opts?.manual })
   }
 
+  // A queued follow-up takes priority over the unsent composer draft. The draft
+  // remains in place so it can be queued or sent after this immediate steer.
+  const steerQueuedFollowup = () => {
+    const sessionID = params.id
+    const first = queuedFollowups()[0]
+    if (!sessionID || !first) return false
+    void sendFollowup(sessionID, first.id, { manual: true })
+    return true
+  }
+
   const editFollowup = (id: string) => {
     const sessionID = params.id
     if (!sessionID) return
@@ -2198,6 +2208,7 @@ export default function Page() {
                       onEditLoaded={clearFollowupEdit}
                       shouldQueue={queueEnabled}
                       onQueue={queueFollowup}
+                      onSteerQueued={steerQueuedFollowup}
                       onAbort={() => {
                         const id = params.id
                         if (!id) return
@@ -2228,6 +2239,7 @@ export default function Page() {
                       onEditLoaded: clearFollowupEdit,
                       shouldQueue: queueEnabled,
                       onQueue: queueFollowup,
+                      onSteerQueued: steerQueuedFollowup,
                       onAbort: () => {
                         const id = params.id
                         if (!id) return

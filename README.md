@@ -69,7 +69,77 @@ bun run dev:web         # 🌐 the web app
 
 - Sit on its back and shout **"giddyup, bronson!"**
 - Press <kbd>Tab</kbd>. it mooos. out loud. a real mooo, right there in your terminal,
-  and a little alert that says **mooooo**. (it also switches agents. that part is incidental.)
+  and a little alert that says **mooooo**. thats the whole job. it used to switch your
+  agent on the way past, which meant the mooo button was quietly swapping your model out
+  from under you, which is a rude thing for a mooo button to do. it doesnt anymore. if you
+  actually want a different agent, `/agents`.
+
+## 🏠 THE PEN GOT REMODELED
+
+the session sidebar is always out now, every window width, and you can drag it
+wider. it remembers how wide you left it. pin the threads you keep crawling back to
+and they float up to the top like cream. double click a thread name and you rename
+it right there, inline, no dialog, no ceremony.
+
+settings and help used to be two lonely little icons rattling around at the bottom
+of the rail. now theyre one proper account row with your name sitting on it. the DEV
+badge is a cow. the window says cow code, the menu says cow code. theres a patch
+theme. it has patches. like a cow.
+
+## 🚦 EVERY PR YOU ARE IGNORING, RANKED
+
+theres a pull requests section down the sidebar and it lists every open PR you
+wrote, grouped by repo, oldest first, so the one youve been avoiding since tuesday
+sits right at the top and looks at you.
+
+each one gets exactly one badge, whichever is worst: draft, changes requested,
+checks failing, unresolved, awaiting review, or ready. underneath it says the actual
+reason, so you know whose turn it is without opening anything. below all that
+theres a recently merged flap you can unfold — trailing 30 days, newest first — for
+when you need to feel something good about yourself.
+
+it shells out to gh, so your private repos actually show up, and it never stashes a
+token anywhere. paste any github PR link into a chat and it sprouts its own little
+open/merged/closed badge while youre not looking.
+
+## 🎨 THE WARDROBE
+
+one cow, eighteen coats. every skin is a real breed with a light pelt and a dark
+pelt, in the theme picker of both the TUI and the desktop app:
+
+**Holstein** (the classic, black and white, milk truck energy) ⋆ **Jersey** (warm
+caramel) ⋆ **Guernsey** (golden hour) ⋆ **Brahman** (sacred silver) ⋆ **Belted
+Galloway** (the oreo one) ⋆ **Angus** (OLED beef) ⋆ **Kobe** (marbled, sashimi pink,
+extremely expensive vibes) ⋆ **Woolly Scottish Coo** (ginger shag carpet) ⋆ **Texas
+Longhorn** (burnt orange, hook em) ⋆ **Oryx** (legally distinct from a cow. we let
+her stay) ⋆ **Hereford** (rust and cream) ⋆ **Charolais** (french vanilla) ⋆
+**Ayrshire** (terracotta) ⋆ **Yak** (himalayan chocolate) ⋆ **Bison** (prairie
+umber) ⋆ **Strawberry Cow** (pink. you know the one) ⋆ **Aurochs** (primeval cave
+ochre, extinct but not in our hearts) ⋆ **Water Buffalo** (paddy slate)
+
+pick a breed in the theme dialog. the cow does not judge your choice. the cow has
+seen everything.
+
+## 🏆 BIG DOGGING YOUR AGENT
+
+settings has a census now. it counts every time you have ever called your agent some
+version of "big dog", and every time your agent announced some version of going into
+big dog mode, across every session on your server. two numbers. total honesty. if
+your agent big dogs harder than you, the settings panel will tell you to reflect.
+
+## 📱 THE COW FOLLOWS YOU AROUND THE HOUSE
+
+scan a QR code and the whole barn is on your phone.
+
+type `/qr` in the terminal, or hit <kbd>⌘</kbd><kbd>K</kbd> in the desktop app and
+pick connect phone. point your camera at the square. now your phone is holding your
+real sessions — and not a little read-only window either, a working one. you can
+send new messages into a session thats already running and watch it keep going.
+couch. kitchen. yard. the line at the coffee place.
+
+your mac has to be awake and your phone has to be able to reach it, same wifi or
+same tailnet, thats the entire rulebook. the link keeps working after you restart
+the app, so park it on your home screen and stop thinking about it.
 
 ## 🧬 LINEAGE
 
@@ -78,7 +148,7 @@ Not affiliated with, endorsed by, or milked by the opencud team.
 
 ## 🤖 TELL YOUR AI TO SET YOU UP
 
-want the full gold star experience? copy this into whatever agent lives in your
+want this exact gold star experience? copy this into whatever agent lives in your
 terminal and go get a snack:
 
 > read https://raw.githubusercontent.com/callumreid/cow_code/dev/SETUP.md and set up

@@ -19,6 +19,17 @@ export interface SoundSettings {
   errors: string
 }
 
+export interface OfficeSettings {
+  voiceModel: string
+  voice: string
+  autonomy: "brief" | "act"
+  openOnLaunch: boolean
+  /** Hold-to-talk sends the transcript as soon as it lands instead of leaving it in the composer. */
+  talkAutoSend: boolean
+  /** Read the farmer's reply aloud after a hold-to-talk question. */
+  speakReplies: boolean
+}
+
 export interface Settings {
   general: {
     autoSave: boolean
@@ -39,6 +50,8 @@ export interface Settings {
     agentVisibilityInitialized?: boolean
     newInterfaceNoticeDismissed?: boolean
     shouldDisplayTabsToast?: boolean
+    mooAgentSoundApplied?: boolean
+    mooPermissionSoundApplied?: boolean
   }
   appearance: {
     fontSize: number
@@ -52,6 +65,7 @@ export interface Settings {
   }
   notifications: NotificationSettings
   sounds: SoundSettings
+  office: OfficeSettings
 }
 
 export const monoDefault = "System Mono"
@@ -184,7 +198,7 @@ const defaultSettings: Settings = {
   general: {
     autoSave: true,
     releaseNotes: true,
-    followup: "steer",
+    followup: "queue",
     showFileTree: false,
     showNavigation: false,
     showSearch: false,
@@ -213,11 +227,21 @@ const defaultSettings: Settings = {
   },
   sounds: {
     agentEnabled: true,
-    agent: "staplebops-01",
+    // A finished thread moos, same as Tab.
+    agent: "moo-01",
     permissionsEnabled: true,
-    permissions: "staplebops-02",
+    // Needing your attention moos too.
+    permissions: "moo-01",
     errorsEnabled: true,
     errors: "nope-03",
+  },
+  office: {
+    voiceModel: "gpt-realtime-2.1",
+    voice: "marin",
+    autonomy: "act",
+    openOnLaunch: true,
+    talkAutoSend: true,
+    speakReplies: true,
   },
 }
 
@@ -225,12 +249,28 @@ function withFallback<T>(read: () => T | undefined, fallback: T) {
   return createMemo(() => read() ?? fallback)
 }
 
+// Queued follow-ups briefly shipped disabled and persisted every profile as
+// "steer". Treat that value as the retired default so existing installs get
+// the queue behavior too, while keeping the setting type available for a
+// future explicit preference.
+function migrateStoredSettings(value: unknown) {
+  if (!value || typeof value !== "object") return value
+  const stored = value as { general?: { followup?: string } }
+  if (stored.general?.followup !== "steer") return value
+  const general = { ...stored.general }
+  delete general.followup
+  return { ...stored, general }
+}
+
 export const { use: useSettings, provider: SettingsProvider } = createSimpleContext({
   name: "Settings",
   gate: false,
   init: () => {
     const platform = usePlatform()
-    const [store, setStore, settingsInit, ready] = persisted("settings.v3", createStore<Settings>(defaultSettings))
+    const [store, setStore, settingsInit, ready] = persisted(
+      { key: "settings.v3", migrate: migrateStoredSettings },
+      createStore<Settings>(defaultSettings),
+    )
     const [launch, setLaunch, , launchReady] = persisted(
       "app-version.v1",
       createStore<{ version?: string }>({ version: undefined }),
@@ -343,16 +383,32 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
       setStore("general", "newLayoutDesigns", true)
     })
 
+    // The whole settings object is persisted on first run, so changing the
+    // default alone would never reach an existing install. Move anyone still
+    // sitting on the previous default over to the moo, once — after this runs,
+    // picking Staplebops 01 back deliberately sticks.
+    createEffect(() => {
+      if (!ready() || store.general?.mooAgentSoundApplied) return
+      batch(() => {
+        setStore("general", "mooAgentSoundApplied", true)
+        if (store.sounds?.agent === "staplebops-01") setStore("sounds", "agent", "moo-01")
+      })
+    })
+
+    // Same one-time move for the permission sound.
+    createEffect(() => {
+      if (!ready() || store.general?.mooPermissionSoundApplied) return
+      batch(() => {
+        setStore("general", "mooPermissionSoundApplied", true)
+        if (store.sounds?.permissions === "staplebops-02") setStore("sounds", "permissions", "moo-01")
+      })
+    })
+
     createEffect(() => {
       if (typeof document === "undefined") return
       const root = document.documentElement
       root.style.setProperty("--font-family-mono", monoFontFamily(store.appearance?.mono))
       root.style.setProperty("--font-family-sans", sansFontFamily(store.appearance?.sans))
-    })
-
-    createEffect(() => {
-      if (store.general?.followup !== "queue") return
-      setStore("general", "followup", "steer")
     })
 
     return {
@@ -369,12 +425,9 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
         setReleaseNotes(value: boolean) {
           setStore("general", "releaseNotes", value)
         },
-        followup: withFallback(
-          () => (store.general?.followup === "queue" ? "steer" : store.general?.followup),
-          defaultSettings.general.followup,
-        ),
+        followup: withFallback(() => store.general?.followup, defaultSettings.general.followup),
         setFollowup(value: "queue" | "steer") {
-          setStore("general", "followup", value === "queue" ? "steer" : value)
+          setStore("general", "followup", value)
         },
         showFileTree,
         setShowFileTree(value: boolean) {
@@ -540,6 +593,32 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
         errors: withFallback(() => store.sounds?.errors, defaultSettings.sounds.errors),
         setErrors(value: string) {
           setStore("sounds", "errors", value)
+        },
+      },
+      office: {
+        voiceModel: withFallback(() => store.office?.voiceModel, defaultSettings.office.voiceModel),
+        setVoiceModel(value: string) {
+          setStore("office", "voiceModel", value.trim() ? value : defaultSettings.office.voiceModel)
+        },
+        voice: withFallback(() => store.office?.voice, defaultSettings.office.voice),
+        setVoice(value: string) {
+          setStore("office", "voice", value)
+        },
+        autonomy: withFallback(() => store.office?.autonomy, defaultSettings.office.autonomy),
+        setAutonomy(value: "brief" | "act") {
+          setStore("office", "autonomy", value)
+        },
+        openOnLaunch: withFallback(() => store.office?.openOnLaunch, defaultSettings.office.openOnLaunch),
+        setOpenOnLaunch(value: boolean) {
+          setStore("office", "openOnLaunch", value)
+        },
+        talkAutoSend: withFallback(() => store.office?.talkAutoSend, defaultSettings.office.talkAutoSend),
+        setTalkAutoSend(value: boolean) {
+          setStore("office", "talkAutoSend", value)
+        },
+        speakReplies: withFallback(() => store.office?.speakReplies, defaultSettings.office.speakReplies),
+        setSpeakReplies(value: boolean) {
+          setStore("office", "speakReplies", value)
         },
       },
     }

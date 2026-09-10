@@ -18,6 +18,7 @@ import {
   homeProjectNavigation,
   homeProjectDirectories,
   homeSessionServerStatus,
+  isOfficeOverseerSession,
   latestRootSession,
   sortedRootSessions,
   toggleHomeProjectSelection,
@@ -168,6 +169,36 @@ describe("layout workspace helpers", () => {
     )
 
     expect(result.map((item) => item.id)).toEqual(["ses_a", "ses_z"])
+  })
+
+  test("keeps the Farmer's Office overseer out of ordinary session lists", () => {
+    const office = session({
+      id: "office",
+      directory: "/workspace",
+      metadata: { office: "overseer" },
+      time: { created: 1, updated: 3, archived: undefined },
+    })
+    const ordinary = session({
+      id: "ordinary",
+      directory: "/workspace",
+      time: { created: 1, updated: 2, archived: undefined },
+    })
+
+    expect(isOfficeOverseerSession(office)).toBe(true)
+    expect(sortedRootSessions({ path: { directory: "/workspace" }, session: [office, ordinary] }, 3)).toEqual([ordinary])
+  })
+
+  test("hides the Office session from its live overseer identity when session metadata is unavailable", () => {
+    const office = session({ id: "ses_office", directory: "/workspace" })
+    const ordinary = session({ id: "ordinary", directory: "/workspace" })
+
+    expect(
+      sortedRootSessions(
+        { path: { directory: "/workspace" }, session: [office, ordinary] },
+        3,
+        (entry) => entry.id === "ses_office",
+      ),
+    ).toEqual([ordinary])
   })
 
   test("uses id only to break equal session timestamps", () => {

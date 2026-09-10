@@ -1,0 +1,33 @@
+{
+  "$schema": "https://opencode.ai/desktop-theme.json",
+  "name": "Charolais",
+  "id": "charolais",
+  "light": {
+    "palette": {
+      "neutral": "#fdfcf7",
+      "ink": "#34322a",
+      "primary": "#8a7a4e",
+      "accent": "#c3b489",
+      "success": "#488c56",
+      "warning": "#ba7a30",
+      "error": "#bb433d",
+      "info": "#3f7f91",
+      "diffAdd": "#488c56",
+      "diffDelete": "#bb433d"
+    }
+  },
+  "dark": {
+    "palette": {
+      "neutral": "#1c1b16",
+      "ink": "#f2efe4",
+      "primary": "#cabb8f",
+      "accent": "#ddd0a9",
+      "success": "#85c78d",
+      "warning": "#e29e4e",
+      "error": "#dd7073",
+      "info": "#72b6bf",
+      "diffAdd": "#85c78d",
+      "diffDelete": "#dd7073"
+    }
+  }
+}

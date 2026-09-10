@@ -1,14 +1,26 @@
-import { createEffect, Suspense, type ParentProps } from "solid-js"
+import { createEffect, createSignal, Show, Suspense, type ParentProps } from "solid-js"
 import { createStore } from "solid-js/store"
+import { useNavigate } from "@solidjs/router"
 import { DebugBar } from "@/components/debug-bar"
 import { TabsInfoPopup } from "@/components/help-button"
 import { Titlebar, type TitlebarUpdate } from "@/components/titlebar"
 import { usePlatform } from "@/context/platform"
+import { useServerSDK } from "@/context/server-sdk"
+import { useOffice } from "@/office/context"
+import { OfficePanel } from "@/pages/layout/office-panel"
+import { ScheduledPanel } from "@/pages/layout/scheduled-panel"
+import { createRoutinesStore } from "@/routines/store"
 import { setV2Toast, ToastRegion } from "@/utils/toast"
 
 export default function NewLayout(props: ParentProps) {
   const platform = usePlatform()
+  const office = useOffice()
+  const sdk = useServerSDK()
+  const navigate = useNavigate()
   const [state, setState] = createStore({ debugTools: true })
+  // The Scheduled view shares the overlay slot with the office: opening one closes the other.
+  const [scheduled, setScheduled] = createSignal(false)
+  const routines = createRoutinesStore(() => sdk(), () => platform.fetch, scheduled)
 
   createEffect(() => setV2Toast(true))
 
@@ -22,6 +34,16 @@ export default function NewLayout(props: ParentProps) {
     install: () => void platform.updater?.install(),
   }
 
+  const openOffice = () => {
+    setScheduled(false)
+    office.open()
+  }
+  const toggleScheduled = () => {
+    const next = !scheduled()
+    if (next) office.close()
+    setScheduled(next)
+  }
+
   return (
     <div
       class="relative bg-v2-background-bg-deep flex-1 min-h-0 min-w-0 flex flex-col select-none [&_input]:select-text [&_textarea]:select-text [&_[contenteditable]]:select-text"
@@ -32,6 +54,15 @@ export default function NewLayout(props: ParentProps) {
     >
       <Titlebar
         update={update}
+        office={{
+          opened: office.opened,
+          toggle: () => (office.opened() ? office.close() : openOffice()),
+        }}
+        scheduled={
+          routines.available() && routines.data()?.available !== false
+            ? { opened: scheduled, toggle: toggleScheduled, running: routines.runningCount }
+            : undefined
+        }
         debugTools={
           import.meta.env.DEV
             ? { visible: state.debugTools, toggle: () => setState("debugTools", (value) => !value) }
@@ -41,6 +72,29 @@ export default function NewLayout(props: ParentProps) {
       <main class="flex-1 min-h-0 min-w-0 overflow-x-hidden flex flex-col items-start contain-strict">
         <Suspense>{props.children}</Suspense>
       </main>
+      <Show when={office.opened()}>
+        <div class="absolute inset-x-0 top-9 bottom-0 z-50 overflow-hidden bg-v2-background-bg-base">
+          <OfficePanel
+            onClose={() => office.close()}
+            onNavigate={(href) => {
+              office.close()
+              navigate(href)
+            }}
+          />
+        </div>
+      </Show>
+      <Show when={scheduled()}>
+        <div class="absolute inset-x-0 top-9 bottom-0 z-50 overflow-hidden bg-v2-background-bg-base">
+          <ScheduledPanel
+            store={routines}
+            onClose={() => setScheduled(false)}
+            onNavigate={(href) => {
+              setScheduled(false)
+              navigate(href)
+            }}
+          />
+        </div>
+      </Show>
       {import.meta.env.DEV && state.debugTools && <DebugBar inline />}
       <TabsInfoPopup />
       <ToastRegion v2 />

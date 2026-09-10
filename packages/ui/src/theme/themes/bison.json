@@ -1,0 +1,33 @@
+{
+  "$schema": "https://opencode.ai/desktop-theme.json",
+  "name": "Bison",
+  "id": "bison",
+  "light": {
+    "palette": {
+      "neutral": "#f8f4ec",
+      "ink": "#2d2317",
+      "primary": "#8c6a2f",
+      "accent": "#a89a6a",
+      "success": "#488b52",
+      "warning": "#ba782c",
+      "error": "#bc413a",
+      "info": "#3f7d8d",
+      "diffAdd": "#488b52",
+      "diffDelete": "#bc413a"
+    }
+  },
+  "dark": {
+    "palette": {
+      "neutral": "#161009",
+      "ink": "#ece3d2",
+      "primary": "#c99a4b",
+      "accent": "#d9b877",
+      "success": "#85c385",
+      "warning": "#e29a46",
+      "error": "#dd6c6b",
+      "info": "#72b2b7",
+      "diffAdd": "#85c385",
+      "diffDelete": "#dd6c6b"
+    }
+  }
+}

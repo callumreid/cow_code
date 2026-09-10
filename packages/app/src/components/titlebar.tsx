@@ -61,7 +61,13 @@ export function useTitlebarRightMount() {
   return mount
 }
 
-export function Titlebar(props: { update?: TitlebarUpdate; debugTools?: { visible: boolean; toggle: () => void } }) {
+export function Titlebar(props: {
+  update?: TitlebarUpdate
+  debugTools?: { visible: boolean; toggle: () => void }
+  office?: { opened: () => boolean; toggle: () => void }
+  /** Scheduled-jobs view (phone/web layout); `running` drives the pulsing dot on the button. */
+  scheduled?: { opened: () => boolean; toggle: () => void; running: () => number }
+}) {
   const layout = useLayout()
   const platform = usePlatform()
   const command = useCommand()
@@ -395,6 +401,50 @@ export function Titlebar(props: { update?: TitlebarUpdate; debugTools?: { visibl
                   />
                 </TooltipV2>
 
+                <Show when={props.office} keyed>
+                  {(office) => (
+                    <TooltipV2 placement="bottom" value="Farmer's Office" class="shrink-0">
+                      <IconButtonV2
+                        type="button"
+                        variant="ghost-muted"
+                        size="large"
+                        class="!w-9 shrink-0"
+                        icon={<Icon name="eye" />}
+                        state={office.opened() ? "pressed" : undefined}
+                        onClick={office.toggle}
+                        aria-label="Farmer's Office"
+                        aria-pressed={office.opened()}
+                      />
+                    </TooltipV2>
+                  )}
+                </Show>
+
+                <Show when={props.scheduled} keyed>
+                  {(scheduled) => (
+                    <TooltipV2 placement="bottom" value="Scheduled" class="shrink-0">
+                      <span class="relative shrink-0 inline-flex">
+                        <IconButtonV2
+                          type="button"
+                          variant="ghost-muted"
+                          size="large"
+                          class="!w-9 shrink-0"
+                          icon={<Icon name="checklist" />}
+                          state={scheduled.opened() ? "pressed" : undefined}
+                          onClick={scheduled.toggle}
+                          aria-label="Scheduled"
+                          aria-pressed={scheduled.opened()}
+                        />
+                        <Show when={scheduled.running() > 0}>
+                          <span
+                            class="pointer-events-none absolute top-1 right-1 size-1.5 rounded-full bg-icon-info-base animate-pulse"
+                            title={`${scheduled.running()} running now`}
+                          />
+                        </Show>
+                      </span>
+                    </TooltipV2>
+                  )}
+                </Show>
+
                 <TitlebarTabStrip
                   tabs={tabsStore}
                   currentTab={currentTab}
@@ -651,23 +701,19 @@ function ChannelIndicator(props: { debugTools?: { visible: boolean; toggle: () =
     return (
       <button
         type="button"
-        class="bg-icon-interactive-base text-[#FFF] font-medium px-2 rounded-sm uppercase font-mono cursor-pointer"
+        class="px-1 text-[14px] leading-none cursor-pointer"
         onClick={props.debugTools.toggle}
         aria-label="Toggle debug tools"
         aria-pressed={props.debugTools.visible}
       >
-        DEV
+        🐄
       </button>
     )
   }
 
   return (
     <>
-      {["beta", "dev"].includes(channel) && (
-        <div class="bg-icon-interactive-base text-[#FFF] font-medium px-2 rounded-sm uppercase font-mono">
-          {channel.toUpperCase()}
-        </div>
-      )}
+      {["beta", "dev"].includes(channel) && <div class="px-1 text-[14px] leading-none">🐄</div>}
     </>
   )
 }

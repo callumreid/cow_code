@@ -4,6 +4,7 @@ import { I18nProvider } from "@opencode-ai/ui/context"
 import { DialogProvider } from "@opencode-ai/ui/context/dialog"
 import { FileComponentProvider } from "@opencode-ai/ui/context/file"
 import { File } from "@opencode-ai/session-ui/file"
+import { setPrStatusFetcher } from "@opencode-ai/session-ui/pr-status"
 import { Font } from "@opencode-ai/ui/font"
 import { Splash } from "@opencode-ai/ui/logo"
 import { ThemeProvider } from "@opencode-ai/ui/theme/context"
@@ -39,6 +40,11 @@ import {
 import { Dynamic } from "solid-js/web"
 import { makeEventListener } from "@solid-primitives/event-listener"
 import { CommandProvider, useCommand, type CommandOption } from "@/context/command"
+import { useDialog } from "@opencode-ai/ui/context/dialog"
+import { DialogConnectPhone } from "@/components/dialog-connect-phone"
+import { PrHoverCard } from "@/components/pr-hover-card"
+import { base64Decode } from "@opencode-ai/core/util/encode"
+import { authTokenFromCredentials } from "@/utils/server"
 import { CommentsProvider } from "@/context/comments"
 import { FileProvider } from "@/context/file"
 import { ServerSDKProvider } from "@/context/server-sdk"
@@ -49,6 +55,7 @@ import { LanguageProvider, type Locale, useLanguage } from "@/context/language"
 import { LayoutProvider } from "@/context/layout"
 import { ModelsProvider } from "@/context/models"
 import { NotificationProvider } from "@/context/notification"
+import { OfficeProvider } from "@/office/context"
 import { PermissionProvider } from "@/context/permission"
 import { usePlatform } from "@/context/platform"
 import { PromptProvider } from "@/context/prompt"
@@ -308,6 +315,75 @@ function BodyDesignClass() {
   return null
 }
 
+// Registers workspace directories carried by a pairing link (?project=<b64url>)
+// so a fresh client — e.g. a phone that scanned a QR — lists the linked
+// workspaces immediately instead of an empty home.
+function ProjectsFromUrl() {
+  const server = useServer()
+  let done = false
+  createEffect(() => {
+    if (done || !server.ready()) return
+    done = true
+    const params = new URLSearchParams(window.location.search)
+    const values = params.getAll("project")
+    for (const value of values) {
+      const directory = decodeProjectSlug(value)
+      if (directory) server.projects.open(directory)
+    }
+    if (values.length) {
+      params.delete("project")
+      history.replaceState(
+        null,
+        "",
+        window.location.pathname + (params.size ? `?${params}` : "") + window.location.hash,
+      )
+    }
+    // A client with no workspaces yet (a phone that scanned a QR) falls back
+    // to the server's own session history for its project list.
+    if (server.projects.list().length) return
+    void seedProjectsFromSessions(server)
+  })
+  return null
+}
+
+async function seedProjectsFromSessions(server: ReturnType<typeof useServer>) {
+  const current = server.current
+  if (!current || !("http" in current)) return
+  const headers = current.http.password
+    ? {
+        Authorization: `Basic ${authTokenFromCredentials({
+          username: current.http.username,
+          password: current.http.password,
+        })}`,
+      }
+    : undefined
+  const response = await fetch(new URL("/experimental/session?limit=100", current.http.url), { headers }).catch(
+    () => undefined,
+  )
+  if (!response?.ok) return
+  const sessions = (await response.json().catch(() => [])) as Array<{ directory?: string }>
+  const seen = new Set<string>()
+  for (const session of sessions) {
+    const directory = session.directory
+    if (!directory || !directory.startsWith("/") || directory === "/") continue
+    if (directory.startsWith("/tmp") || directory.startsWith("/private/")) continue
+    if (seen.has(directory)) continue
+    seen.add(directory)
+    server.projects.open(directory)
+    if (seen.size >= 4) break
+  }
+}
+
+function decodeProjectSlug(value: string) {
+  try {
+    const directory = base64Decode(value)
+    if (directory.startsWith("/") || /^[A-Za-z]:[\/]/.test(directory)) return directory
+    return undefined
+  } catch {
+    return undefined
+  }
+}
+
 // Server-agnostic providers shared across every route. These live in the shared
 // shell (router root) so they stay mounted regardless of the active server/route.
 function SharedProviders(props: ParentProps) {
@@ -316,6 +392,7 @@ function SharedProviders(props: ParentProps) {
       <BodyDesignClass />
       <CommandProvider>
         <DesktopCommands />
+        <ProjectsFromUrl />
         <HighlightsProvider>{props.children}</HighlightsProvider>
       </CommandProvider>
     </>
@@ -326,6 +403,7 @@ function DesktopCommands() {
   const command = useCommand()
   const language = useLanguage()
   const platform = usePlatform()
+  const dialog = useDialog()
 
   command.register("desktop", () => {
     const commands: CommandOption[] = []
@@ -339,6 +417,12 @@ function DesktopCommands() {
         },
       })
     }
+    commands.push({
+      id: "phone.connect",
+      title: language.t("command.phone.connect"),
+      category: language.t("command.category.server"),
+      onSelect: () => dialog.show(() => <DialogConnectPhone />),
+    })
     return commands
   })
 
@@ -363,7 +447,9 @@ function ServerScopedProviders(props: ServerScopedShellProps) {
 function LegacyServerScopedShell(props: ServerScopedShellProps) {
   return (
     <ServerScopedProviders directory={props.directory} serverScoped={props.serverScoped}>
-      <LegacyLayout>{props.children}</LegacyLayout>
+      <OfficeProvider>
+        <LegacyLayout>{props.children}</LegacyLayout>
+      </OfficeProvider>
     </ServerScopedProviders>
   )
 }
@@ -372,7 +458,9 @@ function NewAppLayout(props: ParentProps<{ serverScoped?: JSX.Element }>) {
   return (
     <SelectedServerProviders>
       <ServerScopedProviders serverScoped={props.serverScoped}>
-        <NewLayout>{props.children}</NewLayout>
+        <OfficeProvider>
+          <NewLayout>{props.children}</NewLayout>
+        </OfficeProvider>
       </ServerScopedProviders>
     </SelectedServerProviders>
   )
@@ -390,6 +478,15 @@ function DraftProviders(props: ParentProps) {
   )
 }
 
+function PrStatusBridge() {
+  const platform = usePlatform()
+  createEffect(() => {
+    const fetcher = platform.prStatus
+    setPrStatusFetcher(fetcher ? (url) => fetcher(url) : undefined)
+  })
+  return null
+}
+
 export function AppBaseProviders(
   props: ParentProps<{
     locale?: Locale
@@ -398,6 +495,7 @@ export function AppBaseProviders(
 ) {
   return (
     <MetaProvider>
+      <PrStatusBridge />
       <Font />
       <ThemeProvider
         onThemeApplied={(_, mode, scheme) => {
@@ -415,6 +513,7 @@ export function AppBaseProviders(
               <QueryProvider>
                 <WslServersProvider>
                   <DialogProvider>
+                    <PrHoverCard />
                     <FileComponentProvider component={File}>{props.children}</FileComponentProvider>
                   </DialogProvider>
                 </WslServersProvider>

@@ -1,0 +1,10 @@
+{
+  "name": "@opencode-ai/cow-eyes",
+  "private": true,
+  "type": "module",
+  "description": "Watch and take over the box's shared Chrome from any browser (CDP screencast + input relay).",
+  "scripts": {
+    "build": "bun build --compile --target=bun-darwin-arm64 src/index.ts --outfile dist/cow-eyes",
+    "dev": "bun run src/index.ts"
+  }
+}

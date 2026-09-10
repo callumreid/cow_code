@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>dev.coval.pr-review-sweep</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/bin/bash</string>
+		<string>/Users/bronson/bin/cow-routine-run.sh</string>
+		<string>pr-review-sweep</string>
+		<string>--log</string>
+		<string>/Users/bronson/.coval/logs/pr-review-sweep.log</string>
+		<string>--</string>
+		<string>/bin/zsh</string>
+		<string>/Users/bronson/coval/scripts/pr-review-sweep.sh</string>
+	</array>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>HOME</key>
+		<string>/Users/bronson</string>
+		<key>PATH</key>
+		<string>/Users/bronson/.local/bin:/opt/homebrew/bin:/Applications/Docker.app/Contents/Resources/bin:/usr/local/bin:/usr/bin:/bin</string>
+	</dict>
+	<key>SessionCreate</key>
+	<true/>
+	<key>RunAtLoad</key>
+	<false/>
+	<key>StartCalendarInterval</key>
+	<array>
+		<dict>
+			<key>Minute</key>
+			<integer>9</integer>
+		</dict>
+		<dict>
+			<key>Minute</key>
+			<integer>39</integer>
+		</dict>
+	</array>
+	<key>StandardOutPath</key>
+	<string>/Users/bronson/.coval/logs/pr-review-sweep.launchd.log</string>
+	<key>StandardErrorPath</key>
+	<string>/Users/bronson/.coval/logs/pr-review-sweep.launchd.err.log</string>
+</dict>
+</plist>

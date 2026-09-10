@@ -1,0 +1,33 @@
+{
+  "$schema": "https://opencode.ai/desktop-theme.json",
+  "name": "Strawberry Cow",
+  "id": "strawberry-cow",
+  "light": {
+    "palette": {
+      "neutral": "#fdf2f6",
+      "ink": "#43222f",
+      "primary": "#d05a8c",
+      "accent": "#f4a9c4",
+      "success": "#4aa06c",
+      "warning": "#c27638",
+      "error": "#c43f45",
+      "info": "#487b98",
+      "diffAdd": "#4aa06c",
+      "diffDelete": "#c43f45"
+    }
+  },
+  "dark": {
+    "palette": {
+      "neutral": "#201218",
+      "ink": "#f9e9f0",
+      "primary": "#ef8ab3",
+      "accent": "#f7b7cf",
+      "success": "#7fd0a0",
+      "warning": "#e69852",
+      "error": "#e26a77",
+      "info": "#76b0c4",
+      "diffAdd": "#7fd0a0",
+      "diffDelete": "#e26a77"
+    }
+  }
+}

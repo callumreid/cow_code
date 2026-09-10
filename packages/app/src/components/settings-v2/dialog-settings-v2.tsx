@@ -4,12 +4,14 @@ import { TabsV2 } from "@opencode-ai/ui/v2/tabs-v2"
 import { Icon } from "@opencode-ai/ui/icon"
 import { useLanguage } from "@/context/language"
 import { usePlatform } from "@/context/platform"
+import { SettingsBigDog } from "../settings-big-dog"
 import { SettingsGeneralV2 } from "./general"
 import { SettingsKeybinds } from "../settings-keybinds"
 import { SettingsProvidersV2 } from "./providers"
 import { SettingsModelsV2 } from "./models"
 import "./settings-v2.css"
 import { SettingsServersV2 } from "./servers"
+import { SettingsConnectorsV2 } from "./connectors"
 import { useDialog } from "@opencode-ai/ui/context/dialog"
 import { useLayout } from "@/context/layout"
 import { useTabs } from "@/context/tabs"
@@ -65,6 +67,10 @@ export const DialogSettings: Component<{
                       <Icon name="keyboard" />
                       {language.t("settings.tab.shortcuts")}
                     </TabsV2.Trigger>
+                    <TabsV2.Trigger value="big-dog">
+                      <Icon name="speech-bubble" />
+                      big dogging
+                    </TabsV2.Trigger>
                   </div>
                 </div>
 
@@ -82,6 +88,10 @@ export const DialogSettings: Component<{
                     <TabsV2.Trigger value="models">
                       <Icon name="models" />
                       {language.t("settings.models.title")}
+                    </TabsV2.Trigger>
+                    <TabsV2.Trigger value="connectors">
+                      <Icon name="mcp" />
+                      {language.t("settings.connectors.title")}
                     </TabsV2.Trigger>
                   </div>
                 </div>
@@ -107,6 +117,12 @@ export const DialogSettings: Component<{
         </TabsV2.Content>
         <TabsV2.Content value="models" class="settings-v2-panel">
           <SettingsModelsV2 />
+        </TabsV2.Content>
+        <TabsV2.Content value="connectors" class="settings-v2-panel">
+          <SettingsConnectorsV2 />
+        </TabsV2.Content>
+        <TabsV2.Content value="big-dog" class="settings-v2-panel">
+          <SettingsBigDog />
         </TabsV2.Content>
       </TabsV2>
     </Dialog>

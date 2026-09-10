@@ -1,0 +1,33 @@
+{
+  "$schema": "https://opencode.ai/desktop-theme.json",
+  "name": "Yak",
+  "id": "yak",
+  "light": {
+    "palette": {
+      "neutral": "#f7f2ea",
+      "ink": "#2e2118",
+      "primary": "#8a5f37",
+      "accent": "#d9b88a",
+      "success": "#488953",
+      "warning": "#ba772d",
+      "error": "#bb3f3b",
+      "info": "#3f7c8e",
+      "diffAdd": "#488953",
+      "diffDelete": "#bb3f3b"
+    }
+  },
+  "dark": {
+    "palette": {
+      "neutral": "#170f0b",
+      "ink": "#efe4d8",
+      "primary": "#b98a5e",
+      "accent": "#d9b88a",
+      "success": "#83c187",
+      "warning": "#e09848",
+      "error": "#db6a6d",
+      "info": "#70b0ba",
+      "diffAdd": "#83c187",
+      "diffDelete": "#db6a6d"
+    }
+  }
+}

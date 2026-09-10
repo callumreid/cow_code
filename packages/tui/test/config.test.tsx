@@ -63,6 +63,7 @@ test("resolves host-neutral defaults", () => {
   expect(config.mouse).toBe(true)
   expect(config.keybinds.has("terminal.suspend")).toBe(true)
   expect(config.keybinds.has("session.list")).toBe(true)
+  expect(config.keybinds.get("cow.moo")).toMatchObject([{ key: "tab,shift+tab", desc: "Mooo" }])
   expect(config.cursor).toBeUndefined()
 })
 

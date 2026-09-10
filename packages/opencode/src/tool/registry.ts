@@ -29,6 +29,17 @@ import { WebSearchTool } from "./websearch"
 import { LspTool } from "./lsp"
 import * as Truncate from "./truncate"
 import { ApplyPatchTool } from "./apply_patch"
+import {
+  OfficeAnswerTool,
+  OfficeDispatchTool,
+  OfficeMarkTool,
+  OfficeOpenTool,
+  OfficePromptTool,
+  OfficeReadTool,
+  OfficeRemindTool,
+  OfficeStatusTool,
+} from "./office"
+import { Office } from "@/office/office"
 import { Glob } from "@opencode-ai/core/util/glob"
 import path from "path"
 import { pathToFileURL } from "url"
@@ -114,6 +125,14 @@ const layer = Layer.effect(
     const greptool = yield* GrepTool
     const patchtool = yield* ApplyPatchTool
     const skilltool = yield* SkillTool
+    const officeStatus = yield* OfficeStatusTool
+    const officeRead = yield* OfficeReadTool
+    const officePrompt = yield* OfficePromptTool
+    const officeAnswer = yield* OfficeAnswerTool
+    const officeDispatch = yield* OfficeDispatchTool
+    const officeRemind = yield* OfficeRemindTool
+    const officeOpen = yield* OfficeOpenTool
+    const officeMark = yield* OfficeMarkTool
     const agent = yield* Agent.Service
     const codeMode = flags.experimentalCodeMode ? yield* Effect.promise(() => import("./code-mode")) : undefined
     const codeModeTool = codeMode ? yield* codeMode.CodeModeTool : undefined
@@ -223,6 +242,14 @@ const layer = Layer.effect(
           question: Tool.init(question),
           lsp: Tool.init(lsptool),
           plan: Tool.init(plan),
+          officeStatus: Tool.init(officeStatus),
+          officeRead: Tool.init(officeRead),
+          officePrompt: Tool.init(officePrompt),
+          officeAnswer: Tool.init(officeAnswer),
+          officeDispatch: Tool.init(officeDispatch),
+          officeRemind: Tool.init(officeRemind),
+          officeOpen: Tool.init(officeOpen),
+          officeMark: Tool.init(officeMark),
           ...(codeModeTool ? { execute: Tool.init(codeModeTool) } : {}),
         })
 
@@ -243,6 +270,14 @@ const layer = Layer.effect(
             tool.search,
             tool.skill,
             tool.patch,
+            tool.officeStatus,
+            tool.officeRead,
+            tool.officePrompt,
+            tool.officeAnswer,
+            tool.officeDispatch,
+            tool.officeRemind,
+            tool.officeOpen,
+            tool.officeMark,
             ...(tool.execute ? [tool.execute] : []),
             ...(flags.experimentalLspTool ? [tool.lsp] : []),
             ...(flags.experimentalPlanMode && flags.client === "cli" ? [tool.plan] : []),
@@ -449,6 +484,7 @@ export const node = LayerNode.make({
     MCP.node,
     Database.node,
     Ripgrep.node,
+    Office.node,
   ],
 })
 

@@ -5,6 +5,10 @@ import { upgrade } from "@/cli/upgrade"
 import { Config } from "@/config/config"
 import { GlobalBus } from "@/bus/global"
 import { ServerAuth } from "@/server/auth"
+import { Global } from "@opencode-ai/core/global"
+import { randomBytes } from "node:crypto"
+import { writeFile } from "node:fs/promises"
+import path from "node:path"
 import { writeHeapSnapshot } from "node:v8"
 import { Heap } from "@/cli/heap"
 import { AppRuntime } from "@/effect/app-runtime"
@@ -26,6 +30,35 @@ GlobalBus.on("event", (event) => {
 })
 
 let server: Awaited<ReturnType<typeof Server.listen>> | undefined
+let companion: Promise<{ port: number; username: string; password: string }> | undefined
+
+// Reuse one password across restarts so a phone that already logged in stays
+// logged in; an explicit OPENCODE_SERVER_PASSWORD always wins and is never
+// written to disk.
+async function companionPassword() {
+  const explicit = process.env.OPENCODE_SERVER_PASSWORD
+  if (explicit) return explicit
+  const file = path.join(Global.Path.state, "companion-password")
+  const saved = (await Bun.file(file).exists()) ? (await Bun.file(file).text()).trim() : ""
+  if (saved) return saved
+  const generated = randomBytes(16).toString("base64url")
+  await writeFile(file, generated, { mode: 0o600 })
+  return generated
+}
+
+async function startCompanion(input: { cors?: string[] }) {
+  const password = await companionPassword()
+  // The listener reads auth from a fresh env snapshot, so setting it here is
+  // what secures the companion server. The TUI's own in-process transport
+  // already snapshotted a config before this and is unaffected.
+  process.env.OPENCODE_SERVER_PASSWORD = password
+  const listener = await Server.listen({ port: 0, hostname: "0.0.0.0", cors: input.cors })
+  return {
+    port: listener.port,
+    username: process.env.OPENCODE_SERVER_USERNAME ?? "opencode",
+    password,
+  }
+}
 
 export const rpc = {
   async fetch(input: { url: string; method: string; headers: Record<string, string>; body?: string }) {
@@ -55,6 +88,13 @@ export const rpc = {
     if (server) await server.stop(true)
     server = await Server.listen(input)
     return { url: server.url.toString() }
+  },
+  async companion(input: { cors?: string[] }) {
+    companion ??= startCompanion(input).catch((error) => {
+      companion = undefined
+      throw error
+    })
+    return companion
   },
   async checkUpgrade(input: { directory: string }) {
     await InstanceRuntime.load({ directory: input.directory })

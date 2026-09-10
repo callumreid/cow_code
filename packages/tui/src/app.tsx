@@ -48,6 +48,7 @@ import { DialogThemeList } from "./component/dialog-theme-list"
 import { DialogHelp } from "./ui/dialog-help"
 import { DialogAgent } from "./component/dialog-agent"
 import { DialogSessionList } from "./component/dialog-session-list"
+import { DialogQr, type CompanionInfo } from "./component/dialog-qr"
 import { DialogWorkspaceList } from "./component/dialog-workspace-list"
 import { DialogConsoleOrg } from "./component/dialog-console-org"
 import { ThemeProvider, useTheme } from "./context/theme"
@@ -83,6 +84,7 @@ import type { EventSource } from "./context/sdk"
 import { DialogVariant } from "./component/dialog-variant"
 import { createTuiAttention } from "./attention"
 import * as TuiAudio from "./audio"
+import mooSoundPath from "@opencode-ai/ui/audio/moo-01.mp3" with { type: "file" }
 import { win32DisableProcessedInput, win32FlushInputBuffer } from "./terminal-win32"
 import { destroyRenderer } from "./util/renderer"
 import { cliErrorMessage, errorFormat } from "./util/error"
@@ -114,6 +116,7 @@ const appBindingCommands = [
   "mcp.list",
   "agent.cycle",
   "agent.cycle.reverse",
+  "cow.moo",
   "variant.cycle",
   "variant.list",
   "provider.connect",
@@ -144,6 +147,7 @@ export type TuiInput = {
   args: Args
   config: TuiConfig.Resolved
   onSnapshot?: () => Promise<string[]>
+  onCompanion?: () => Promise<CompanionInfo>
   directory?: string
   fetch?: typeof fetch
   headers?: RequestInit["headers"]
@@ -317,6 +321,7 @@ export const run = Effect.fn("Tui.run")(function* (input: TuiInput) {
                                                                   <LocationProvider>
                                                                     <App
                                                                       onSnapshot={input.onSnapshot}
+                                                                      onCompanion={input.onCompanion}
                                                                       pluginHost={input.pluginHost}
                                                                     />
                                                                   </LocationProvider>
@@ -362,7 +367,11 @@ export const run = Effect.fn("Tui.run")(function* (input: TuiInput) {
   })
 })
 
-function App(props: { onSnapshot?: () => Promise<string[]>; pluginHost: TuiPluginHost }) {
+function App(props: {
+  onSnapshot?: () => Promise<string[]>
+  onCompanion?: () => Promise<CompanionInfo>
+  pluginHost: TuiPluginHost
+}) {
   const startup = useTuiStartup()
   const tuiConfig = useTuiConfig()
   const route = useRoute()
@@ -384,6 +393,15 @@ function App(props: { onSnapshot?: () => Promise<string[]>; pluginHost: TuiPlugi
   const pluginRuntime = usePluginRuntime()
   const attention = createTuiAttention({ renderer, config: tuiConfig, kv })
   const clipboard = useClipboard()
+
+  const moo = () => {
+    toast.show({ message: "mooooo", variant: "info", duration: 2000 })
+    if (!tuiConfig.attention.enabled || !tuiConfig.attention.sound) return
+    const volume = Math.min(1, Math.max(0, tuiConfig.attention.volume))
+    void TuiAudio.loadSoundFile(mooSoundPath).then((sound) => {
+      if (sound) TuiAudio.play(sound, { volume })
+    })
+  }
 
   const api = createTuiApi(
     createTuiApiAdapters({
@@ -814,6 +832,28 @@ function App(props: { onSnapshot?: () => Promise<string[]>; pluginHost: TuiPlugi
           dialog.replace(() => <DialogHelp />)
         },
         category: "System",
+      },
+      {
+        name: "app.phone",
+        title: "Connect phone",
+        slashName: "qr",
+        slashAliases: ["phone"],
+        enabled: !!props.onCompanion,
+        run: () => {
+          const onCompanion = props.onCompanion
+          if (!onCompanion) return
+          dialog.replace(() => <DialogQr onCompanion={onCompanion} />)
+        },
+        category: "System",
+      },
+      {
+        name: "cow.moo",
+        title: "Mooo",
+        category: "System",
+        slashName: "mooo",
+        run: () => {
+          moo()
+        },
       },
       {
         name: "docs.open",

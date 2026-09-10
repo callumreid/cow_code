@@ -24,6 +24,8 @@ import type { UpdaterController } from "./updater-controller"
 import { createUpdaterSubscriptions } from "./updater-subscriptions"
 import { createDesktopDraftStore } from "./draft-store"
 import { nativeT } from "./native-translations"
+import { getPrStatus } from "./pr-status"
+import { getPrDashboard, getPrMerged, setPrAutomation } from "./pr-dashboard"
 
 const pickerFilters = (ext?: string[]) => {
   if (!ext || ext.length === 0) return undefined
@@ -50,6 +52,8 @@ type Deps = {
   showUpdater: () => Promise<void> | void
   setBackgroundColor: (color: string) => void
   exportDebugLogs: () => Promise<string>
+  companionInfo: () => Promise<{ port: number; hosts: string[]; secureOrigins?: string[] }>
+  prDetails: (url: string) => Promise<unknown>
   recordFatalRendererError: (error: FatalRendererError) => Promise<void> | void
   setNativeTranslations: (bundle: DesktopNativeBundle) => void
 }
@@ -96,6 +100,8 @@ export function registerIpcHandlers(deps: Deps) {
   ipcMain.handle("updater-install", () => deps.updater.install())
   ipcMain.handle("set-background-color", (_event: IpcMainInvokeEvent, color: string) => deps.setBackgroundColor(color))
   ipcMain.handle("export-debug-logs", () => deps.exportDebugLogs())
+  ipcMain.handle("companion-info", () => deps.companionInfo())
+  ipcMain.handle("pr-details", (_event: IpcMainInvokeEvent, url: string) => deps.prDetails(url))
   ipcMain.handle("set-force-focus", (event: IpcMainInvokeEvent, enabled: boolean) =>
     setForceFocus(event.sender, enabled),
   )
@@ -211,6 +217,13 @@ export function registerIpcHandlers(deps: Deps) {
   ipcMain.on("open-external", (_event: IpcMainEvent, url: string) => {
     openExternalURL(url)
   })
+
+  ipcMain.handle("pr-status", (_event: IpcMainInvokeEvent, url: string) => getPrStatus(url))
+  ipcMain.handle("pr-dashboard", (_event: IpcMainInvokeEvent, force?: boolean) => getPrDashboard(force))
+  ipcMain.handle("pr-dashboard-merged", (_event: IpcMainInvokeEvent, force?: boolean) => getPrMerged(force))
+  ipcMain.handle("pr-automation-set", (_event: IpcMainInvokeEvent, repo: string, number: number, key: "keepUpdated" | "autoFix", on: boolean) =>
+    setPrAutomation(repo, number, key, on),
+  )
 
   ipcMain.on("open-local-file", (_event: IpcMainEvent, url: string) => {
     openLocalFileURL(url)

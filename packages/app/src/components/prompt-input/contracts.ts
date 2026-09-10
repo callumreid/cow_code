@@ -7,7 +7,7 @@ export type PromptInputState = ReturnType<typeof usePrompt>
 
 export type PromptInputSubmission = {
   abort: () => Promise<void> | void
-  handleSubmit: (event: Event) => Promise<void> | void
+  handleSubmit: (event: Event, opts?: { steer?: boolean }) => Promise<void> | void
 }
 
 export type PromptInputControls = {
@@ -52,6 +52,8 @@ export interface PromptInputProps {
   onEditLoaded?: () => void
   shouldQueue?: () => boolean
   onQueue?: (draft: FollowupDraft) => void
+  /** Sends the first queued follow-up, leaving the current composer draft alone. */
+  onSteerQueued?: () => boolean
   onAbort?: () => void
   onSubmit?: () => void
 }

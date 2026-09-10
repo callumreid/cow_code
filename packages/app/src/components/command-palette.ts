@@ -1,5 +1,5 @@
 import { getFilename } from "@opencode-ai/core/util/path"
-import type { Project } from "@opencode-ai/sdk/v2/client"
+import type { Project, Session } from "@opencode-ai/sdk/v2/client"
 import type { SessionInfo } from "@opencode-ai/client/promise"
 import { useDialog } from "@opencode-ai/ui/context/dialog"
 import { createMemo, onCleanup } from "solid-js"
@@ -11,7 +11,8 @@ import { useLayout, type LocalProject } from "@/context/layout"
 import { ServerConnection } from "@/context/server"
 import { useServerSDK } from "@/context/server-sdk"
 import { useTabs } from "@/context/tabs"
-import { displayName, projectForSession } from "@/pages/layout/helpers"
+import { useOffice } from "@/office/context"
+import { displayName, isOfficeOverseerSession, projectForSession } from "@/pages/layout/helpers"
 import { createSessionTabs } from "@/pages/session/helpers"
 import { useSessionLayout } from "@/pages/session/session-layout"
 import { normalizeSessionInfo } from "@/utils/session"
@@ -87,6 +88,7 @@ export function createCommandPaletteModel(props: { filesOnly?: () => boolean; on
   const serverSDK = useServerSDK()()
   const serverCtx = global.ensureServerCtx(serverSDK.server)
   const appTabs = useTabs()
+  const office = useOffice()
   const { tabs: sessionTabs } = useSessionLayout()
   const openFile = createCommandPaletteFileOpener(props.onOpenFile)
   const state = { cleanup: undefined as (() => void) | void, committed: false }
@@ -149,6 +151,7 @@ export function createCommandPaletteModel(props: { filesOnly?: () => boolean; on
     load: (search, signal) => serverSDK.api.session.list({ parentID: null, search, limit: 50 }, { signal }),
     untitled: () => language.t("command.session.new"),
     category: () => language.t("command.category.session"),
+    isHiddenSession: (session) => session.id === office.overseer()?.sessionID,
   })
 
   const highlight = (item: CommandPaletteEntry | undefined) => {
@@ -223,6 +226,7 @@ export function createServerSessionEntries(props: {
   load: (search: string, signal: AbortSignal) => Promise<{ data: SessionInfo[] }>
   untitled: () => string
   category: () => string
+  isHiddenSession?: (session: Session) => boolean
 }) {
   let abort: AbortController | undefined
 
@@ -258,7 +262,10 @@ export function createServerSessionEntries(props: {
       .then((result) =>
         result.data
           .map(normalizeSessionInfo)
-          .filter((session) => !session.time.archived)
+          .filter(
+            (session) =>
+              !session.time.archived && !isOfficeOverseerSession(session) && !props.isHiddenSession?.(session),
+          )
           .map((session) => {
             const project =
               projectForSession(session, opened, openedByID) ?? projectForSession(session, stored, storedByID)

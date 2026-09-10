@@ -58,7 +58,7 @@ import { getDirectory, getFilename } from "@opencode-ai/core/util/path"
 import { Popover as KobaltePopover } from "@kobalte/core/popover"
 import { normalize } from "@opencode-ai/session-ui/session-diff"
 import { useFileComponent } from "@opencode-ai/ui/context/file"
-import { shouldMarkBoundaryGesture, normalizeWheelDelta } from "@/pages/session/message-gesture"
+import { isTimelineRowAbove, shouldMarkBoundaryGesture, normalizeWheelDelta } from "@/pages/session/message-gesture"
 import { SessionContextUsage } from "@/components/session-context-usage"
 import { useDialog } from "@opencode-ai/ui/context/dialog"
 import { useLanguage } from "@/context/language"
@@ -232,6 +232,72 @@ function TimelineDiffView(props: { diff: SummaryDiff }) {
     <div data-slot="session-turn-diff-view" data-scrollable>
       <Dynamic component={fileComponent} mode="diff" virtualize={false} fileDiff={view.fileDiff} />
     </div>
+  )
+}
+
+function TimelineJumpControl(props: {
+  action: string
+  direction: "up" | "down"
+  label: string
+  v2: boolean
+  onClick: () => void
+}) {
+  const rotated = () => props.direction === "up"
+
+  return (
+    <Show
+      when={props.v2}
+      fallback={
+        <button
+          type="button"
+          data-action={props.action}
+          aria-label={props.label}
+          title={props.label}
+          class="flex items-center justify-center w-10 h-8 bg-transparent border-none cursor-pointer p-0 group"
+          onClick={props.onClick}
+        >
+          <div
+            class="flex items-center justify-center w-8 h-6 rounded-[6px] border border-border-weaker-base bg-[color-mix(in_srgb,var(--surface-raised-stronger-non-alpha)_80%,transparent)] backdrop-blur-[0.75px] transition-colors group-hover:border-[var(--border-weak-base)] group-hover:[--icon-base:var(--icon-hover)]"
+            style={{
+              "box-shadow":
+                "0 51px 60px 0 rgba(0,0,0,0.10), 0 15px 18px 0 rgba(0,0,0,0.12), 0 6.386px 7.513px 0 rgba(0,0,0,0.12), 0 2.31px 2.717px 0 rgba(0,0,0,0.20)",
+            }}
+          >
+            <span classList={{ "rotate-180": rotated() }}>
+              <Icon name="arrow-down-to-line" size="small" />
+            </span>
+          </div>
+        </button>
+      }
+    >
+      <button
+        type="button"
+        data-action={props.action}
+        aria-label={props.label}
+        title={props.label}
+        class="flex items-center justify-center w-8 h-7 px-2 py-1.5 rounded-lg border-none cursor-pointer text-v2-text-text-base backdrop-blur-[2px]"
+        style={{
+          background: "color-mix(in srgb, var(--v2-background-bg-base) 92%, transparent)",
+          "box-shadow": "var(--v2-elevation-raised), 0px 2px 8px var(--v2-background-bg-base)",
+        }}
+        onClick={props.onClick}
+      >
+        <svg
+          classList={{ "rotate-180": rotated() }}
+          width="16"
+          height="16"
+          viewBox="0 0 16 16"
+          fill="none"
+          aria-hidden="true"
+        >
+          <path
+            d="M12.3333 8.66665L8 13L3.66667 8.66665M8 12.6667V2.83332"
+            stroke="currentColor"
+            stroke-linecap="square"
+          />
+        </svg>
+      </button>
+    </Show>
   )
 }
 
@@ -497,6 +563,51 @@ export function MessageTimeline(props: {
     () => new Map(virtualizer.getVirtualItems().map((item) => [item.key, item] as const)),
   )
   const virtualRowKeys = createMemo(() => virtualizer.getVirtualItems().map((item) => item.key as string))
+  const [lastUserMessageAbove, setLastUserMessageAbove] = createSignal(false)
+  const lastUserMessage = createMemo(() => props.userMessages.at(-1))
+  const showLastUserMessageJump = () => props.scroll.overflow && !props.scroll.bottom && lastUserMessageAbove()
+  const showLatestJump = () => props.scroll.overflow && props.scroll.jump
+  const showJumpControls = () => showLastUserMessageJump() || showLatestJump()
+
+  const updateLastUserMessagePosition = (root: HTMLDivElement) => {
+    const message = lastUserMessage()
+    if (!message) {
+      setLastUserMessageAbove(false)
+      return
+    }
+
+    const row = root.querySelector<HTMLElement>(
+      `[data-message-id="${CSS.escape(message.id)}"][data-timeline-row="UserMessage"]`,
+    )
+    if (row) {
+      setLastUserMessageAbove(
+        isTimelineRowAbove({
+          rowTop: row.getBoundingClientRect().top,
+          viewportTop: root.getBoundingClientRect().top,
+        }),
+      )
+      return
+    }
+
+    setLastUserMessageAbove(
+      isTimelineRowAbove({
+        viewportTop: root.getBoundingClientRect().top,
+        rowIndex: messageRowIndex().get(message.id),
+        firstVisibleIndex: virtualizer.range?.startIndex,
+      }),
+    )
+  }
+
+  const jumpToLastUserMessage = () => {
+    const root = listRoot()
+    const message = lastUserMessage()
+    if (!root || !message) return
+    const index = messageRowIndex().get(message.id)
+    if (index === undefined) return
+    props.onMarkScrollGesture(root)
+    virtualizer.scrollToIndex(index, { align: "start", behavior: "smooth" })
+  }
+
   createEffect(() => {
     props.setRevealMessage?.((id) => {
       const index = messageRowIndex().get(id)
@@ -631,6 +742,7 @@ export function MessageTimeline(props: {
 
   const handleListScroll = (event: Event & { currentTarget: HTMLDivElement }) => {
     if (prependLoading) updatePrependAnchor()
+    updateLastUserMessagePosition(event.currentTarget)
     props.onScheduleScrollState(event.currentTarget)
     props.onHistoryScroll()
     if (!props.hasScrollGesture()) return
@@ -1302,52 +1414,32 @@ export function MessageTimeline(props: {
         classList={{
           "bottom-8": settings.general.newLayoutDesigns(),
           "bottom-6": !settings.general.newLayoutDesigns(),
-          "opacity-100 translate-y-0 scale-100": props.scroll.overflow && props.scroll.jump,
-          "opacity-0 translate-y-2 pointer-events-none": !props.scroll.overflow || !props.scroll.jump,
-          "scale-[0.8]": (!props.scroll.overflow || !props.scroll.jump) && settings.general.newLayoutDesigns(),
-          "scale-95": (!props.scroll.overflow || !props.scroll.jump) && !settings.general.newLayoutDesigns(),
+          "opacity-100 translate-y-0 scale-100": showJumpControls(),
+          "opacity-0 translate-y-2 pointer-events-none": !showJumpControls(),
+          "scale-[0.8]": !showJumpControls() && settings.general.newLayoutDesigns(),
+          "scale-95": !showJumpControls() && !settings.general.newLayoutDesigns(),
         }}
       >
-        <Show
-          when={settings.general.newLayoutDesigns()}
-          fallback={
-            <button
-              type="button"
-              aria-label={language.t("session.messages.jumpToLatest")}
-              class="pointer-events-auto flex items-center justify-center w-10 h-8 bg-transparent border-none cursor-pointer p-0 group"
+        <div class="pointer-events-auto flex items-center" classList={{ "gap-1": settings.general.newLayoutDesigns() }}>
+          <Show when={showLastUserMessageJump()}>
+            <TimelineJumpControl
+              action="jump-to-last-user-message"
+              direction="up"
+              label="Jump to your last message"
+              v2={settings.general.newLayoutDesigns()}
+              onClick={jumpToLastUserMessage}
+            />
+          </Show>
+          <Show when={showLatestJump()}>
+            <TimelineJumpControl
+              action="jump-to-latest"
+              direction="down"
+              label={language.t("session.messages.jumpToLatest")}
+              v2={settings.general.newLayoutDesigns()}
               onClick={props.onResumeScroll}
-            >
-              <div
-                class="flex items-center justify-center w-8 h-6 rounded-[6px] border border-border-weaker-base bg-[color-mix(in_srgb,var(--surface-raised-stronger-non-alpha)_80%,transparent)] backdrop-blur-[0.75px] transition-colors group-hover:border-[var(--border-weak-base)] group-hover:[--icon-base:var(--icon-hover)]"
-                style={{
-                  "box-shadow":
-                    "0 51px 60px 0 rgba(0,0,0,0.10), 0 15px 18px 0 rgba(0,0,0,0.12), 0 6.386px 7.513px 0 rgba(0,0,0,0.12), 0 2.31px 2.717px 0 rgba(0,0,0,0.20)",
-                }}
-              >
-                <Icon name="arrow-down-to-line" size="small" />
-              </div>
-            </button>
-          }
-        >
-          <button
-            type="button"
-            aria-label={language.t("session.messages.jumpToLatest")}
-            class="pointer-events-auto flex items-center justify-center w-8 h-7 px-2 py-1.5 rounded-lg border-none cursor-pointer text-v2-text-text-base backdrop-blur-[2px]"
-            style={{
-              background: "color-mix(in srgb, var(--v2-background-bg-base) 92%, transparent)",
-              "box-shadow": "var(--v2-elevation-raised), 0px 2px 8px var(--v2-background-bg-base)",
-            }}
-            onClick={props.onResumeScroll}
-          >
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-              <path
-                d="M12.3333 8.66665L8 13L3.66667 8.66665M8 12.6667V2.83332"
-                stroke="currentColor"
-                stroke-linecap="square"
-              />
-            </svg>
-          </button>
-        </Show>
+            />
+          </Show>
+        </div>
       </div>
       <ScrollView
         viewportRef={bindListRoot}

@@ -7,6 +7,9 @@ import { Effect, Encoding, Layer, Redacted } from "effect"
 import { HttpEffect, HttpServerRequest, HttpServerResponse } from "effect/unstable/http"
 
 const AUTH_TOKEN_QUERY = "auth_token"
+// Written by the instance UI middleware when a valid auth_token query arrives;
+// lets clients that lost the token on reload (phones) stay authorized.
+const AUTH_COOKIE = "opencode_auth_token"
 const WWW_AUTHENTICATE = 'Basic realm="Secure Area"'
 
 function emptyCredential() {
@@ -32,6 +35,8 @@ function credentialFromRequest(request: HttpServerRequest.HttpServerRequest) {
   if (token) return decodeCredential(token)
   const match = /^Basic\s+(.+)$/i.exec(request.headers.authorization ?? "")
   if (match) return decodeCredential(match[1])
+  const cookie = request.cookies[AUTH_COOKIE]
+  if (cookie) return decodeCredential(cookie)
   return Effect.succeed(emptyCredential())
 }
 

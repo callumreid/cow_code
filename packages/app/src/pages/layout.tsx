@@ -12,7 +12,7 @@ import {
   type Accessor,
 } from "solid-js"
 import { makeEventListener } from "@solid-primitives/event-listener"
-import { useNavigate, useParams } from "@solidjs/router"
+import { useLocation, useNavigate, useParams } from "@solidjs/router"
 import { useLayout, LocalProject } from "@/context/layout"
 import { useServerSync } from "@/context/server-sync"
 import { Persist, persisted } from "@/utils/persist"
@@ -82,6 +82,18 @@ import {
 } from "./layout/sidebar-workspace"
 import { ProjectDragOverlay, SortableProject, type ProjectSidebarContext } from "./layout/sidebar-project"
 import { SidebarContent } from "./layout/sidebar-shell"
+import { AccountMenu } from "./layout/sidebar-account"
+import { SidebarPullRequests } from "./layout/sidebar-pull-requests"
+import { PullRequestsPanel } from "./layout/pull-requests-panel"
+import { createPrDashboardStore } from "@/pr-dashboard/store"
+import { SidebarScheduled } from "./layout/sidebar-scheduled"
+import { ScheduledPanel } from "./layout/scheduled-panel"
+import { createRoutinesStore } from "@/routines/store"
+import { SidebarOffice } from "./layout/sidebar-office"
+import { OfficePanel } from "./layout/office-panel"
+import { useOffice } from "@/office/context"
+import { officeOpen } from "@/office/presence"
+import { ToolPictureInPicture } from "@/components/tool-picture-in-picture"
 
 export default function LegacyLayout(props: ParentProps) {
   const serverSDK = useServerSDK()
@@ -119,6 +131,7 @@ export default function LegacyLayout(props: ParentProps) {
   const providers = useProviders(() => undefined)
   const dialog = useDialog()
   const command = useCommand()
+  const office = useOffice()
   const theme = useTheme()
   const language = useLanguage()
   createEffect(() => setV2Toast(false))
@@ -154,9 +167,51 @@ export default function LegacyLayout(props: ParentProps) {
     sortNow: Date.now(),
     sizing: false,
     peek: undefined as string | undefined,
+    pullRequests: false,
+    scheduled: false,
     peeked: false,
     debugTools: true,
   })
+
+  const pullRequests = createPrDashboardStore(() => platform.prDashboard)
+  const routines = createRoutinesStore(
+    () => serverSDK(),
+    () => platform.fetch,
+    () => state.scheduled,
+  )
+  const location = useLocation()
+  // Opening a session has to reveal it, so the panel gives the main area back.
+  // `navigateWithSidebarReset` covers the same-route cases this effect cannot see.
+  createEffect(
+    on(
+      () => location.pathname,
+      () => {
+        setState("pullRequests", false)
+        setState("scheduled", false)
+        office.close()
+      },
+      { defer: true },
+    ),
+  )
+  // The two overlays share the session area, so opening one gives up the other.
+  const openPullRequests = () => {
+    office.close()
+    setState("scheduled", false)
+    setState("pullRequests", true)
+    layout.mobileSidebar.hide()
+  }
+  const openOffice = () => {
+    setState("pullRequests", false)
+    setState("scheduled", false)
+    office.open()
+    layout.mobileSidebar.hide()
+  }
+  const openScheduled = () => {
+    office.close()
+    setState("pullRequests", false)
+    setState("scheduled", true)
+    layout.mobileSidebar.hide()
+  }
 
   const updateVersion = () => {
     const state = platform.updater?.state()
@@ -324,6 +379,9 @@ export default function LegacyLayout(props: ParentProps) {
 
   const navigateWithSidebarReset = (href: string) => {
     clearSidebarHoverState()
+    setState("pullRequests", false)
+    setState("scheduled", false)
+    office.close()
     navigate(href)
     layout.mobileSidebar.hide()
   }
@@ -423,6 +481,8 @@ export default function LegacyLayout(props: ParentProps) {
         const directory = e.name
         const props = e.details.properties
         if (e.details.type === "permission.asked" && permission.autoResponds(e.details.properties, directory)) return
+        // The farmer surfaces these as cards while the office is open; no popups on top.
+        if (officeOpen()) return
 
         const [store] = serverSync().child(directory, { bootstrap: false })
         const session = store.session.find((s) => s.id === props.sessionID)
@@ -621,7 +681,7 @@ export default function LegacyLayout(props: ParentProps) {
     const result: Session[] = []
     for (const dir of dirs) {
       const [dirStore] = serverSync().child(dir, { bootstrap: true })
-      const dirSessions = sortedRootSessions(dirStore, now)
+      const dirSessions = sortedRootSessions(dirStore, now, (session) => session.id === office.overseer()?.sessionID)
       result.push(...dirSessions)
     }
     return result
@@ -1015,6 +1075,46 @@ export default function LegacyLayout(props: ParentProps) {
         onSelect: () => cycleTheme(1),
       },
     ]
+
+    if (platform.prDashboard)
+      commands.push({
+        id: "pullrequests.open",
+        title: "Pull requests",
+        category: language.t("command.category.view"),
+        onSelect: () => openPullRequests(),
+      })
+
+    commands.push(
+      {
+        id: "office.open",
+        title: "Farmer's Office",
+        category: language.t("command.category.view"),
+        // mod+shift+o belongs to project.select on the new-session page.
+        keybind: "mod+shift+f",
+        onSelect: () => openOffice(),
+      },
+      {
+        id: "office.next",
+        title: "Next thread needing you",
+        category: language.t("command.category.view"),
+        // mod+shift+n is the desktop menu's New Window accelerator.
+        keybind: "mod+shift+j",
+        onSelect: () => {
+          setState("pullRequests", false)
+          setState("scheduled", false)
+          office.next()
+        },
+      },
+      {
+        id: "office.voice",
+        title: "Farmer's Office: toggle voice",
+        category: language.t("command.category.view"),
+        onSelect: () => {
+          if (!office.opened()) openOffice()
+          office.toggleVoice()
+        },
+      },
+    )
 
     Array.from({ length: 9 }, (_, i) => {
       const index = i
@@ -1867,6 +1967,7 @@ export default function LegacyLayout(props: ParentProps) {
     clearHoverProjectSoon,
     prefetchSession,
     archiveSession,
+    isHiddenSession: (session) => session.id === office.overseer()?.sessionID,
     workspaceName,
     renameWorkspace,
     editorOpen,
@@ -1907,6 +2008,7 @@ export default function LegacyLayout(props: ParentProps) {
     workspacesEnabled: (project) => project.vcs === "git" && layout.sidebar.workspaces(project.worktree)(),
     workspaceIds,
     workspaceLabel,
+    isHiddenSession: (session) => session.id === office.overseer()?.sessionID,
     sessionProps: {
       navList: currentSessions,
       sidebarExpanded,
@@ -2096,6 +2198,15 @@ export default function LegacyLayout(props: ParentProps) {
                 </div>
               </div>
 
+              <SidebarPullRequests store={pullRequests} active={state.pullRequests} onOpen={openPullRequests} />
+              <SidebarScheduled store={routines} active={state.scheduled} onOpen={openScheduled} />
+              <SidebarOffice
+                active={office.opened()}
+                needsYou={office.needsYou().length}
+                unread={office.unread().length}
+                onOpen={openOffice}
+              />
+
               <div class="flex-1 min-h-0 flex flex-col">
                 <Show
                   when={workspacesEnabled()}
@@ -2212,6 +2323,18 @@ export default function LegacyLayout(props: ParentProps) {
             </div>
           </div>
         </div>
+
+        <div class="shrink-0 -mx-3 px-2 py-2 border-t border-border-weaker-base">
+          <AccountMenu
+            name={() => serverSync().data.config.username || "user"}
+            version={() => platform.version}
+            settingsLabel={() => language.t("sidebar.settings")}
+            settingsKeybind={() => command.keybind("settings.open")}
+            onOpenSettings={openSettings}
+            helpLabel={() => language.t("sidebar.help")}
+            onOpenHelp={() => platform.openExternal("https://opencode.ai/desktop-feedback")}
+          />
+        </div>
       </div>
     )
   }
@@ -2234,11 +2357,6 @@ export default function LegacyLayout(props: ParentProps) {
       openProjectKeybind={() => command.keybind("project.open")}
       onOpenProject={chooseProject}
       renderProjectOverlay={projectOverlay}
-      settingsLabel={() => language.t("sidebar.settings")}
-      settingsKeybind={() => command.keybind("settings.open")}
-      onOpenSettings={openSettings}
-      helpLabel={() => language.t("sidebar.help")}
-      onOpenHelp={() => platform.openExternal("https://opencode.ai/desktop-feedback")}
       renderPanel={() =>
         mobile ? <SidebarPanel project={currentProject} mobile /> : <SidebarPanel project={currentProject} merged />
       }
@@ -2266,7 +2384,7 @@ export default function LegacyLayout(props: ParentProps) {
               aria-label={language.t("sidebar.nav.projectsAndSessions")}
               data-component="sidebar-nav-desktop"
               classList={{
-                "hidden xl:block": true,
+                "block": true,
                 "absolute inset-y-0 start-0": true,
                 "z-10": true,
               }}
@@ -2289,7 +2407,7 @@ export default function LegacyLayout(props: ParentProps) {
 
             <Show when={layout.sidebar.opened()}>
               <div
-                class="hidden xl:block absolute inset-y-0 z-30 w-0 overflow-visible"
+                class="block absolute inset-y-0 z-30 w-0 overflow-visible"
                 style={{ "inset-inline-start": `${side()}px` }}
                 onPointerDown={() => setState("sizing", true)}
               >
@@ -2309,7 +2427,7 @@ export default function LegacyLayout(props: ParentProps) {
             </Show>
 
             <div
-              class="hidden xl:block pointer-events-none absolute top-0 end-0 z-0 border-t border-border-weaker-base"
+              class="hidden"
               style={{ "inset-inline-start": "calc(4rem + 12px)" }}
             />
 
@@ -2341,7 +2459,7 @@ export default function LegacyLayout(props: ParentProps) {
             <div
               classList={{
                 "absolute inset-0": true,
-                "xl:inset-y-0 xl:end-0 xl:start-[var(--main-left)]": true,
+                "inset-y-0 end-0 start-[var(--main-left)]": true,
                 "z-20": true,
                 "transition-[inset-inline-start] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-[inset-inline-start] motion-reduce:transition-none":
                   !state.sizing,
@@ -2350,20 +2468,45 @@ export default function LegacyLayout(props: ParentProps) {
                 "--main-left": layout.sidebar.opened() ? `${side()}px` : "4rem",
               }}
             >
-              <main
+                <main
                 classList={{
-                  "size-full overflow-x-hidden flex flex-col items-start contain-strict border-t border-border-weak-base bg-background-base xl:border-s xl:rounded-ss-[12px]": true,
+                  "size-full overflow-x-hidden flex flex-col items-start contain-strict border-t border-border-weak-base bg-background-base border-s rounded-ss-[12px]": true,
                 }}
               >
                 <Show when={!autoselecting.loading} fallback={<div class="size-full" />}>
                   {props.children}
                 </Show>
               </main>
+              <Show when={state.pullRequests}>
+                <div class="absolute inset-0 z-10 overflow-hidden rounded-ss-[12px] border-t border-s border-border-weak-base bg-background-base">
+                  <PullRequestsPanel store={pullRequests} onClose={() => setState("pullRequests", false)} />
+                </div>
+              </Show>
+              <Show when={state.scheduled}>
+                <div class="absolute inset-0 z-10 overflow-hidden rounded-ss-[12px] border-t border-s border-border-weak-base bg-background-base max-md:fixed max-md:inset-x-0 max-md:top-10 max-md:bottom-0 max-md:z-50 max-md:rounded-none max-md:border-s-0">
+                  <ScheduledPanel
+                    store={routines}
+                    onClose={() => setState("scheduled", false)}
+                    onNavigate={navigateWithSidebarReset}
+                  />
+                </div>
+              </Show>
+              <Show when={office.opened()}>
+                {/* The sidebar is always open and at least 244px, so on a phone the office takes the whole viewport under the titlebar instead of the sliver beside it. */}
+                <div class="absolute inset-0 z-10 overflow-hidden rounded-ss-[12px] border-t border-s border-border-weak-base bg-background-base max-md:fixed max-md:inset-x-0 max-md:top-10 max-md:bottom-0 max-md:z-50 max-md:rounded-none max-md:border-s-0">
+                  <OfficePanel onClose={() => office.close()} onNavigate={navigateWithSidebarReset} />
+                </div>
+              </Show>
+              <ToolPictureInPicture
+                directory={currentDir}
+                sessionID={() => params.id}
+                visible={() => !office.opened() && !state.pullRequests && !state.scheduled}
+              />
             </div>
 
             <div
               classList={{
-                "hidden xl:flex absolute inset-y-0 start-16 z-30": true,
+                "hidden": true,
                 "opacity-100 translate-x-0 pointer-events-auto": state.peeked && !layout.sidebar.opened(),
                 "opacity-0 ltr:-translate-x-2 rtl:translate-x-2 pointer-events-none":
                   !state.peeked || layout.sidebar.opened(),
@@ -2388,7 +2531,7 @@ export default function LegacyLayout(props: ParentProps) {
 
             <div
               classList={{
-                "hidden xl:block pointer-events-none absolute inset-y-0 end-0 z-25 overflow-hidden": true,
+                "hidden": true,
                 "opacity-100 translate-x-0": state.peeked && !layout.sidebar.opened(),
                 "opacity-0 ltr:-translate-x-2 rtl:translate-x-2": !state.peeked || layout.sidebar.opened(),
                 "transition-[opacity,transform] motion-reduce:transition-none": true,

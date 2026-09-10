@@ -1,0 +1,33 @@
+{
+  "$schema": "https://opencode.ai/desktop-theme.json",
+  "name": "Belted Galloway",
+  "id": "belted-galloway",
+  "light": {
+    "palette": {
+      "neutral": "#f7f6f3",
+      "ink": "#17171a",
+      "primary": "#2a2a2f",
+      "accent": "#6b6b75",
+      "success": "#3c8352",
+      "warning": "#ae702c",
+      "error": "#b0393a",
+      "info": "#34768d",
+      "diffAdd": "#3c8352",
+      "diffDelete": "#b0393a"
+    }
+  },
+  "dark": {
+    "palette": {
+      "neutral": "#0c0c0f",
+      "ink": "#f5f4f0",
+      "primary": "#f5f4f0",
+      "accent": "#d7d6d2",
+      "success": "#8bce99",
+      "warning": "#e7a55a",
+      "error": "#e3777e",
+      "info": "#77bdcb",
+      "diffAdd": "#8bce99",
+      "diffDelete": "#e3777e"
+    }
+  }
+}

@@ -1,4 +1,5 @@
 import type { DesktopMenuAction } from "@opencode-ai/app/desktop-menu"
+import type { PrDashboard, PrMergedHistory } from "@opencode-ai/app/pr-dashboard/types"
 import type { WslServersPlatform } from "@opencode-ai/app/wsl/types"
 import type { UpdaterState } from "@opencode-ai/app/updater"
 import type { DesktopNativeBundle } from "@opencode-ai/app/i18n/desktop-native"
@@ -15,6 +16,20 @@ export type {
   WslServersEvent,
   WslServersState,
 } from "@opencode-ai/app/wsl/types"
+
+export type PrDetails = {
+  owner: string
+  repo: string
+  number: number
+  title: string
+  state: "open" | "draft" | "merged" | "closed"
+  author: string | null
+  avatarUrl: string | null
+  additions: number
+  deletions: number
+  changedFiles: number
+  timestamp: number | null
+}
 
 export type ServerReadyData = {
   url: string
@@ -90,6 +105,10 @@ export type ElectronAPI = {
   getPathForFile: (file: File) => string
   saveFilePicker: (opts?: { title?: string; defaultPath?: string }) => Promise<string | null>
   openExternal: (url: string) => void
+  prStatus: (url: string) => Promise<"open" | "merged" | "closed" | null>
+  prDashboard: (force?: boolean) => Promise<PrDashboard>
+  prDashboardMerged: (force?: boolean) => Promise<PrMergedHistory>
+  prAutomationSet: (repo: string, number: number, key: "keepUpdated" | "autoFix", on: boolean) => Promise<void>
   openLocalFile: (url: string) => void
   openPath: (path: string, app?: string) => Promise<void>
   revealPath: (path: string) => Promise<boolean>
@@ -110,6 +129,8 @@ export type ElectronAPI = {
   runDesktopMenuAction: (action: DesktopMenuAction) => Promise<void>
   setBackgroundColor: (color: string) => Promise<void>
   exportDebugLogs: () => Promise<string>
+  companionInfo: () => Promise<{ port: number; hosts: string[]; secureOrigins?: string[] }>
+  prDetails: (url: string) => Promise<PrDetails | null>
   setForceFocus: (enabled: boolean) => Promise<void>
   recordFatalRendererError: (error: FatalRendererError) => Promise<void>
   setNativeTranslations: (bundle: DesktopNativeBundle) => Promise<void>

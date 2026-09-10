@@ -1,3 +1,4 @@
+import type { PrDashboardPlatform } from "@/pr-dashboard/types"
 import { createSimpleContext } from "@opencode-ai/ui/context"
 import type { AsyncStorage, SyncStorage } from "@solid-primitives/storage"
 import type { Accessor } from "solid-js"
@@ -6,6 +7,20 @@ import { ServerConnection } from "./server"
 import type { WslServersPlatform } from "../wsl/types"
 import type { UpdaterPlatform } from "../updater"
 import type { DraftStore } from "@/utils/draft-store"
+
+export type PrDetails = {
+  owner: string
+  repo: string
+  number: number
+  title: string
+  state: "open" | "draft" | "merged" | "closed"
+  author: string | null
+  avatarUrl: string | null
+  additions: number
+  deletions: number
+  changedFiles: number
+  timestamp: number | null
+}
 
 type PickerPaths = string | string[] | null
 type OpenDirectoryPickerOptions = { title?: string; multiple?: boolean }
@@ -34,6 +49,10 @@ type PlatformBase = {
 
   /** Open a web or mail URL in the default system application */
   openExternal(url: string): void
+
+  /** Resolve the merge status of a GitHub pull request URL */
+  prStatus?(url: string): Promise<"open" | "merged" | "closed" | null>
+  prDashboard?: PrDashboardPlatform
 
   /** Open a local path in a local app (desktop only) */
   openPath?(path: string, app?: string): Promise<void>
@@ -115,6 +134,12 @@ type PlatformBase = {
 
   /** Export collected diagnostic logs (desktop only) */
   exportDebugLogs?(): Promise<string>
+
+  /** Expose the local server on the network and report reachable addresses (desktop only) */
+  companionInfo?(): Promise<{ port: number; hosts: string[]; secureOrigins?: string[] }>
+
+  /** Rich metadata for a GitHub pull request URL, for the hover card (desktop only) */
+  prDetails?(url: string): Promise<PrDetails | null>
 
   /** Force focus styles on interactive elements through desktop devtools (desktop only) */
   setForceFocus?(enabled: boolean): Promise<void>

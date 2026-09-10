@@ -179,6 +179,23 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
 
     const fallback = createMemo<ModelKey | undefined>(() => configuredModel() ?? recentModel() ?? defaultModel())
 
+    // The model this conversation has actually been running on. Sessions
+    // started anywhere else — the TUI, the phone, another window — carry no
+    // saved selection here, and without this the picker falls through to
+    // whichever model was used most recently in any session, quietly moving a
+    // conversation onto a different model than the one it has been using.
+    const sessionModel = () => {
+      const session = id()
+      if (!session) return
+      const messages = sync().data.message[session]
+      if (!messages) return
+      for (let index = messages.length - 1; index >= 0; index--) {
+        const message = messages[index]
+        if (message.role !== "assistant") continue
+        return { providerID: message.providerID, modelID: message.modelID }
+      }
+    }
+
     const agent = {
       list,
       visible: agentsVisible,
@@ -230,9 +247,21 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
       },
     }
 
+    // The model the user chose for this session, whether or not it resolves
+    // right now. current() below can land somewhere else — the agent's pinned
+    // model, the global default — so anything that writes a selection back has
+    // to tell a real choice apart from a resolved one.
+    const picked = () => scope()?.model
+
     const current = () => {
+      // Session picks load asynchronously. Resolving before they arrive shows
+      // the agent's model or the global default, and the session effect then
+      // copies that substitute into the prompt store, where it comes back on a
+      // later visit as if the user had picked it.
+      if (id() && !savedReady()) return
       const item = firstModel(
         () => scope()?.model,
+        sessionModel,
         () => agent.current()?.model,
         fallback,
       )
@@ -280,6 +309,7 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
     const model = {
       ready: models.ready,
       current,
+      picked,
       recent,
       list: models.list,
       cycle(direction: 1 | -1) {

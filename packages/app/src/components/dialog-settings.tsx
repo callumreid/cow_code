@@ -5,6 +5,7 @@ import { Icon } from "@opencode-ai/ui/icon"
 import { useLanguage } from "@/context/language"
 import { usePlatform } from "@/context/platform"
 import { useDialog } from "@opencode-ai/ui/context/dialog"
+import { SettingsBigDog } from "./settings-big-dog"
 import { SettingsGeneral } from "./settings-general"
 import { SettingsKeybinds } from "./settings-keybinds"
 import { SettingsProviders } from "./settings-providers"
@@ -49,6 +50,10 @@ export const DialogSettings: Component<{ defaultValue?: string }> = (props) => {
                       <Icon name="server" />
                       {language.t("status.popover.tab.servers")}
                     </Tabs.Trigger>
+                    <Tabs.Trigger value="big-dog">
+                      <Icon name="speech-bubble" />
+                      big dogging
+                    </Tabs.Trigger>
                   </div>
                 </div>
 
@@ -87,6 +92,9 @@ export const DialogSettings: Component<{ defaultValue?: string }> = (props) => {
         </Tabs.Content>
         <Tabs.Content value="models" class="no-scrollbar">
           <SettingsModels />
+        </Tabs.Content>
+        <Tabs.Content value="big-dog" class="no-scrollbar">
+          <SettingsBigDog />
         </Tabs.Content>
       </Tabs>
     </Dialog>

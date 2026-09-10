@@ -12,6 +12,7 @@ import { useGlobal } from "@/context/global"
 import { useLanguage } from "@/context/language"
 import { ServerConnection } from "@/context/server"
 import { useTabs } from "@/context/tabs"
+import { useOffice } from "@/office/context"
 import { SessionTabAvatar } from "@/pages/layout/session-tab-avatar"
 import { getRelativeTime } from "@/utils/time"
 import {
@@ -69,6 +70,7 @@ export function DialogHomeCommandPaletteV2(props: {
   const dialog = useDialog()
   const global = useGlobal()
   const language = useLanguage()
+  const office = useOffice()
   const serverCtx = global.ensureServerCtx(props.server)
   const state = { cleanup: undefined as (() => void) | void, committed: false }
   const commandEntries = createMemo(() => {
@@ -82,6 +84,7 @@ export function DialogHomeCommandPaletteV2(props: {
     load: (search, signal) => serverCtx.sdk.api.session.list({ parentID: null, search, limit: 50 }, { signal }),
     untitled: () => language.t("command.session.new"),
     category: () => language.t("command.category.session"),
+    isHiddenSession: (session) => session.id === office.overseer()?.sessionID,
   })
 
   const highlight = (item: CommandPaletteEntry | undefined) => {

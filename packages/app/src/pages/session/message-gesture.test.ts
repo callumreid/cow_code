@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { normalizeWheelDelta, shouldMarkBoundaryGesture } from "./message-gesture"
+import { isTimelineRowAbove, normalizeWheelDelta, shouldMarkBoundaryGesture } from "./message-gesture"
 
 describe("normalizeWheelDelta", () => {
   test("converts line mode to px", () => {
@@ -58,5 +58,21 @@ describe("shouldMarkBoundaryGesture", () => {
         clientHeight: 400,
       }),
     ).toBe(false)
+  })
+})
+
+describe("isTimelineRowAbove", () => {
+  test("uses the rendered row position when it is available", () => {
+    expect(isTimelineRowAbove({ rowTop: 99, viewportTop: 100, rowIndex: 20, firstVisibleIndex: 10 })).toBe(false)
+    expect(isTimelineRowAbove({ rowTop: 98, viewportTop: 100, rowIndex: 20, firstVisibleIndex: 10 })).toBe(true)
+  })
+
+  test("uses virtual indexes when the row is outside the rendered range", () => {
+    expect(isTimelineRowAbove({ viewportTop: 100, rowIndex: 9, firstVisibleIndex: 10 })).toBe(true)
+    expect(isTimelineRowAbove({ viewportTop: 100, rowIndex: 11, firstVisibleIndex: 10 })).toBe(false)
+  })
+
+  test("returns false until the virtual range is known", () => {
+    expect(isTimelineRowAbove({ viewportTop: 100, rowIndex: 9 })).toBe(false)
   })
 })

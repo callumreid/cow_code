@@ -205,7 +205,16 @@ export function createServerSession(
     part: {} as Record<string, Part[]>,
     part_text_accum_delta: {} as Record<string, string>,
     session_working(id: string) {
-      return (this.session_status[id]?.type ?? "idle") !== "idle"
+      if ((this.session_status[id]?.type ?? "idle") !== "idle") return true
+      // Status is ephemeral per-process state, so a client only learns a session
+      // is busy from the event that started it. Reconnect after a restart, or
+      // watch a session another process is driving, and that event never
+      // arrives. The durable record still shows it: an assistant turn with no
+      // completion time and no error has not finished.
+      const messages = this.message[id]
+      const last = messages?.[messages.length - 1]
+      if (last?.role !== "assistant" || last.error) return false
+      return last.time.completed === undefined
     },
   })
   const requests = new Map<string, Promise<Session>>()

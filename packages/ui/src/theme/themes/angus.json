@@ -1,0 +1,33 @@
+{
+  "$schema": "https://opencode.ai/desktop-theme.json",
+  "name": "Angus",
+  "id": "angus",
+  "light": {
+    "palette": {
+      "neutral": "#f4f2f0",
+      "ink": "#1a1917",
+      "primary": "#a04a2e",
+      "accent": "#8a857f",
+      "success": "#4b8752",
+      "warning": "#bc742c",
+      "error": "#be3d39",
+      "info": "#427a8d",
+      "diffAdd": "#4b8752",
+      "diffDelete": "#be3d39"
+    }
+  },
+  "dark": {
+    "palette": {
+      "neutral": "#050505",
+      "ink": "#e8e6e3",
+      "primary": "#c96a4a",
+      "accent": "#8f8a84",
+      "success": "#85be85",
+      "warning": "#e29446",
+      "error": "#dd666b",
+      "info": "#72acb7",
+      "diffAdd": "#85be85",
+      "diffDelete": "#dd666b"
+    }
+  }
+}
