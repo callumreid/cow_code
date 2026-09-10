@@ -550,9 +550,8 @@ const layer = Layer.effect(
           directory: row.directory,
           title: row.title,
           runID: row.lifecycle.runID,
-          summary:
-            "Turn stopped; objective and verification are unverified. " +
-            (row.pr ? `${row.summary} · ${row.pr}` : row.summary),
+          // The card shows the lifecycle's outcome and evidence; the summary stays the thread's own words.
+          summary: row.pr ? `${row.summary} · ${row.pr}` : row.summary,
         })
       })
 
@@ -634,7 +633,7 @@ const layer = Layer.effect(
           if (!row) return
           row.lifecycle = transition(row.lifecycle, { type: "cancel", reason: "Canceled by user." }, Date.now())
           row.bucket = "done"
-          row.summary = "Canceled by user; objective and verification are unverified."
+          row.summary = "Canceled by user."
           touch(row)
           yield* note({
             kind: "finished",

@@ -129,23 +129,23 @@ REVIEW_QUEUE_COMPLETE ${pending_count}
 " > "${report}" 2>&1 &
 runner_pid=$!
 runner_started=$SECONDS
-status=0
+run_status=0
 while kill -0 "${runner_pid}" 2>/dev/null; do
   if (( SECONDS - runner_started >= 2700 )); then
     echo "Review runner exceeded 45 minutes; terminating it." >> "${LOG_FILE}"
     kill -TERM "${runner_pid}" 2>/dev/null || true
     sleep 5
     kill -KILL "${runner_pid}" 2>/dev/null || true
-    status=124
+    run_status=124
     break
   fi
   sleep 10
 done
-if (( status == 0 )); then
+if (( run_status == 0 )); then
   if wait "${runner_pid}"; then
-    status=0
+    run_status=0
   else
-    status=$?
+    run_status=$?
   fi
 else
   wait "${runner_pid}" 2>/dev/null || true
@@ -163,7 +163,7 @@ done < "${pending_file}"
 
 echo "Saved report to ${report}; marked ${posted_count}/${pending_count} exact heads posted." >> "${LOG_FILE}"
 
-if (( status != 0 )); then
+if (( run_status != 0 )); then
   echo "Review runner failed with status ${run_status}." >> "${LOG_FILE}"
   exit "${run_status}"
 fi

@@ -1,8 +1,8 @@
 import { DESKTOP_NATIVE_ENGLISH } from "./desktop-native"
 
 export const dict = {
-  "office.stoppedCount": "{{count}} stopped",
-  "office.outcome.stale": "This earlier observation is no longer current. Refresh the task for its latest state.",
+  "office.stoppedCount": "{{count}} finished",
+  "office.outcome.stale": "Said earlier · things may have moved on since",
   "office.host.observeOnly": "This task is unavailable or can only be observed.",
   "office.host.unavailable": "The original host is unavailable.",
   "office.host.changed": "The server identity changed. Refresh the roster before acting.",
@@ -16,7 +16,7 @@ export const dict = {
   "office.lifecycle.accepted": "Accepted",
   "office.lifecycle.running": "Running",
   "office.lifecycle.waiting": "Waiting",
-  "office.lifecycle.stopped": "Stopped",
+  "office.lifecycle.stopped": "Finished",
   "office.lifecycle.failed": "Failed",
   "office.lifecycle.canceled": "Canceled",
   "office.lifecycle.unknown": "State unknown",

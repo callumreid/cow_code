@@ -205,10 +205,14 @@ const OutcomeText = (props: { outcome: OfficeOutcome; now: number }) => {
         if (current()) void office.acknowledgeOutcome(props.outcome.id, "display").catch(() => undefined)
       })
   })
+  // The farmer's words always stay readable; staleness is a hint under them, never a replacement.
   return (
-    <p class="text-14-regular text-text-strong whitespace-pre-wrap" data-office-outcome={props.outcome.id}>
-      {current() ? props.outcome.text : language.t("office.outcome.stale")}
-    </p>
+    <div class="flex flex-col gap-1" data-office-outcome={props.outcome.id} data-office-outcome-current={current()}>
+      <p class="text-14-regular text-text-strong whitespace-pre-wrap">{props.outcome.text}</p>
+      <Show when={!current()}>
+        <span class="text-12-regular text-text-weak">{language.t("office.outcome.stale")}</span>
+      </Show>
+    </div>
   )
 }
 
