@@ -322,19 +322,21 @@ const layer = Layer.effect(
               return { id: input.id, status: "rejected", reason: "Request ID already belongs to another input." }
             return prior.value.receipt
           }
-          if (!input.text.trim() || !(yield* voiceAllowed(input)))
-            return {
-              id: input.id,
-              status: "rejected",
-              reason: "Input is empty or voice attention is no longer active.",
-            }
+          const allowed = input.text.trim() && (yield* voiceAllowed(input))
           const item: PendingRequest = {
             input,
             messageID: MessageID.ascending(),
             epoch,
-            receipt: { id: input.id, status: "accepted" },
+            receipt: allowed
+              ? { id: input.id, status: "accepted" }
+              : {
+                  id: input.id,
+                  status: "rejected",
+                  reason: "Input is empty or voice attention is no longer active.",
+                },
           }
           yield* saveRequest(item)
+          if (item.receipt.status === "rejected") return item.receipt
           queue.push(item)
           bridge.fork(
             drain.pipe(Effect.catchCause((cause) => Effect.logError("office request queue failed", { cause }))),

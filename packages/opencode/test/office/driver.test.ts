@@ -128,6 +128,26 @@ it.instance("new admission and status stay responsive while the Farmer is reason
   }),
 )
 
+it.instance("rejected empty and expired voice requests retain their exact durable receipts", () =>
+  Effect.gen(function* () {
+    const driver = yield* OfficeDriver.Service
+    const ledger = yield* OfficeLedger.Service
+    const engine = yield* Engine
+    yield* driver.attention({ clientID: "expired", generation: 2, mode: "paused" })
+    for (const input of [
+      { id: "empty", text: " " },
+      { id: "expired", text: "must not run", source: "voice" as const, clientID: "expired", generation: 1 },
+    ]) {
+      const receipt = yield* driver.request(input)
+      expect(receipt.status).toBe("rejected")
+      expect(yield* driver.requestStatus(input.id)).toEqual(receipt)
+      expect(yield* driver.request(input)).toEqual(receipt)
+      expect((yield* ledger.get("request:" + input.id))?.state).toBe("rejected")
+    }
+    expect(engine.calls).toEqual([])
+  }),
+)
+
 it.instance("pause invalidates an admitted voice request before it can reach the Farmer", () =>
   Effect.gen(function* () {
     const driver = yield* OfficeDriver.Service
