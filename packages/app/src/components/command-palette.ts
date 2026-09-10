@@ -11,7 +11,7 @@ import { useLayout, type LocalProject } from "@/context/layout"
 import { ServerConnection } from "@/context/server"
 import { useServerSDK } from "@/context/server-sdk"
 import { useTabs } from "@/context/tabs"
-import { displayName, projectForSession } from "@/pages/layout/helpers"
+import { displayName, isOfficeOverseerSession, projectForSession } from "@/pages/layout/helpers"
 import { createSessionTabs } from "@/pages/session/helpers"
 import { useSessionLayout } from "@/pages/session/session-layout"
 import { normalizeSessionInfo } from "@/utils/session"
@@ -258,7 +258,7 @@ export function createServerSessionEntries(props: {
       .then((result) =>
         result.data
           .map(normalizeSessionInfo)
-          .filter((session) => !session.time.archived)
+          .filter((session) => !session.time.archived && !isOfficeOverseerSession(session))
           .map((session) => {
             const project =
               projectForSession(session, opened, openedByID) ?? projectForSession(session, stored, storedByID)

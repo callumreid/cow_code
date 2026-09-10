@@ -1332,7 +1332,9 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
       !isImeComposing(event)
     ) {
       event.preventDefault()
-      if (event.repeat || blank()) return
+      if (event.repeat) return
+      if (props.onSteerQueued?.()) return
+      if (blank()) return
       void handleSubmit(event, { steer: true })
       return
     }

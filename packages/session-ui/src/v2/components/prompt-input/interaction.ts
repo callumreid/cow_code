@@ -38,6 +38,7 @@ export type PromptInputV2ViewConfig = {
     stopping: Accessor<boolean>
     working?: Accessor<boolean>
     onSubmit: (opts?: { steer?: boolean }) => void
+    onSteerQueued?: () => boolean
     onStop: () => void
   }
   shell?: {
@@ -207,6 +208,10 @@ export function createPromptInputV2Controller(input: {
     ) {
       event.preventDefault()
       if (!event.repeat) {
+        if (input.view.submit.onSteerQueued?.()) {
+          dispatch({ type: "popover.close" })
+          return true
+        }
         input.view.submit.onSubmit({ steer: true })
         dispatch({ type: "popover.close" })
       }

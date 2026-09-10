@@ -15,8 +15,14 @@ export function compareSessionTime(a: Session, b: Session) {
   return a.id < b.id ? -1 : a.id > b.id ? 1 : 0
 }
 
+/** The Farmer's Office owns its overseer session; it is not an ordinary session row. */
+export const isOfficeOverseerSession = (session: Session) => session.metadata?.office === "overseer"
+
 const isRootVisibleSession = (session: Session, directory: string) =>
-  pathKey(session.directory) === pathKey(directory) && !session.parentID && !session.time?.archived
+  pathKey(session.directory) === pathKey(directory) &&
+  !session.parentID &&
+  !session.time?.archived &&
+  !isOfficeOverseerSession(session)
 
 export const roots = (store: SessionStore) =>
   (store.session ?? []).filter((session) => isRootVisibleSession(session, store.path.directory))

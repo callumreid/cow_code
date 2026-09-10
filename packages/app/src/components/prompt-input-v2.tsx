@@ -419,6 +419,7 @@ export function usePromptInputV2Controller(props: PromptInputV2ControllerProps):
         stopping,
         working,
         onSubmit: (opts) => void submission.handleSubmit(new Event("submit"), opts),
+        onSteerQueued: props.onSteerQueued,
         onStop: () => void submission.abort(),
       },
     },

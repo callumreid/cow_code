@@ -52,6 +52,8 @@ export interface PromptInputProps {
   onEditLoaded?: () => void
   shouldQueue?: () => boolean
   onQueue?: (draft: FollowupDraft) => void
+  /** Sends the first queued follow-up, leaving the current composer draft alone. */
+  onSteerQueued?: () => boolean
   onAbort?: () => void
   onSubmit?: () => void
 }
