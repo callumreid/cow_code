@@ -60,12 +60,14 @@ import { useDirectoryPicker } from "@/components/directory-picker"
 import { ServerConnection, useServer } from "@/context/server"
 import { useLanguage, type Locale } from "@/context/language"
 import { pathKey } from "@/utils/path-key"
+import { isOfficeWorkerSession, isWorkerDirectory, isWorktreeOf, officeWorkerThreads } from "./layout/office-workers"
 import {
   displayName,
   effectiveWorkspaceOrder,
   errorMessage,
   latestRootSession,
   sortedRootSessions,
+  compareSessionTime,
 } from "./layout/helpers"
 import {
   collectNewSessionDeepLinks,
@@ -90,7 +92,6 @@ import { SidebarScheduled } from "./layout/sidebar-scheduled"
 import { ScheduledPanel } from "./layout/scheduled-panel"
 import { createRoutinesStore } from "@/routines/store"
 import { SidebarOffice } from "./layout/sidebar-office"
-import { SidebarOfficeThreads } from "./layout/sidebar-office-threads"
 import { OfficePanel } from "./layout/office-panel"
 import { useOffice } from "@/office/context"
 import { officeOpen } from "@/office/presence"
@@ -573,6 +574,8 @@ export default function LegacyLayout(props: ParentProps) {
     element.scrollIntoView({ block: "nearest", behavior: "smooth" })
   }
 
+  // The project the user was browsing before opening one of the farmer's workers.
+  let lastProject: LocalProject | undefined
   const currentProject = createMemo(() => {
     const directory = currentDir()
     if (!directory) return
@@ -586,6 +589,18 @@ export default function LegacyLayout(props: ParentProps) {
     const direct = projects.find((p) => pathKey(p.worktree) === key)
     if (direct) return direct
 
+    // A farmer worker runs in a worktree that is nobody's project; keep the
+    // sidebar on the project whose list the user opened it from (the office's
+    // own project lists every worker, a repo project lists its worktrees'),
+    // instead of switching to an empty worktree "project".
+    if (isWorkerDirectory(directory, office.cow())) {
+      const officeDir = office.overseer()?.directory
+      const home = officeDir ? projects.find((p) => pathKey(p.worktree) === pathKey(officeDir)) : undefined
+      const previous = lastProject
+      if (previous && (previous === home || isWorktreeOf(directory, previous.id))) return previous
+      if (home) return home
+    }
+
     const [child] = serverSync().child(directory, { bootstrap: false })
     const id = child.project
     if (!id) return
@@ -595,6 +610,10 @@ export default function LegacyLayout(props: ParentProps) {
     if (!root) return
 
     return projects.find((p) => p.worktree === root)
+  })
+  createEffect(() => {
+    const project = currentProject()
+    if (project && !isWorkerDirectory(currentDir(), office.cow())) lastProject = project
   })
 
   const [autoselecting] = createResource(async () => {
@@ -685,7 +704,20 @@ export default function LegacyLayout(props: ParentProps) {
       const dirSessions = sortedRootSessions(dirStore, now, (session) => session.id === office.overseer()?.sessionID)
       result.push(...dirSessions)
     }
-    return result
+    const project = currentProject()
+    if (!project) return result
+    const workers = officeWorkerThreads({
+      threads: office.cow(),
+      project,
+      officeDirectory: office.overseer()?.directory,
+      listed: dirs,
+    }).flatMap((thread) => {
+      const [store] = serverSync().child(thread.directory, { bootstrap: true })
+      const session = store.session?.find((item) => item.id === thread.sessionID)
+      if (!session || !isOfficeWorkerSession(session) || session.parentID || session.time?.archived) return []
+      return result.some((item) => item.id === session.id) ? [] : [session]
+    })
+    return workers.length ? [...result, ...workers].sort(compareSessionTime) : result
   })
 
   type PrefetchQueue = {
@@ -2207,7 +2239,6 @@ export default function LegacyLayout(props: ParentProps) {
                 unread={office.unread().length}
                 onOpen={openOffice}
               />
-              <SidebarOfficeThreads onOpen={(thread) => void office.openThread(thread)} />
 
               <div class="flex-1 min-h-0 flex flex-col">
                 <Show

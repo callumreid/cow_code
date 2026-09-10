@@ -1,4 +1,7 @@
 import { useNavigate, useParams } from "@solidjs/router"
+import { useOffice } from "@/office/context"
+import { compareSessionTime } from "./helpers"
+import { isOfficeWorkerSession, officeWorkerThreads } from "./office-workers"
 import { createEffect, createMemo, For, Show, type Accessor, type JSX } from "solid-js"
 import { createStore } from "solid-js/store"
 import { createSortable } from "@thisbeyond/solid-dnd"
@@ -272,7 +275,7 @@ const WorkspaceSessionList = (props: {
           session={session}
           list={props.sessions()}
           navList={props.ctx.navList}
-          slug={props.slug()}
+          slug={base64Encode(session.directory)}
           mobile={props.mobile}
           showChild
           sidebarExpanded={props.ctx.sidebarExpanded}
@@ -465,7 +468,27 @@ export const LocalWorkspace = (props: {
     return { store, setStore }
   })
   const slug = createMemo(() => base64Encode(props.project.worktree))
-  const sessions = createMemo(() => sortedRootSessions(workspace().store, props.sortNow(), props.ctx.isHiddenSession))
+  const office = useOffice()
+  // Threads the farmer dispatched run in their own worktrees, so the project's
+  // own store never lists them; pull them in as ordinary rows.
+  const workers = createMemo(() =>
+    officeWorkerThreads({
+      threads: office.cow(),
+      project: props.project,
+      officeDirectory: office.overseer()?.directory,
+      listed: [props.project.worktree],
+    }).flatMap((thread) => {
+      const [store] = serverSync().child(thread.directory, { bootstrap: true })
+      const session = store.session?.find((item) => item.id === thread.sessionID)
+      if (!session || !isOfficeWorkerSession(session) || session.parentID || session.time?.archived) return []
+      return [session]
+    }),
+  )
+  const sessions = createMemo(() => {
+    const own = sortedRootSessions(workspace().store, props.sortNow(), props.ctx.isHiddenSession)
+    const extra = workers().filter((session) => !own.some((item) => item.id === session.id))
+    return extra.length ? [...own, ...extra].sort(compareSessionTime) : own
+  })
   const count = createMemo(() => sessions()?.length ?? 0)
   const fetching = useIsFetching(() => queryOptions().sessions(pathKey(props.project.worktree)))
   const hasMore = createMemo(() => workspace().store.sessionTotal > count())
