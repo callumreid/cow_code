@@ -29,10 +29,12 @@ ended=$(date +%s)
 status=ok
 [ "$rc" -ne 0 ] && status=failed
 if [ -s "$status_file" ]; then status=$(head -1 "$status_file"); fi
-summary=$(grep -v -E '^[[:space:]]*$|^Report: |^=== ' "$out" | tail -1 | cut -c1-240)
-if [ -z "$summary" ] && [ -n "$job_log" ] && [ -f "$job_log" ]; then
-  summary=$(grep -v -E '^[[:space:]]*$|^Report: |^=== ' "$job_log" | tail -1 | cut -c1-240)
-fi
+# Summary: the last meaningful line — no colour codes, no tool echoes, no report paths, no daily-capture noise.
+last_line() {
+  sed -E $'s/\x1b\\[[0-9;]*[A-Za-z]//g' "$1" | grep -v -E '^[[:space:]]*$|^\$ |^→ |^Report: |^=== |^No pending daily entries' | tail -1 | cut -c1-240
+}
+summary=$(last_line "$out")
+if [ -z "$summary" ] && [ -n "$job_log" ] && [ -f "$job_log" ]; then summary=$(last_line "$job_log"); fi
 python3 - "$name" "$started" "$ended" "$status" "$rc" "$summary" >> "$DIR/ledger.jsonl" <<'PY'
 import json, sys
 name, started, ended, status, rc, summary = sys.argv[1:7]

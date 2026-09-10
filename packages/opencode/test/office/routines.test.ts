@@ -78,6 +78,7 @@ describe("routines joined with office threads", () => {
     expect(routine.running?.summary).toBe("working: bash")
     expect(routine.runs.map((run) => run.sessionID)).toEqual(["ses_old"])
     expect(routine.last?.sessionID).toBe("ses_old")
+    expect(routine.last?.summary).toBe("PR review sweep: reviewed 1 PR")
   })
 
   test("counts threads without a ledger entry as runs, newest first", () => {

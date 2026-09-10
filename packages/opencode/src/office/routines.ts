@@ -179,6 +179,13 @@ async function startedAtOf(pid: number, now: number) {
   return now - seconds * 1000
 }
 
+/** A ledger summary is a captured stdout line: drop colour codes, and treat whitespace-only as none. */
+function cleanSummary(value: unknown) {
+  if (typeof value !== "string") return undefined
+  const text = value.replace(/\[[0-9;]*[A-Za-z]/g, "").trim()
+  return text ? text : undefined
+}
+
 async function readLedger() {
   const text = await fs.readFile(path.join(ledgerDir, "ledger.jsonl"), "utf8").catch(() => "")
   const lines = text.split("\n")
@@ -198,7 +205,7 @@ async function readLedger() {
       endedAt: typeof entry.endedAt === "number" ? entry.endedAt : undefined,
       status,
       rc: typeof entry.rc === "number" ? entry.rc : undefined,
-      summary: typeof entry.summary === "string" && entry.summary ? entry.summary : undefined,
+      summary: cleanSummary(entry.summary),
     }
     const list = map.get(entry.name) ?? []
     list.push(run)
@@ -408,7 +415,8 @@ export function withThreads(snapshot: Snapshot, threads: readonly Thread[], now:
       const end = run.endedAt ?? now
       const thread = mine.find((t) => t.time.created >= run.startedAt - 90_000 && t.time.created <= end + 1_000)
       if (!thread) return run
-      return { ...run, sessionID: thread.sessionID, directory: thread.directory, summary: run.summary ?? thread.summary }
+      // The thread's own last words beat a captured stdout line while the office still has them.
+      return { ...run, sessionID: thread.sessionID, directory: thread.directory, summary: thread.summary || run.summary }
     }
     const running = routine.running ? attach(routine.running) : undefined
     const runs = routine.runs.map(attach)
