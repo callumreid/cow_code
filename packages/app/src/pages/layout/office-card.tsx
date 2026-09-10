@@ -18,6 +18,7 @@ const KIND_META: Record<CardKind, { label: string; stripe: string; text: string 
   question: { label: "question", stripe: "bg-icon-warning-base", text: "text-icon-warning-base" },
   error: { label: "error", stripe: "bg-icon-critical-base", text: "text-icon-critical-base" },
   pr: { label: "pr", stripe: "bg-icon-success-base", text: "text-icon-success-base" },
+  started: { label: "kicked off", stripe: "bg-icon-info-base opacity-60", text: "text-text-weak" },
   finished: { label: "finished", stripe: "bg-icon-weak-base", text: "text-text-weak" },
   stalled: { label: "stalled", stripe: "bg-icon-warning-base opacity-50", text: "text-text-weak" },
 }

@@ -104,6 +104,7 @@ export const Thread = Schema.Struct({
 export type Thread = typeof Thread.Type
 
 export const ReportKind = Schema.Literals([
+  "started",
   "finished",
   "permission",
   "question",
@@ -543,7 +544,7 @@ const layer = Layer.effect(
         row.edited = false
         row.summary = summarize(row)
         touch(row)
-        if (row.muted) return
+        if (row.muted || row.routine) return
         yield* note({
           kind: row.pr ? "pr" : "finished",
           sessionID: row.sessionID,
@@ -574,8 +575,19 @@ const layer = Layer.effect(
             emit("office.removed", { sessionID: info.id, hostID: host.id })
             return
           }
+          const fresh = !rows.has(info.id)
           const row = upsert(info)
           row.time = { ...row.time, updated: info.time.updated }
+          // A scheduled routine only cards its kick-off and its problems; progress and
+          // completion live in the Scheduled view and the run ledger.
+          if (fresh && type === "session.created" && row.routine && !row.muted)
+            yield* note({
+              kind: "started",
+              sessionID: row.sessionID,
+              directory: row.directory,
+              title: row.title,
+              summary: `${row.routine} kicked off`,
+            })
           return
         }
         if (type === "session.deleted") {
@@ -635,6 +647,7 @@ const layer = Layer.effect(
           row.bucket = "done"
           row.summary = "Canceled by user."
           touch(row)
+          if (row.routine) return
           yield* note({
             kind: "finished",
             sessionID: row.sessionID,

@@ -11,6 +11,8 @@ import { createPastureScene, type PastureScene } from "@/pasture/scene"
 import type { PastureStore } from "@/pasture/store"
 import { PASTURE_TIMEFRAMES } from "@/pasture/types"
 
+const HERD_CAP = 150
+
 function relative(iso: string, now: number) {
   const diff = Math.max(0, now - Date.parse(iso))
   if (diff < 3_600_000) return `${Math.max(1, Math.floor(diff / 60_000))}m ago`
@@ -46,7 +48,7 @@ const SegmentButton = (props: { on: boolean; onClick: () => void; children: JSX.
 /**
  * A green field where every merged pull request is a cow. Hover one for its
  * PR, click to lift it (legs dangling) and read the details, double-click to
- * open the PR on GitHub. Timeframe and scope live in the header.
+ * open the PR on GitHub. Only your own merges; the timeframe lives in the header.
  */
 export const PasturePanel = (props: { store: PastureStore; onClose: () => void }): JSX.Element => {
   const platform = usePlatform()
@@ -61,7 +63,8 @@ export const PasturePanel = (props: { store: PastureStore; onClose: () => void }
   const tick = setInterval(() => setNow(Date.now()), 30_000)
   onCleanup(() => clearInterval(tick))
 
-  const members = createMemo(() => herd(props.store.herd()?.items ?? []))
+  // Past this many the field turns into a stampede and the frame rate goes with it.
+  const members = createMemo(() => herd((props.store.herd()?.items ?? []).slice(0, HERD_CAP)))
   const byId = createMemo(() => new Map(members().map((member) => [member.id, member])))
   const current = createMemo(() => (selected() ? byId().get(selected()!) : undefined))
   const hovered = createMemo(() => (hover() ? byId().get(hover()!.id) : undefined))
@@ -114,11 +117,11 @@ export const PasturePanel = (props: { store: PastureStore; onClose: () => void }
   const summary = () => {
     const data = props.store.herd()
     if (!data) return "Rounding up the herd…"
-    const count = data.items.length
+    const count = Math.min(data.items.length, HERD_CAP)
     const cows = `${count} cow${count === 1 ? "" : "s"}`
-    const who = data.scope === "mine" ? "your PRs" : "everyone's PRs"
-    const cap = data.truncated ? ` (showing the ${data.truncated} most recent)` : ""
-    return `${cows} · ${who} merged ${timeframeLabel(data.days)}${cap}`
+    const total = data.truncated ?? data.items.length
+    const cap = total > count ? ` (the newest ${count} of ${total}${data.truncated ? "+" : ""})` : ""
+    return `${cows} · your PRs merged ${timeframeLabel(data.days)}${cap}`
   }
 
   return (
@@ -150,14 +153,6 @@ export const PasturePanel = (props: { store: PastureStore; onClose: () => void }
               class="w-16 rounded-md bg-surface-inset-base px-2 py-1 text-12-regular text-text-strong outline-none"
               aria-label="Custom number of days"
             />
-          </div>
-          <div class="flex items-center gap-1 rounded-lg border border-border-weaker-base p-0.5">
-            <SegmentButton on={props.store.scope() === "everyone"} onClick={() => props.store.setScope("everyone")}>
-              Everyone
-            </SegmentButton>
-            <SegmentButton on={props.store.scope() === "mine"} onClick={() => props.store.setScope("mine")}>
-              Mine
-            </SegmentButton>
           </div>
           <Tooltip placement="bottom" gutter={2} value="Refresh">
             <IconButton

@@ -384,8 +384,10 @@ const layer = Layer.effect(
       ledger.put({ id: report.id, kind: "report", state, sessionID: report.sessionID, value: report })
     const handleReport = (report: Office.Report) =>
       Effect.gen(function* () {
+        // Routine kick-offs are for the roster, not the farmer; so is everything auto-allowed.
         if (
           report.kind === "auto_allowed" ||
+          report.kind === "started" ||
           (report.kind === "finished" && (yield* office.thread(report.sessionID))?.routine)
         ) {
           yield* reportState(report, "delivered")
@@ -424,6 +426,7 @@ const layer = Layer.effect(
       for (const row of stored) {
         if (
           row.value.kind === "auto_allowed" ||
+          row.value.kind === "started" ||
           (row.value.kind === "finished" && (yield* office.thread(row.value.sessionID))?.routine)
         ) {
           yield* reportState(row.value, "delivered")
@@ -503,7 +506,10 @@ const layer = Layer.effect(
             .map((thread) => thread.sessionID),
         )
         const reports = current.reports.filter(
-          (report) => (report.time > input.since || needs.has(report.sessionID)) && report.kind !== "auto_allowed",
+          (report) =>
+            (report.time > input.since || needs.has(report.sessionID)) &&
+            report.kind !== "auto_allowed" &&
+            report.kind !== "started",
         )
         if (!reports.length) return { text: "", sessionID: current.overseer?.sessionID ?? "", skipped: true }
         const result = yield* turn({

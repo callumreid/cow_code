@@ -152,7 +152,7 @@ function normalize(text: string) {
 }
 
 export function unreadReports(reports: OfficeReport[], lastSeen: number) {
-  return reports.filter((report) => report.time > lastSeen && report.kind !== "auto_allowed")
+  return reports.filter((report) => report.time > lastSeen && report.kind !== "auto_allowed" && report.kind !== "started")
 }
 
 /**

@@ -88,7 +88,7 @@ export type OfficeThread = {
   time: { created: number; updated: number; reported?: number }
 }
 
-export type OfficeReportKind = "finished" | "permission" | "question" | "error" | "pr" | "stalled" | "auto_allowed"
+export type OfficeReportKind = "started" | "finished" | "permission" | "question" | "error" | "pr" | "stalled" | "auto_allowed"
 export type OfficeReport = {
   hostID?: string
   hostName?: string

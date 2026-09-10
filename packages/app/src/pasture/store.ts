@@ -1,12 +1,10 @@
 import { createEffect, createSignal, on } from "solid-js"
 import type { PrDashboardPlatform } from "@/pr-dashboard/types"
-import type { PastureHerd, PastureScope } from "./types"
+import type { PastureHerd } from "./types"
 
 export type PastureStore = {
   days: () => number
   setDays: (days: number) => void
-  scope: () => PastureScope
-  setScope: (scope: PastureScope) => void
   herd: () => PastureHerd | undefined
   loading: () => boolean
   available: () => boolean
@@ -14,13 +12,12 @@ export type PastureStore = {
 }
 
 /**
- * The merged pull requests behind the pasture. Fetched when the panel opens and
- * whenever the timeframe or scope changes; a stale answer that lands after the
+ * Callum's merged pull requests behind the pasture. Fetched when the panel opens and
+ * whenever the timeframe changes; a stale answer that lands after the
  * settings moved on is dropped.
  */
 export function createPastureStore(platform: () => PrDashboardPlatform | undefined, active: () => boolean): PastureStore {
   const [days, setDays] = createSignal(7)
-  const [scope, setScope] = createSignal<PastureScope>("everyone")
   const [herd, setHerd] = createSignal<PastureHerd>()
   const [loading, setLoading] = createSignal(false)
   let token = 0
@@ -29,7 +26,8 @@ export function createPastureStore(platform: () => PrDashboardPlatform | undefin
     const api = platform()
     if (!api?.fetchPasture) return
     const mine = ++token
-    const request = { days: days(), scope: scope() }
+    // Only Callum's own merges graze here.
+    const request = { days: days(), scope: "mine" as const }
     setLoading(true)
     try {
       const next = await api.fetchPasture(request, force)
@@ -48,10 +46,10 @@ export function createPastureStore(platform: () => PrDashboardPlatform | undefin
   }
 
   createEffect(
-    on([active, days, scope], ([open]) => {
+    on([active, days], ([open]) => {
       if (open) void refresh()
     }),
   )
 
-  return { days, setDays, scope, setScope, herd, loading, available: () => !!platform()?.fetchPasture, refresh }
+  return { days, setDays, herd, loading, available: () => !!platform()?.fetchPasture, refresh }
 }

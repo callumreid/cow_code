@@ -317,11 +317,12 @@ function isRawPasture(node: unknown): node is RawPasture {
   return !!node && typeof node === "object" && "mergedAt" in node && "number" in node && "repository" in node
 }
 
-/** One cow per merged PR: every merge in the org (or just @me) inside the window, newest first. */
+/** One cow per merged PR: Callum's merges inside the window, newest first. */
 export async function fetchPrPasture(input: PastureRequest, now: number, runner: PrDashboardRunner = runGh): Promise<PastureHerd> {
   const days = Math.max(1, Math.min(366, Math.floor(input.days) || 7))
   const since = new Date(now - days * 86_400_000).toISOString().replace(/\.\d{3}Z$/, "Z")
-  const query = `is:pr is:merged org:coval-ai merged:>=${since}${input.scope === "mine" ? " author:@me" : ""} sort:updated-desc`
+  // The pasture is Callum's own herd: only PRs he authored, whatever the caller asks for.
+  const query = `is:pr is:merged org:coval-ai author:@me merged:>=${since} sort:updated-desc`
   const items: PasturePullRequest[] = []
   let cursor: string | undefined
   let truncated = false
@@ -355,7 +356,7 @@ export async function fetchPrPasture(input: PastureRequest, now: number, runner:
     if (page === MAX_PASTURE_PAGES - 1) truncated = true
   }
   items.sort((a, b) => Date.parse(b.mergedAt) - Date.parse(a.mergedAt))
-  return { items, fetchedAt: now, days, scope: input.scope, truncated: truncated ? items.length : undefined }
+  return { items, fetchedAt: now, days, scope: "mine", truncated: truncated ? items.length : undefined }
 }
 
 const pastureCache = new Map<string, { at: number; value: Promise<PastureHerd> }>()
