@@ -26,7 +26,7 @@ bash "$HOME/cow-box/provision-mac.sh" >> "$LOG" 2>&1 || say "provision exited $?
 # another channel opens a fresh, empty database and every session "disappears". Record which file
 # the live server has open so the swap can be checked and reverted.
 db_of() { lsof -p "$1" 2>/dev/null | grep -o '[^ ]*share/opencode/opencode[^ ]*\.db' | head -1; }
-db_before=$(db_of "$(pgrep -f 'opencode serve' | head -1)")
+db_before=$(db_of "$(pgrep -x opencode | head -1)")
 say "live database before swap: ${db_before:-unknown}"
 say "swapping binary"
 cp "$HOME/.local/bin/opencode" "$HOME/.local/bin/opencode.prev"
@@ -38,7 +38,7 @@ for i in $(seq 1 30); do
   h=$(curl -s -m 3 -u "cow:$PW" http://127.0.0.1:4096/global/health)
   if [ -n "$h" ]; then say "healthy: $h"; break; fi
 done
-db_after=$(db_of "$(pgrep -f 'opencode serve' | head -1)")
+db_after=$(db_of "$(pgrep -x opencode | head -1)")
 say "live database after swap: ${db_after:-unknown}"
 if [ -n "$db_before" ] && [ -n "$db_after" ] && [ "$db_before" != "$db_after" ] && [ -z "${COW_DEPLOY_ALLOW_DB_CHANGE:-}" ]; then
   say "DATABASE CHANGED ($db_before -> $db_after): the new build is on another channel; rolling back to opencode.prev"
