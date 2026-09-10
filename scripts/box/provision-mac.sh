@@ -148,7 +148,7 @@ for f in "$HERE"/coval-scripts/*.sh; do
   b=$(basename "$f")
   if ! cmp -s "$f" "$HOME/coval/scripts/$b"; then install -m 755 "$f" "$HOME/coval/scripts/$b"; log "  installed coval/scripts/$b"; fi
 done
-for f in cow-routine-guard.sh cow-routine-run.sh cow-notify.sh pr-keep-updated.sh cow-health.sh; do
+for f in cow-routine-guard.sh cow-routine-run.sh cow-notify.sh pr-keep-updated.sh cow-health.sh cow-deploy-server.sh; do
   if ! cmp -s "$HERE/$f" "$HOME/bin/$f"; then install -m 755 "$HERE/$f" "$HOME/bin/$f"; log "  installed bin/$f"; fi
 done
 # Titles/descriptions/hour windows for the app's Scheduled view (the schedule itself is read from the plists).
