@@ -1,16 +1,21 @@
 import * as THREE from "three"
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js"
 import type { Breed } from "./breeds"
+import { PENS, penFor, type PenID } from "./pens"
 
 /**
- * The pasture: a fenced green field with a pond, trees and drifting clouds,
- * and one low-poly cow per merged pull request. Cows wander, graze and idle on
- * their own; a selected cow is lifted off the ground with its legs dangling.
+ * The pasture: five fenced pens on a green field (drafts, awaiting review,
+ * changes requested, ready to merge across the front; merged behind), a
+ * pond, trees and drifting clouds, and one low-poly cow per pull request.
+ * Cows wander, graze and idle inside their pen; a selected cow is lifted off
+ * the ground with its legs dangling. When a pull request changes stage, the
+ * hand of god comes down, picks the cow up and carries it to its new pen;
+ * new pull requests are lowered in from the sky and closed ones are taken up.
  * Everything is built from primitives and canvas textures, so there are no
  * assets to ship, and the packaged app renders it with plain WebGL.
  */
 
-export type CowSpec = { id: string; breed: Breed; seed: number }
+export type CowSpec = { id: string; breed: Breed; seed: number; pen: PenID }
 
 export type PastureEvents = {
   /** Pointer is over a cow (or left one); x/y are client coordinates. */
@@ -20,16 +25,20 @@ export type PastureEvents = {
 }
 
 export type PastureScene = {
-  setCows(specs: CowSpec[]): void
+  /** `animate` plays the hand of god for the differences; otherwise the field just updates. */
+  setCows(specs: CowSpec[], animate: boolean): void
+  setSign(pen: PenID, name: string): void
   select(id: string | undefined): void
   /** Pixel position (relative to the canvas) above a cow's head, for labels. */
   screenPosition(id: string): { x: number; y: number } | undefined
   dispose(): void
 }
 
-const FIELD = 26
-const POND = { x: -15, z: -11, rx: 7, rz: 4.5 }
+const POND = { x: -30, z: -17, rx: 6, rz: 4 }
 const TAU = Math.PI * 2
+const SKY_Y = 34
+const CARRY_Y = 11
+const MAX_ANIMATED_CHANGES = 8
 
 function mulberry32(seed: number) {
   let a = seed >>> 0
@@ -42,6 +51,8 @@ function mulberry32(seed: number) {
   }
 }
 
+const ease = (u: number) => u * u * (3 - 2 * u)
+
 function lerpAngle(from: number, to: number, amount: number) {
   let delta = ((to - from + Math.PI) % TAU) - Math.PI
   if (delta < -Math.PI) delta += TAU
@@ -52,6 +63,16 @@ function inPond(x: number, z: number, margin = 1.5) {
   const dx = (x - POND.x) / (POND.rx + margin)
   const dz = (z - POND.z) / (POND.rz + margin)
   return dx * dx + dz * dz < 1
+}
+
+function randomPointIn(pen: PenID, rand: () => number, inset = 1.8) {
+  const { rect } = penFor(pen)
+  for (let attempt = 0; attempt < 20; attempt++) {
+    const x = rect.x0 + inset + rand() * (rect.x1 - rect.x0 - inset * 2)
+    const z = rect.z0 + inset + rand() * (rect.z1 - rect.z0 - inset * 2)
+    if (!inPond(x, z)) return { x, z }
+  }
+  return { x: (rect.x0 + rect.x1) / 2, z: (rect.z0 + rect.z1) / 2 }
 }
 
 // ---------------------------------------------------------------- textures
@@ -95,7 +116,6 @@ function coatTexture(breed: Breed, seed: number) {
     }
     ctx.globalAlpha = 1
   }
-  // A little fur grain so flat colours read as hide, not plastic.
   ctx.globalAlpha = breed.shaggy ? 0.16 : 0.08
   for (let i = 0; i < (breed.shaggy ? 2600 : 1400); i++) {
     ctx.fillStyle = rand() > 0.5 ? "#000000" : "#ffffff"
@@ -133,7 +153,7 @@ function groundTexture() {
   const texture = new THREE.CanvasTexture(canvas)
   texture.colorSpace = THREE.SRGBColorSpace
   texture.wrapS = texture.wrapT = THREE.RepeatWrapping
-  texture.repeat.set(7, 7)
+  texture.repeat.set(9, 9)
   return texture
 }
 
@@ -141,7 +161,7 @@ function groundTexture() {
 
 function buildGround(scene: THREE.Scene) {
   const ground = new THREE.Mesh(
-    new THREE.PlaneGeometry(220, 220),
+    new THREE.PlaneGeometry(320, 320),
     new THREE.MeshStandardMaterial({ map: groundTexture(), roughness: 1, metalness: 0 }),
   )
   ground.rotation.x = -Math.PI / 2
@@ -150,7 +170,6 @@ function buildGround(scene: THREE.Scene) {
 }
 
 function buildGrass(scene: THREE.Scene) {
-  // Three tapered blades per tuft, crossed; vertex colours fade from a dark base to a bright tip.
   const positions: number[] = []
   const colors: number[] = []
   const base = new THREE.Color("#3f8a33")
@@ -167,7 +186,7 @@ function buildGrass(scene: THREE.Scene) {
   geometry.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3))
   geometry.computeVertexNormals()
   const material = new THREE.MeshStandardMaterial({ vertexColors: true, side: THREE.DoubleSide, roughness: 1 })
-  const count = 2600
+  const count = 4200
   const mesh = new THREE.InstancedMesh(geometry, material, count)
   const rand = mulberry32(11)
   const matrix = new THREE.Matrix4()
@@ -177,8 +196,8 @@ function buildGrass(scene: THREE.Scene) {
   const up = new THREE.Vector3(0, 1, 0)
   let placed = 0
   while (placed < count) {
-    const x = (rand() - 0.5) * (FIELD + 9) * 2
-    const z = (rand() - 0.5) * (FIELD + 9) * 2
+    const x = (rand() - 0.5) * 112
+    const z = (rand() - 0.5) * 78
     if (inPond(x, z, 0.5)) continue
     position.set(x, 0, z)
     rotation.setFromAxisAngle(up, rand() * TAU)
@@ -195,15 +214,15 @@ function buildGrass(scene: THREE.Scene) {
 function buildFlowers(scene: THREE.Scene) {
   const geometry = new THREE.SphereGeometry(0.09, 6, 5)
   const material = new THREE.MeshStandardMaterial({ roughness: 0.8 })
-  const count = 420
+  const count = 600
   const mesh = new THREE.InstancedMesh(geometry, material, count)
   const rand = mulberry32(23)
   const palette = ["#ff7eb6", "#ffd166", "#ffffff", "#c58cff", "#ff9f66"].map((c) => new THREE.Color(c))
   const matrix = new THREE.Matrix4()
   let placed = 0
   while (placed < count) {
-    const x = (rand() - 0.5) * (FIELD + 6) * 2
-    const z = (rand() - 0.5) * (FIELD + 6) * 2
+    const x = (rand() - 0.5) * 108
+    const z = (rand() - 0.5) * 74
     if (inPond(x, z, 0.5)) continue
     matrix.makeTranslation(x, 0.2 + rand() * 0.15, z)
     mesh.setMatrixAt(placed, matrix)
@@ -214,10 +233,7 @@ function buildFlowers(scene: THREE.Scene) {
 }
 
 function buildPond(scene: THREE.Scene) {
-  const rim = new THREE.Mesh(
-    new THREE.CircleGeometry(1, 40),
-    new THREE.MeshStandardMaterial({ color: "#d9c9a3", roughness: 1 }),
-  )
+  const rim = new THREE.Mesh(new THREE.CircleGeometry(1, 40), new THREE.MeshStandardMaterial({ color: "#d9c9a3", roughness: 1 }))
   rim.rotation.x = -Math.PI / 2
   rim.position.set(POND.x, 0.015, POND.z)
   rim.scale.set(POND.rx + 0.9, POND.rz + 0.9, 1)
@@ -237,20 +253,20 @@ function buildTrees(scene: THREE.Scene) {
   const leaves = ["#3e8f3a", "#4ca046", "#2f7a2e"].map((c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.9 }))
   const rand = mulberry32(31)
   const spots: Array<[number, number]> = [
-    [-34, -30], [-31, 12], [-36, 28], [33, -28], [36, 4], [31, 26], [-8, -38], [14, -36], [4, 38], [-22, 36], [24, 37],
+    [-54, -26], [-53, 2], [-55, 22], [53, -22], [54, 8], [52, 26], [-30, -38], [-8, -40], [16, -37], [36, -39], [-40, 34], [8, 35], [44, 34],
   ]
   for (const [x, z] of spots) {
     const tree = new THREE.Group()
-    const height = 2.2 + rand() * 1.4
-    const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.34, height, 8), trunk)
+    const height = 2.4 + rand() * 1.6
+    const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.38, height, 8), trunk)
     stem.position.y = height / 2
     stem.castShadow = true
     tree.add(stem)
     const puffs = 2 + Math.floor(rand() * 2)
     for (let i = 0; i < puffs; i++) {
-      const r = 1.4 + rand() * 1.2
+      const r = 1.6 + rand() * 1.4
       const puff = new THREE.Mesh(new THREE.IcosahedronGeometry(r, 1), leaves[Math.floor(rand() * leaves.length)])
-      puff.position.set((rand() - 0.5) * 1.6, height + r * 0.6 + i * 0.7, (rand() - 0.5) * 1.6)
+      puff.position.set((rand() - 0.5) * 1.8, height + r * 0.6 + i * 0.8, (rand() - 0.5) * 1.8)
       puff.castShadow = true
       tree.add(puff)
     }
@@ -263,13 +279,8 @@ function buildTrees(scene: THREE.Scene) {
 function buildRocks(scene: THREE.Scene) {
   const material = new THREE.MeshStandardMaterial({ color: "#9a9a92", roughness: 1 })
   const rand = mulberry32(41)
-  for (let i = 0; i < 7; i++) {
-    let x = 0
-    let z = 0
-    do {
-      x = (rand() - 0.5) * FIELD * 1.8
-      z = (rand() - 0.5) * FIELD * 1.8
-    } while (inPond(x, z, 1))
+  const spots: Array<[number, number]> = [[-12, -8], [30, -24], [8, -26], [-40, -4], [40, -10], [-2, -14]]
+  for (const [x, z] of spots) {
     const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(0.5 + rand() * 0.7, 0), material)
     rock.position.set(x, 0.2, z)
     rock.scale.set(1 + rand() * 0.6, 0.6 + rand() * 0.4, 1 + rand() * 0.6)
@@ -280,55 +291,116 @@ function buildRocks(scene: THREE.Scene) {
   }
 }
 
-function buildFence(scene: THREE.Scene) {
+function buildFences(scene: THREE.Scene) {
   const wood = new THREE.MeshStandardMaterial({ color: "#a7783f", roughness: 0.95 })
-  const edge = FIELD + 2.5
   const spacing = 3
-  const perSide = Math.round((edge * 2) / spacing)
-  const posts = new THREE.InstancedMesh(new THREE.BoxGeometry(0.2, 1.15, 0.2), wood, perSide * 4)
-  const rails = new THREE.InstancedMesh(new THREE.BoxGeometry(spacing, 0.09, 0.07), wood, perSide * 4 * 2)
-  const matrix = new THREE.Matrix4()
-  const quaternion = new THREE.Quaternion()
+  const posts: THREE.Matrix4[] = []
+  const rails: THREE.Matrix4[] = []
   const up = new THREE.Vector3(0, 1, 0)
-  let post = 0
-  let rail = 0
-  for (let side = 0; side < 4; side++) {
-    const along = side % 2 === 0
-    const fixed = side < 2 ? -edge : edge
-    quaternion.setFromAxisAngle(up, along ? 0 : Math.PI / 2)
-    for (let i = 0; i < perSide; i++) {
-      const t = -edge + i * spacing
-      const x = along ? t : fixed
-      const z = along ? fixed : t
-      matrix.makeTranslation(x, 0.57, z)
-      posts.setMatrixAt(post++, matrix)
-      const mx = along ? t + spacing / 2 : fixed
-      const mz = along ? fixed : t + spacing / 2
-      for (const y of [0.45, 0.85]) {
-        matrix.compose(new THREE.Vector3(mx, y, mz), quaternion, new THREE.Vector3(1, 1, 1))
-        rails.setMatrixAt(rail++, matrix)
+  for (const pen of PENS) {
+    const { x0, x1, z0, z1 } = pen.rect
+    const sides: Array<{ from: [number, number]; to: [number, number] }> = [
+      { from: [x0, z0], to: [x1, z0] },
+      { from: [x0, z1], to: [x1, z1] },
+      { from: [x0, z0], to: [x0, z1] },
+      { from: [x1, z0], to: [x1, z1] },
+    ]
+    for (const side of sides) {
+      const dx = side.to[0] - side.from[0]
+      const dz = side.to[1] - side.from[1]
+      const length = Math.hypot(dx, dz)
+      const segments = Math.max(1, Math.round(length / spacing))
+      const step = length / segments
+      const angle = Math.atan2(dz, dx)
+      const q = new THREE.Quaternion().setFromAxisAngle(up, -angle)
+      for (let i = 0; i <= segments; i++) {
+        const t = i / segments
+        posts.push(new THREE.Matrix4().makeTranslation(side.from[0] + dx * t, 0.57, side.from[1] + dz * t))
+        if (i === segments) continue
+        const mx = side.from[0] + dx * (t + 0.5 / segments)
+        const mz = side.from[1] + dz * (t + 0.5 / segments)
+        for (const y of [0.45, 0.85]) {
+          const m = new THREE.Matrix4().compose(new THREE.Vector3(mx, y, mz), q, new THREE.Vector3(step / spacing, 1, 1))
+          rails.push(m)
+        }
       }
     }
   }
-  posts.castShadow = true
-  rails.castShadow = true
-  scene.add(posts, rails)
+  const postMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(0.2, 1.15, 0.2), wood, posts.length)
+  posts.forEach((m, i) => postMesh.setMatrixAt(i, m))
+  const railMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(spacing, 0.09, 0.07), wood, rails.length)
+  rails.forEach((m, i) => railMesh.setMatrixAt(i, m))
+  postMesh.castShadow = true
+  railMesh.castShadow = true
+  scene.add(postMesh, railMesh)
+}
+
+type Sign = { canvas: HTMLCanvasElement; texture: THREE.CanvasTexture; name: string; count: number }
+
+function paintSign(sign: Sign) {
+  const ctx = sign.canvas.getContext("2d")!
+  const { width, height } = sign.canvas
+  ctx.fillStyle = "#c9a26b"
+  ctx.fillRect(0, 0, width, height)
+  ctx.strokeStyle = "#8a6238"
+  ctx.lineWidth = 14
+  ctx.strokeRect(7, 7, width - 14, height - 14)
+  ctx.fillStyle = "#3b2a1a"
+  ctx.textAlign = "center"
+  ctx.textBaseline = "middle"
+  ctx.font = "bold 58px 'Helvetica Neue', Helvetica, Arial, sans-serif"
+  ctx.fillText(sign.name, width / 2, height * 0.38, width - 60)
+  ctx.font = "40px 'Helvetica Neue', Helvetica, Arial, sans-serif"
+  ctx.fillText(`${sign.count} cow${sign.count === 1 ? "" : "s"}`, width / 2, height * 0.74)
+  sign.texture.needsUpdate = true
+}
+
+function buildSigns(scene: THREE.Scene) {
+  const signs = new Map<PenID, Sign>()
+  const wood = new THREE.MeshStandardMaterial({ color: "#8a6238", roughness: 1 })
+  for (const pen of PENS) {
+    const canvas = document.createElement("canvas")
+    canvas.width = 512
+    canvas.height = 176
+    const texture = new THREE.CanvasTexture(canvas)
+    texture.colorSpace = THREE.SRGBColorSpace
+    const sign: Sign = { canvas, texture, name: pen.name, count: 0 }
+    paintSign(sign)
+    const group = new THREE.Group()
+    const board = new THREE.Mesh(new THREE.BoxGeometry(6.4, 2.2, 0.18), [
+      wood, wood, wood, wood,
+      new THREE.MeshStandardMaterial({ map: texture, roughness: 0.9 }),
+      wood,
+    ])
+    board.position.y = 2.6
+    board.castShadow = true
+    group.add(board)
+    for (const dx of [-2.6, 2.6]) {
+      const post = new THREE.Mesh(new THREE.BoxGeometry(0.22, 2.4, 0.22), wood)
+      post.position.set(dx, 1.2, -0.12)
+      group.add(post)
+    }
+    group.position.set(pen.rect.x0 + 3.9, 0, pen.rect.z1 + 1.35)
+    scene.add(group)
+    signs.set(pen.id, sign)
+  }
+  return signs
 }
 
 function buildClouds(scene: THREE.Scene) {
   const material = new THREE.MeshStandardMaterial({ color: "#ffffff", roughness: 1, emissive: "#ffffff", emissiveIntensity: 0.35 })
   const rand = mulberry32(53)
   const clouds: THREE.Group[] = []
-  for (let i = 0; i < 7; i++) {
+  for (let i = 0; i < 8; i++) {
     const cloud = new THREE.Group()
     const puffs = 3 + Math.floor(rand() * 4)
     for (let p = 0; p < puffs; p++) {
-      const r = 1.6 + rand() * 1.8
+      const r = 1.8 + rand() * 2
       const puff = new THREE.Mesh(new THREE.SphereGeometry(r, 10, 8), material)
-      puff.position.set(p * 2.2 - puffs, rand() * 0.8, (rand() - 0.5) * 2)
+      puff.position.set(p * 2.4 - puffs, rand() * 0.8, (rand() - 0.5) * 2)
       cloud.add(puff)
     }
-    cloud.position.set((rand() - 0.5) * 140, 20 + rand() * 9, -30 - rand() * 60)
+    cloud.position.set((rand() - 0.5) * 180, 26 + rand() * 10, -40 - rand() * 70)
     cloud.userData.speed = 0.35 + rand() * 0.5
     scene.add(cloud)
     clouds.push(cloud)
@@ -338,25 +410,71 @@ function buildClouds(scene: THREE.Scene) {
 
 function buildSky(scene: THREE.Scene) {
   scene.background = new THREE.Color("#a9d8f5")
-  scene.fog = new THREE.Fog("#bfe0f5", 80, 190)
-  const sun = new THREE.Mesh(new THREE.SphereGeometry(6, 16, 16), new THREE.MeshBasicMaterial({ color: "#fff1a8" }))
-  sun.position.set(70, 62, -90)
+  scene.fog = new THREE.Fog("#bfe0f5", 120, 260)
+  const sun = new THREE.Mesh(new THREE.SphereGeometry(7, 16, 16), new THREE.MeshBasicMaterial({ color: "#fff1a8" }))
+  sun.position.set(90, 80, -120)
   scene.add(sun)
-  const hemi = new THREE.HemisphereLight("#cfe9ff", "#4f8a3a", 0.95)
-  scene.add(hemi)
+  scene.add(new THREE.HemisphereLight("#cfe9ff", "#4f8a3a", 0.95))
   const light = new THREE.DirectionalLight("#fff4dc", 2.2)
-  light.position.set(32, 48, 22)
+  light.position.set(40, 60, 30)
   light.castShadow = true
   light.shadow.mapSize.set(2048, 2048)
-  light.shadow.camera.left = -46
-  light.shadow.camera.right = 46
-  light.shadow.camera.top = 46
-  light.shadow.camera.bottom = -46
+  light.shadow.camera.left = -70
+  light.shadow.camera.right = 70
+  light.shadow.camera.top = 70
+  light.shadow.camera.bottom = -70
   light.shadow.camera.near = 5
-  light.shadow.camera.far = 140
+  light.shadow.camera.far = 200
   light.shadow.bias = -0.0008
   scene.add(light)
   scene.add(new THREE.AmbientLight("#ffffff", 0.25))
+}
+
+// ---------------------------------------------------------------- the hand of god
+
+type Hand = { group: THREE.Group; fingers: THREE.Group[]; thumb: THREE.Group }
+
+function buildHand(): Hand {
+  const skin = new THREE.MeshStandardMaterial({ color: "#f2c9a8", roughness: 0.85 })
+  const group = new THREE.Group()
+  const scale = 2.1
+  const palm = new THREE.Mesh(new THREE.BoxGeometry(2.1, 0.6, 2.3), skin)
+  palm.castShadow = true
+  group.add(palm)
+  const sleeve = new THREE.Mesh(new THREE.CylinderGeometry(1.15, 1.05, 3.2, 14), new THREE.MeshStandardMaterial({ color: "#f7f5ef", roughness: 0.9 }))
+  sleeve.position.set(0, 1.8, -0.6)
+  group.add(sleeve)
+  const cuff = new THREE.Mesh(new THREE.CylinderGeometry(1.25, 1.25, 0.5, 14), new THREE.MeshStandardMaterial({ color: "#3b5bdb", roughness: 0.8 }))
+  cuff.position.set(0, 0.45, -0.6)
+  group.add(cuff)
+  const fingers: THREE.Group[] = []
+  for (let i = 0; i < 4; i++) {
+    const pivot = new THREE.Group()
+    pivot.position.set(-0.78 + i * 0.52, -0.05, 1.1)
+    const finger = new THREE.Mesh(new THREE.CapsuleGeometry(0.24, 1.2, 4, 8), skin)
+    finger.rotation.x = Math.PI / 2
+    finger.position.z = 0.7
+    finger.castShadow = true
+    pivot.add(finger)
+    group.add(pivot)
+    fingers.push(pivot)
+  }
+  const thumb = new THREE.Group()
+  thumb.position.set(1.15, -0.05, 0.1)
+  const thumbMesh = new THREE.Mesh(new THREE.CapsuleGeometry(0.27, 1, 4, 8), skin)
+  thumbMesh.rotation.z = -Math.PI / 2
+  thumbMesh.position.x = 0.6
+  thumbMesh.castShadow = true
+  thumb.add(thumbMesh)
+  group.add(thumb)
+  group.scale.setScalar(scale)
+  group.visible = false
+  return { group, fingers, thumb }
+}
+
+function curlHand(hand: Hand, curl: number) {
+  for (const finger of hand.fingers) finger.rotation.x = 0.25 + curl * 1.05
+  hand.thumb.rotation.z = -0.1 - curl * 0.9
 }
 
 // ---------------------------------------------------------------- cows
@@ -374,6 +492,8 @@ type CowParts = {
 type Cow = {
   spec: CowSpec
   parts: CowParts
+  pen: PenID
+  pendingPen?: PenID
   x: number
   z: number
   heading: number
@@ -384,6 +504,9 @@ type Cow = {
   phase: number
   lift: number
   selected: boolean
+  carried: boolean
+  hidden: boolean
+  leaving: boolean
   rand: () => number
 }
 
@@ -541,15 +664,23 @@ function disposeObject(object: THREE.Object3D) {
   })
 }
 
-function pickTarget(cow: Cow) {
-  for (let attempt = 0; attempt < 12; attempt++) {
-    const angle = cow.rand() * TAU
-    const distance = 3 + cow.rand() * 8
-    const x = Math.max(-FIELD, Math.min(FIELD, cow.x + Math.sin(angle) * distance))
-    const z = Math.max(-FIELD, Math.min(FIELD, cow.z + Math.cos(angle) * distance))
-    if (!inPond(x, z)) return { x, z }
-  }
-  return { x: 0, z: 0 }
+/** The height of a cow's back, where the hand takes hold. */
+const gripHeight = (size: number) => 1.75 * size
+
+type Transfer =
+  | { kind: "move"; id: string; to: PenID }
+  | { kind: "arrive"; id: string }
+  | { kind: "depart"; id: string }
+
+type Phase = "descend" | "grab" | "lift" | "travel" | "lower" | "release" | "ascend" | "carry-up" | "carry-down"
+
+type Active = {
+  transfer: Transfer
+  phase: Phase
+  t: number
+  from: { x: number; z: number }
+  to: { x: number; z: number }
+  cow: Cow
 }
 
 export function createPastureScene(canvas: HTMLCanvasElement, events: PastureEvents): PastureScene {
@@ -569,17 +700,20 @@ export function createPastureScene(canvas: HTMLCanvasElement, events: PastureEve
   buildPond(scene)
   buildTrees(scene)
   buildRocks(scene)
-  buildFence(scene)
+  buildFences(scene)
+  const signs = buildSigns(scene)
   const clouds = buildClouds(scene)
+  const hand = buildHand()
+  scene.add(hand.group)
 
-  const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 400)
-  camera.position.set(0, 17, 36)
+  const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 500)
+  camera.position.set(0, 44, 78)
   const controls = new OrbitControls(camera, canvas)
-  controls.target.set(0, 0.8, 0)
+  controls.target.set(0, 0.8, 4)
   controls.enableDamping = true
   controls.dampingFactor = 0.08
   controls.minDistance = 6
-  controls.maxDistance = 75
+  controls.maxDistance = 130
   controls.maxPolarAngle = Math.PI * 0.47
   controls.enablePan = true
   controls.update()
@@ -588,6 +722,9 @@ export function createPastureScene(canvas: HTMLCanvasElement, events: PastureEve
   scene.add(cowRoot)
   const cows = new Map<string, Cow>()
   let selectedID: string | undefined
+  let seeded = false
+  const queue: Transfer[] = []
+  let active: Active | undefined
 
   const pointer = new THREE.Vector2(2, 2)
   let pointerInside = false
@@ -634,8 +771,7 @@ export function createPastureScene(canvas: HTMLCanvasElement, events: PastureEve
     down = undefined
     if (moved > 6 || !quick) return
     updatePointer(event)
-    const id = pick()
-    events.onSelect(id)
+    events.onSelect(pick())
   }
   const onDoubleClick = (event: MouseEvent) => {
     const rect = canvas.getBoundingClientRect()
@@ -656,37 +792,100 @@ export function createPastureScene(canvas: HTMLCanvasElement, events: PastureEve
       let object: THREE.Object3D | null = hit.object
       while (object) {
         const id = object.userData.cowID as string | undefined
-        if (id) return id
+        if (id) {
+          const cow = cows.get(id)
+          return cow && !cow.hidden ? id : undefined
+        }
         object = object.parent
       }
     }
     return undefined
   }
 
-  const clock = new THREE.Clock()
-  let frame = 0
-  let raf = 0
-  const tmp = new THREE.Vector3()
+  function pickTarget(cow: Cow) {
+    const { rect } = penFor(cow.pen)
+    for (let attempt = 0; attempt < 12; attempt++) {
+      const angle = cow.rand() * TAU
+      const distance = 3 + cow.rand() * 8
+      const x = Math.max(rect.x0 + 1.8, Math.min(rect.x1 - 1.8, cow.x + Math.sin(angle) * distance))
+      const z = Math.max(rect.z0 + 1.8, Math.min(rect.z1 - 1.8, cow.z + Math.cos(angle) * distance))
+      if (!inPond(x, z)) return { x, z }
+    }
+    return randomPointIn(cow.pen, cow.rand)
+  }
+
+  function makeCow(spec: CowSpec, hidden: boolean): Cow {
+    const rand = mulberry32(spec.seed ^ 0x9e3779b9)
+    const parts = buildCow(spec)
+    const { x, z } = randomPointIn(spec.pen, rand)
+    const cow: Cow = {
+      spec,
+      parts,
+      pen: spec.pen,
+      x,
+      z,
+      heading: rand() * TAU,
+      target: { x, z },
+      mode: rand() < 0.5 ? "graze" : "idle",
+      timer: 1 + rand() * 6,
+      walkPhase: rand() * TAU,
+      phase: rand() * TAU,
+      lift: 0,
+      selected: spec.id === selectedID,
+      carried: false,
+      hidden,
+      leaving: false,
+      rand,
+    }
+    parts.group.visible = !hidden
+    parts.group.position.set(x, 0, z)
+    parts.group.rotation.y = cow.heading
+    cowRoot.add(parts.group)
+    cows.set(spec.id, cow)
+    return cow
+  }
+
+  function removeCow(cow: Cow) {
+    cowRoot.remove(cow.parts.group)
+    disposeObject(cow.parts.group)
+    cows.delete(cow.spec.id)
+  }
+
+  function dangle(cow: Cow, t: number, amount: number) {
+    const parts = cow.parts
+    parts.legs.forEach((leg, i) => {
+      leg.rotation.x = Math.sin(t * 2.3 + i * 1.3 + cow.phase) * 0.3 * amount
+      leg.rotation.z = Math.sin(t * 1.9 + i * 0.8) * 0.14 * amount
+    })
+    parts.rig.rotation.x = -0.14 * amount
+    parts.head.rotation.x = 0.12 * amount
+    parts.head.rotation.y = Math.sin(t * 0.9 + cow.phase) * 0.15 * amount
+    parts.tail.rotation.x = Math.sin(t * 3 + cow.phase) * 0.35
+  }
 
   function stepCow(cow: Cow, dt: number, t: number) {
     const parts = cow.parts
+    if (cow.hidden) return
     const size = cow.spec.breed.size
+    if (cow.carried) {
+      // Position and height come from the hand; the cow just swings.
+      parts.shadow.scale.setScalar(0.65)
+      ;(parts.shadow.material as THREE.MeshBasicMaterial).opacity = 0.08
+      parts.ring.visible = false
+      dangle(cow, t, 1)
+      parts.group.position.set(cow.x, 0, cow.z)
+      parts.group.rotation.y = cow.heading
+      return
+    }
     cow.lift = cow.selected ? Math.min(1, cow.lift + dt * 1.5) : Math.max(0, cow.lift - dt * 1.3)
-    const ease = cow.lift * cow.lift * (3 - 2 * cow.lift)
-    parts.shadow.scale.setScalar(1 - ease * 0.35)
-    ;(parts.shadow.material as THREE.MeshBasicMaterial).opacity = 0.16 * (1 - ease * 0.5)
+    const lifted = ease(cow.lift)
+    parts.shadow.scale.setScalar(1 - lifted * 0.35)
+    ;(parts.shadow.material as THREE.MeshBasicMaterial).opacity = 0.16 * (1 - lifted * 0.5)
     parts.ring.visible = cow.selected
 
     if (cow.lift > 0.02) {
-      parts.rig.position.y = ease * (2.3 + size * 0.5) + (cow.selected ? Math.sin(t * 1.7 + cow.phase) * 0.08 : 0)
-      parts.legs.forEach((leg, i) => {
-        leg.rotation.x = Math.sin(t * 2.3 + i * 1.3 + cow.phase) * 0.3 * ease
-        leg.rotation.z = Math.sin(t * 1.9 + i * 0.8) * 0.14 * ease
-      })
-      parts.rig.rotation.x = -0.14 * ease
-      parts.head.rotation.x = 0.12 * ease
-      parts.head.rotation.y = Math.sin(t * 0.9 + cow.phase) * 0.15 * ease
-      parts.tail.rotation.x = Math.sin(t * 3 + cow.phase) * 0.35
+      parts.rig.position.y = lifted * (2.3 + size * 0.5) + (cow.selected ? Math.sin(t * 1.7 + cow.phase) * 0.08 : 0)
+      dangle(cow, t, lifted)
       if (cow.selected) {
         const face = Math.atan2(camera.position.x - cow.x, camera.position.z - cow.z)
         cow.heading = lerpAngle(cow.heading, face, dt * 1.2)
@@ -734,7 +933,6 @@ export function createPastureScene(canvas: HTMLCanvasElement, events: PastureEve
       }
     } else {
       parts.head.rotation.x += (0 - parts.head.rotation.x) * Math.min(1, dt * 3)
-      parts.head.position.y += (1.2175 - parts.head.position.y) * Math.min(1, dt * 3)
       parts.head.rotation.y = Math.sin(t * 0.7 + cow.phase) * 0.45
       parts.tail.rotation.z = Math.sin(t * 1.4 + cow.phase) * 0.25
       for (const leg of parts.legs) leg.rotation.x *= 1 - Math.min(1, dt * 6)
@@ -750,11 +948,12 @@ export function createPastureScene(canvas: HTMLCanvasElement, events: PastureEve
   }
 
   function separate() {
-    const list = [...cows.values()]
+    const list = [...cows.values()].filter((cow) => !cow.hidden && !cow.carried)
     for (let i = 0; i < list.length; i++) {
       for (let j = i + 1; j < list.length; j++) {
         const a = list[i]
         const b = list[j]
+        if (a.pen !== b.pen) continue
         const dx = b.x - a.x
         const dz = b.z - a.z
         const min = (a.spec.breed.size + b.spec.breed.size) * 0.95
@@ -775,16 +974,166 @@ export function createPastureScene(canvas: HTMLCanvasElement, events: PastureEve
     }
   }
 
+  // ---- the hand of god
+
+  const DURATION: Record<Phase, number> = {
+    descend: 1.1,
+    grab: 0.35,
+    lift: 0.8,
+    travel: 2,
+    lower: 0.8,
+    release: 0.35,
+    ascend: 1.0,
+    "carry-up": 1.4,
+    "carry-down": 1.4,
+  }
+
+  function placeHand(x: number, y: number, z: number) {
+    hand.group.position.set(x, y, z)
+  }
+
+  function holdCow(cow: Cow) {
+    cow.carried = true
+    cow.selected = false
+    cow.lift = 0
+    cow.x = hand.group.position.x
+    cow.z = hand.group.position.z
+    cow.parts.rig.position.y = Math.max(0, hand.group.position.y - gripHeight(cow.spec.breed.size))
+  }
+
+  function startNext() {
+    while (!active && queue.length) {
+      const transfer = queue.shift()!
+      const cow = cows.get(transfer.id)
+      if (!cow) continue
+      if (transfer.kind === "move") {
+        if (cow.pendingPen !== transfer.to) continue
+        const to = randomPointIn(transfer.to, cow.rand)
+        active = { transfer, phase: "descend", t: 0, from: { x: cow.x, z: cow.z }, to, cow }
+        placeHand(cow.x, SKY_Y, cow.z)
+        curlHand(hand, 0)
+      } else if (transfer.kind === "arrive") {
+        const to = { x: cow.x, z: cow.z }
+        active = { transfer, phase: "carry-down", t: 0, from: to, to, cow }
+        placeHand(to.x, SKY_Y, to.z)
+        curlHand(hand, 1)
+        cow.hidden = false
+        cow.parts.group.visible = true
+        holdCow(cow)
+      } else {
+        if (!cow.leaving) continue
+        active = { transfer, phase: "descend", t: 0, from: { x: cow.x, z: cow.z }, to: { x: cow.x, z: cow.z }, cow }
+        placeHand(cow.x, SKY_Y, cow.z)
+        curlHand(hand, 0)
+      }
+      hand.group.visible = true
+    }
+  }
+
+  function finishActive() {
+    hand.group.visible = false
+    active = undefined
+    startNext()
+  }
+
+  function stepHand(dt: number) {
+    if (!active) return
+    const a = active
+    const cow = a.cow
+    const size = cow.spec.breed.size
+    const top = gripHeight(size)
+    a.t += dt
+    const u = Math.min(1, a.t / DURATION[a.phase])
+    const e = ease(u)
+    switch (a.phase) {
+      case "descend":
+        placeHand(a.from.x, SKY_Y + (top - SKY_Y) * e, a.from.z)
+        break
+      case "grab":
+        curlHand(hand, e)
+        if (u >= 1) holdCow(cow)
+        break
+      case "lift":
+        placeHand(a.from.x, top + (CARRY_Y - top) * e, a.from.z)
+        break
+      case "travel": {
+        const x = a.from.x + (a.to.x - a.from.x) * e
+        const z = a.from.z + (a.to.z - a.from.z) * e
+        placeHand(x, CARRY_Y + Math.sin(u * Math.PI) * 3, z)
+        cow.heading = lerpAngle(cow.heading, Math.atan2(a.to.x - a.from.x, a.to.z - a.from.z), dt * 2)
+        break
+      }
+      case "lower":
+        placeHand(a.to.x, CARRY_Y + (top - CARRY_Y) * e, a.to.z)
+        break
+      case "release":
+        curlHand(hand, 1 - e)
+        if (u >= 1) {
+          cow.carried = false
+          cow.x = a.to.x
+          cow.z = a.to.z
+          cow.parts.rig.position.y = 0
+          if (a.transfer.kind === "move") {
+            cow.pen = a.transfer.to
+            cow.pendingPen = undefined
+          }
+          cow.mode = "idle"
+          cow.timer = 1.5 + cow.rand() * 3
+          cow.target = pickTarget(cow)
+        }
+        break
+      case "ascend":
+        placeHand(hand.group.position.x, top + (SKY_Y - top) * e, hand.group.position.z)
+        break
+      case "carry-up":
+        placeHand(a.from.x, top + (SKY_Y + 6 - top) * e, a.from.z)
+        if (u >= 1) {
+          removeCow(cow)
+          finishActive()
+          return
+        }
+        break
+      case "carry-down":
+        placeHand(a.to.x, SKY_Y + (top - SKY_Y) * e, a.to.z)
+        break
+    }
+    if (cow.carried) holdCow(cow)
+    if (u < 1) return
+    a.t = 0
+    const next: Partial<Record<Phase, Phase | "done">> =
+      a.transfer.kind === "move"
+        ? { descend: "grab", grab: "lift", lift: "travel", travel: "lower", lower: "release", release: "ascend", ascend: "done" }
+        : a.transfer.kind === "arrive"
+          ? { "carry-down": "release", release: "ascend", ascend: "done" }
+          : { descend: "grab", grab: "carry-up" }
+    const to = next[a.phase]
+    if (!to || to === "done") {
+      finishActive()
+      return
+    }
+    if (to === "travel") {
+      const distance = Math.hypot(a.to.x - a.from.x, a.to.z - a.from.z)
+      DURATION.travel = Math.min(3, Math.max(1.1, distance / 16))
+    }
+    a.phase = to
+  }
+
+  const clock = new THREE.Clock()
+  let frame = 0
+  let raf = 0
+  const tmp = new THREE.Vector3()
+
   function animate() {
     raf = requestAnimationFrame(animate)
     const dt = Math.min(0.05, clock.getDelta())
     const t = clock.elapsedTime
     frame++
+    stepHand(dt)
     for (const cow of cows.values()) stepCow(cow, dt, t)
     if (frame % 3 === 0 && cows.size > 1) separate()
     for (const cloud of clouds) {
       cloud.position.x += (cloud.userData.speed as number) * dt
-      if (cloud.position.x > 90) cloud.position.x = -90
+      if (cloud.position.x > 110) cloud.position.x = -110
     }
     controls.update()
     if (pointerInside) {
@@ -799,53 +1148,78 @@ export function createPastureScene(canvas: HTMLCanvasElement, events: PastureEve
   }
   animate()
 
+  function updateSigns(specs: CowSpec[]) {
+    const counts = new Map<PenID, number>()
+    for (const spec of specs) counts.set(spec.pen, (counts.get(spec.pen) ?? 0) + 1)
+    for (const [pen, sign] of signs) {
+      const count = counts.get(pen) ?? 0
+      if (sign.count === count) continue
+      sign.count = count
+      paintSign(sign)
+    }
+  }
+
   return {
-    setCows(specs) {
-      const keep = new Set(specs.map((spec) => spec.id))
-      for (const [id, cow] of cows) {
-        if (keep.has(id)) continue
-        cowRoot.remove(cow.parts.group)
-        disposeObject(cow.parts.group)
-        cows.delete(id)
-      }
-      specs.forEach((spec) => {
-        if (cows.has(spec.id)) return
-        const rand = mulberry32(spec.seed ^ 0x9e3779b9)
-        const parts = buildCow(spec)
-        let x = 0
-        let z = 0
-        do {
-          x = (rand() - 0.5) * FIELD * 1.9
-          z = (rand() - 0.5) * FIELD * 1.9
-        } while (inPond(x, z))
-        const cow: Cow = {
-          spec,
-          parts,
-          x,
-          z,
-          heading: rand() * TAU,
-          target: { x, z },
-          mode: rand() < 0.5 ? "graze" : "idle",
-          timer: 1 + rand() * 6,
-          walkPhase: rand() * TAU,
-          phase: rand() * TAU,
-          lift: 0,
-          selected: spec.id === selectedID,
-          rand,
+    setCows(specs, animate) {
+      const next = new Map(specs.map((spec) => [spec.id, spec]))
+      const changes: Transfer[] = []
+      for (const [id, cow] of cows) if (!next.has(id) && !cow.leaving) changes.push({ kind: "depart", id })
+      for (const spec of specs) {
+        const cow = cows.get(spec.id)
+        if (!cow) changes.push({ kind: "arrive", id: spec.id })
+        else {
+          cow.leaving = false
+          if (cow.pen !== spec.pen && cow.pendingPen !== spec.pen) changes.push({ kind: "move", id: spec.id, to: spec.pen })
         }
-        parts.group.position.set(x, 0, z)
-        parts.group.rotation.y = cow.heading
-        cowRoot.add(parts.group)
-        cows.set(spec.id, cow)
-      })
+      }
+      const play = animate && seeded && changes.length > 0 && changes.length <= MAX_ANIMATED_CHANGES
+      for (const change of changes) {
+        if (change.kind === "depart") {
+          const cow = cows.get(change.id)!
+          if (play && !cow.hidden) {
+            cow.leaving = true
+            queue.push(change)
+          } else {
+            if (active?.cow === cow) finishActive()
+            removeCow(cow)
+          }
+        } else if (change.kind === "arrive") {
+          const cow = makeCow(next.get(change.id)!, play)
+          if (play) queue.push(change)
+          else void cow
+        } else {
+          const cow = cows.get(change.id)!
+          if (play || active?.cow === cow) {
+            cow.pendingPen = change.to
+            queue.push(change)
+          } else {
+            cow.pen = change.to
+            cow.pendingPen = undefined
+            const spot = randomPointIn(change.to, cow.rand)
+            cow.x = spot.x
+            cow.z = spot.z
+            cow.target = spot
+          }
+        }
+      }
+      // Anything queued for a pen it no longer belongs to is dropped when it comes up.
+      seeded = true
+      updateSigns(specs)
+      startNext()
+    },
+    setSign(pen, name) {
+      const sign = signs.get(pen)
+      if (!sign || sign.name === name) return
+      sign.name = name
+      paintSign(sign)
     },
     select(id) {
       selectedID = id
-      for (const cow of cows.values()) cow.selected = cow.spec.id === id
+      for (const cow of cows.values()) cow.selected = cow.spec.id === id && !cow.carried
     },
     screenPosition(id) {
       const cow = cows.get(id)
-      if (!cow) return undefined
+      if (!cow || cow.hidden) return undefined
       tmp.set(cow.x, cow.parts.rig.position.y + 1.9 * cow.spec.breed.size, cow.z).project(camera)
       if (tmp.z > 1) return undefined
       return { x: ((tmp.x + 1) / 2) * canvas.clientWidth, y: ((1 - tmp.y) / 2) * canvas.clientHeight }

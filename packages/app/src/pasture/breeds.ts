@@ -69,13 +69,18 @@ export function breedFor(pr: Pick<PasturePullRequest, "repo" | "number">): Breed
   return BREEDS[hashString(`${pr.repo}#${pr.number}`) % BREEDS.length]
 }
 
+export const cowID = (pr: Pick<PasturePullRequest, "repo" | "number">) => `${pr.repo}#${pr.number}`
+
+/** Coat and temperament seed. Stage-independent, so a cow keeps its markings as it moves between pens. */
+export const cowSeed = (pr: Pick<PasturePullRequest, "repo" | "number">) => hashString(`${pr.number}:${pr.repo}`)
+
 export type HerdMember = { id: string; pr: PasturePullRequest; breed: Breed; seed: number }
 
 export function herd(items: PasturePullRequest[]): HerdMember[] {
   return items.map((pr) => ({
-    id: `${pr.repo}#${pr.number}`,
+    id: cowID(pr),
     pr,
     breed: breedFor(pr),
-    seed: hashString(`${pr.number}:${pr.repo}:${pr.mergedAt}`),
+    seed: cowSeed(pr),
   }))
 }

@@ -2548,7 +2548,7 @@ export default function LegacyLayout(props: ParentProps) {
               </Show>
               <Show when={state.pasture}>
                 <div class="absolute inset-0 z-10 overflow-hidden rounded-ss-[12px] border-t border-s border-border-weak-base bg-background-base">
-                  <PasturePanel store={pasture} onClose={() => setState("pasture", false)} />
+                  <PasturePanel store={pasture} pullRequests={pullRequests} onClose={() => setState("pasture", false)} />
                 </div>
               </Show>
               <Show when={office.opened()}>

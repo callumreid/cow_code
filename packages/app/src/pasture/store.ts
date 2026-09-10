@@ -1,4 +1,4 @@
-import { createEffect, createSignal, on } from "solid-js"
+import { createEffect, createSignal, on, onCleanup } from "solid-js"
 import type { PrDashboardPlatform } from "@/pr-dashboard/types"
 import type { PastureHerd } from "./types"
 
@@ -50,6 +50,13 @@ export function createPastureStore(platform: () => PrDashboardPlatform | undefin
       if (open) void refresh()
     }),
   )
+  // While the field is open, look for new merges every couple of minutes so
+  // the hand of god has something to do.
+  createEffect(() => {
+    if (!active()) return
+    const timer = setInterval(() => void refresh(true), 2 * 60_000)
+    onCleanup(() => clearInterval(timer))
+  })
 
   return { days, setDays, herd, loading, available: () => !!platform()?.fetchPasture, refresh }
 }
