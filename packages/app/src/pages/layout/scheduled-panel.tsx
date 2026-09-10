@@ -298,6 +298,10 @@ export const ScheduledPanel = (props: {
   const data = props.store.data
   const running = createMemo(() => data()?.routines.filter((routine) => routine.running).length ?? 0)
   const services = createMemo(() => data()?.services ?? [])
+  // Rows are keyed by job name, not by snapshot object, so a poll does not
+  // recreate them and lose an expanded row's history and log.
+  const names = createMemo(() => data()?.routines.map((routine) => routine.name) ?? [])
+  const byName = createMemo(() => new Map((data()?.routines ?? []).map((routine) => [routine.name, routine])))
 
   return (
     <div class="flex flex-col size-full bg-background-base">
@@ -356,9 +360,13 @@ export const ScheduledPanel = (props: {
             }
           >
             <div class="flex flex-col gap-2">
-              <For each={data()!.routines}>
-                {(routine) => (
-                  <RoutineRow routine={routine} now={now()} store={props.store} onNavigate={props.onNavigate} />
+              <For each={names()}>
+                {(name) => (
+                  <Show when={byName().get(name)}>
+                    {(routine) => (
+                      <RoutineRow routine={routine()} now={now()} store={props.store} onNavigate={props.onNavigate} />
+                    )}
+                  </Show>
                 )}
               </For>
             </div>
