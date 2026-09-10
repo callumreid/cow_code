@@ -50,7 +50,7 @@ every trick the cow knows, on film, with public links you can hand to people:
 
 newest: **[the pasture](docs/features/pasture.md)** — every one of your pull requests
 is a cow in a pen, drafts to merged, and when a PR changes stage the hand of god comes
-down and carries the cow to its new pen. ▶️ [watch the film](https://github.com/callumreid/cow_code/blob/dev/docs/features/pasture/pasture-pens.mp4).
+down and carries the cow to its new pen. ▶️ [watch the film](https://cdn.jsdelivr.net/gh/callumreid/cow_code@dev/docs/features/pasture/pasture-pens.mp4).
 
 ## 🚜 GET IN THE PASTURE
 

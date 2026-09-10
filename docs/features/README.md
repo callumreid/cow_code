@@ -7,7 +7,7 @@ links on this page are public. hand them out.
 
 | feature | what it does | film |
 | --- | --- | --- |
-| [🐄 the pasture](pasture.md) | every one of your pull requests is a cow in a pen. merged cows out back. the hand of god moves them when a PR changes stage. | ▶️ [17 s](https://github.com/callumreid/cow_code/blob/dev/docs/features/pasture/pasture-pens.mp4) |
+| [🐄 the pasture](pasture.md) | every one of your pull requests is a cow in a pen. merged cows out back. the hand of god moves them when a PR changes stage. | ▶️ [17 s](https://cdn.jsdelivr.net/gh/callumreid/cow_code@dev/docs/features/pasture/pasture-pens.mp4) |
 | [🚦 pull requests, ranked](#-pull-requests-ranked) | every open PR you wrote, one badge each, worst thing first. three switches per PR: keep updated, auto-fix review comments, merge when ready. | 📹 soon |
 | [🧑‍🌾 the farmer's office](#-the-farmers-office) | tell the farmer what to do. the farmer sends cows out to do it in their own worktrees and reports back. | 📹 soon |
 | [🗓️ scheduled](#️-scheduled) | everything the barn runs on a clock, with the last run, the next run, and a run-now button. | 📹 soon |
@@ -113,6 +113,7 @@ press <kbd>Tab</kbd>. it mooos. out loud. a real mooo. that is the whole job.
 
 drop a `.mov` or `.mp4` in `docs/features/<feature>/`, keep it under about 10 MB
 (1280 wide, 30 fps, h264 is plenty), add a poster frame, and link it from the table
-above and the feature's section. github plays `.mp4` files straight from the file
-page, and `https://cdn.jsdelivr.net/gh/callumreid/cow_code@dev/<path>` serves the
-same file as a plain public URL that plays in any browser.
+above and the feature's section. github's file page only offers a download for
+videos, so link the film through
+`https://cdn.jsdelivr.net/gh/callumreid/cow_code@dev/<path>`, which serves the same
+file as a plain public URL that plays in any browser (that is what the hype film does).

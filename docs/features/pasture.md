@@ -4,16 +4,15 @@
 
 <img src="pasture/pasture-pens.gif" alt="the pasture: cows in five pens, the hand of god lifting one into the next pen" width="840" />
 
-### ▶️ [WATCH THE FILM WITH SOUND](https://github.com/callumreid/cow_code/blob/dev/docs/features/pasture/pasture-pens.mp4) ▶️
+### ▶️ [WATCH THE FILM WITH SOUND](https://cdn.jsdelivr.net/gh/callumreid/cow_code@dev/docs/features/pasture/pasture-pens.mp4) ▶️
 
 *17 seconds. a real mooo. the hand of god makes an appearance.*
 
 </div>
 
-**share it:** the film plays right on github at
-<https://github.com/callumreid/cow_code/blob/dev/docs/features/pasture/pasture-pens.mp4>,
-or as a plain video URL at
-<https://cdn.jsdelivr.net/gh/callumreid/cow_code@dev/docs/features/pasture/pasture-pens.mp4>.
+**share it:** the film plays in any browser at
+<https://cdn.jsdelivr.net/gh/callumreid/cow_code@dev/docs/features/pasture/pasture-pens.mp4>
+(github's own file page only offers a download for videos: <https://github.com/callumreid/cow_code/blob/dev/docs/features/pasture/pasture-pens.mp4>).
 this page is <https://github.com/callumreid/cow_code/blob/dev/docs/features/pasture.md>.
 
 ## what you are looking at
