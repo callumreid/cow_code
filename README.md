@@ -41,6 +41,17 @@ agent — that has been lovingly led out to pasture.
 its a bunch of heiffers. whole lotta heiffers. moooing and chewin cud and filling up
 with milk and moooing. and then moooing some more. thats the barn.
 
+## 🎞️ THE FEATURE REEL
+
+every trick the cow knows, on film, with public links you can hand to people:
+**[docs/features](docs/features/README.md)**.
+
+[<img src="docs/features/pasture/poster.jpg" alt="the pasture: one cow per pull request, five pens, the hand of god" width="840" />](docs/features/pasture.md)
+
+newest: **[the pasture](docs/features/pasture.md)** — every one of your pull requests
+is a cow in a pen, drafts to merged, and when a PR changes stage the hand of god comes
+down and carries the cow to its new pen. ▶️ [watch the film](https://github.com/callumreid/cow_code/blob/dev/docs/features/pasture/pasture-pens.mp4).
+
 ## 🚜 GET IN THE PASTURE
 
 You need [bun](https://bun.sh). The cow runs on bun.
