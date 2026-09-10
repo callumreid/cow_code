@@ -759,8 +759,9 @@ const layer = Layer.effect(
           const payload = data as { sessionID: string; info: SessionV1.Info }
           const row = rows.get(payload.sessionID)
           if (!row) return
+          const seen = row.roles.has(payload.info.id)
           row.roles.set(payload.info.id, payload.info.role)
-          if (payload.info.role === "user") {
+          if (payload.info.role === "user" && !seen) {
             row.lifecycle = transition(row.lifecycle, { type: "input", id: payload.info.id }, Date.now())
             row.edited = false
             row.pr = undefined
@@ -849,12 +850,16 @@ const layer = Layer.effect(
           row.lastTool = trim(`${tool.tool}${title ? `: ${title}` : ""}`, 120)
         }
         const working = last.info.time.completed === undefined && !last.info.error
-        if (!row.lifecycle)
+        const input = messages.findLast((message) => message.info.role === "user")
+        // A completed reply to the latest input is execution evidence after a
+        // restart. An unanswered context/queued input still needs reconciliation.
+        if (!row.lifecycle || (row.lifecycle.phase === "unknown" && !working && input?.info.id === last.info.parentID))
           row.lifecycle = {
             phase: last.info.error ? "failed" : working ? "unknown" : "stopped",
+            runID: input?.info.id,
             observedAt: info.time.updated,
-            outcome: "unverified",
-            evidence: [],
+            outcome: !working && !last.info.error && row.lastText ? "reported" : "unverified",
+            evidence: row.lifecycle?.evidence ?? [],
             reason: working ? "Execution needs reconciliation after startup." : undefined,
           }
         row.bucket = row.waiting

@@ -993,6 +993,9 @@ export function createServerSession(
   }
 
   const apply = (event: { type: string; properties?: unknown }) => {
+    // Office owns its aggregate projection, including passive Codex/Claude IDs.
+    // Those IDs must never trigger Cow session lookups or consume its cache.
+    if (event.type.startsWith("office.")) return
     const eventID = eventSessionID(event)
     if (eventID) {
       touch(eventID)

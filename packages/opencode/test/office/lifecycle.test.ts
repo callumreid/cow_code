@@ -26,3 +26,13 @@ test("restart reports uncertain execution without inventing a heartbeat", () => 
   expect(restarted.observedAt).toBe(10)
   expect(transition(restarted, { type: "idle" }, 101).phase).toBe("unknown")
 })
+
+test("repeated user-message updates preserve terminal outcomes and evidence", () => {
+  const input = transition(undefined, { type: "input", id: "run-one" }, 1)
+  for (const type of ["idle", "error", "cancel", "waiting"] as const) {
+    const terminal = transition(input, { type, reason: "observed state" }, 2)
+    terminal.outcome = "reported"
+    terminal.evidence.push({ kind: "check", status: "verified", reference: "test exit 0" })
+    expect(transition(terminal, { type: "input", id: "run-one" }, 3)).toEqual(terminal)
+  }
+})

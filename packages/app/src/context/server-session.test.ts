@@ -162,6 +162,16 @@ function setup(sessions: Record<string, Session>) {
 }
 
 describe("server session", () => {
+  test("Office roster events do not fetch passive or worker sessions", () => {
+    const ctx = setup({})
+    for (const sessionID of ["codex:thread", "claude:session", "ses_worker"])
+      for (const type of ["office.thread", "office.report", "office.removed"])
+        ctx.store.apply({ type, properties: { sessionID } })
+    expect(ctx.get).toEqual([])
+    expect(ctx.messages).toEqual([])
+    expect(Object.keys(ctx.store.data.info)).toEqual([])
+  })
+
   test("projects V2 session events into current and legacy message state", () => {
     const ctx = setup({ child: session("child") })
     ctx.store.remember(session("child"))

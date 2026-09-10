@@ -131,6 +131,51 @@ it.instance("failed admission is observable and never reported as accepted on re
   }),
 )
 
+it.instance("a late user summary update cannot reopen a completed worker turn", () =>
+  Effect.gen(function* () {
+    const h = yield* harness
+    const receipt = yield* h.submit({ id: "summary-worker", intent: "new" })
+    const sessionID = SessionID.make(receipt.sessionID)
+    yield* pollWithTimeout(
+      h.status.get(sessionID).pipe(Effect.map((value) => (value.type === "busy" ? true : undefined))),
+      "worker never started",
+    )
+    const user = (yield* h.sessions.messages({ sessionID, limit: 1 }).pipe(Effect.orDie))[0].info
+    if (user.role !== "user") throw new Error("Expected the admitted user input")
+    const assistant = yield* h.sessions.updateMessage({
+      id: MessageID.ascending(),
+      sessionID,
+      role: "assistant",
+      parentID: user.id,
+      agent: "build",
+      mode: "build",
+      modelID: model.modelID,
+      providerID: model.providerID,
+      path: { cwd: h.instance.directory, root: h.instance.directory },
+      time: { created: Date.now(), completed: Date.now() },
+      cost: 0,
+      tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
+    })
+    yield* h.sessions.updatePart({
+      id: PartID.ascending(),
+      sessionID,
+      messageID: assistant.id,
+      type: "text",
+      text: "OFFICE_OK",
+    })
+    yield* h.status.set(sessionID, { type: "idle" })
+    const stopped = yield* pollWithTimeout(
+      h.office.thread(sessionID).pipe(Effect.map((row) => (row?.lifecycle?.phase === "stopped" ? row : undefined))),
+      "worker never stopped",
+    )
+    expect(stopped.lifecycle?.outcome).toBe("reported")
+    yield* h.sessions.updateMessage({ ...user, summary: { diffs: [] } })
+    const after = yield* h.office.thread(sessionID)
+    expect(after?.lifecycle).toEqual(stopped.lifecycle)
+    expect(after?.bucket).toBe("done")
+  }),
+)
+
 it.instance("queues input durably in FIFO order and cancel clears later entries", () =>
   Effect.gen(function* () {
     const h = yield* harness

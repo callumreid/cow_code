@@ -27,6 +27,9 @@ export function transition(previous: Lifecycle | undefined, signal: Signal, now:
   const current: DeepMutable<Lifecycle> = previous
     ? { ...previous, evidence: previous.evidence.map((item) => ({ ...item })) }
     : { phase: "unknown", observedAt: now, outcome: "unverified", evidence: [] }
+  // Summary and usage updates can re-emit the same user message after its turn
+  // has stopped. Only a new input creates a new outcome boundary.
+  if (signal.type === "input" && signal.id && signal.id === current.runID) return current
   if (signal.type === "input")
     return {
       ...current,
