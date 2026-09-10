@@ -1,0 +1,60 @@
+{
+  "_comment": "Installed to ~/.config/opencode/routines.json by provision-mac.sh. Titles, descriptions and hour windows for the app's Scheduled view; the schedule itself comes from the launchd plists. `window` mirrors the gate the script enforces itself, so the next-run time is honest.",
+  "routines": {
+    "dev.coval.pr-review-sweep": {
+      "title": "PR review sweep",
+      "description": "Reviews pull requests that ask for Callum's review, including re-reviews when a PR he already reviewed gets new commits. Posts the review as him; skips PRs he approved at their current head.",
+      "kind": "llm",
+      "model": "chatgpt/gpt-5.5",
+      "log": "~/.coval/logs/pr-review-sweep.log",
+      "window": { "hours": [8, 17], "weekdays": true }
+    },
+    "dev.coval.pr-review-queue": {
+      "title": "PR review queue",
+      "description": "Hourly pass over the review queue: anything the sweep left, plus the queue state file.",
+      "kind": "llm",
+      "model": "chatgpt/gpt-5.5",
+      "log": "~/.coval/logs/pr-review-queue.log",
+      "window": { "hours": [8, 18], "weekdays": true }
+    },
+    "dev.coval.pr-review-fixer": {
+      "title": "PR review auto-fixer",
+      "description": "Fixes bot review comments on Callum's open PRs and pushes the fix. Skips PRs labeled cow:no-autofix (the brain toggle in Pull requests).",
+      "kind": "llm",
+      "model": "cloudflare-workers-ai/@cf/zai-org/glm-5.3-flash",
+      "log": "~/.coval/logs/pr-review-fixer.log",
+      "window": { "hours": [8, 18], "weekdays": true }
+    },
+    "dev.coval.pr-keep-updated": {
+      "title": "Keep PRs updated with base",
+      "description": "Updates Callum's open PR branches from their base every half hour; DMs once when one conflicts. Skips PRs labeled cow:no-update (the branch toggle in Pull requests).",
+      "kind": "shell",
+      "log": "~/.coval/logs/pr-keep-updated.log"
+    },
+    "dev.coval.daily-workers-health-audit": {
+      "title": "Daily workers health audit",
+      "description": "Morning audit of the evaluation worker fleets.",
+      "kind": "shell"
+    },
+    "dev.coval.daily-prod-validation": {
+      "title": "Daily prod validation",
+      "description": "Morning validation run against production.",
+      "kind": "llm"
+    },
+    "dev.bronson.cow-health": {
+      "title": "Box health check",
+      "description": "Checks the box's services, tunnel and disk each morning and DMs the report on Slack.",
+      "kind": "shell"
+    }
+  },
+  "services": {
+    "dev.bronson.cow-server": { "title": "cow server" },
+    "dev.bronson.cow-gate": { "title": "phone gate" },
+    "dev.bronson.cow-public": { "title": "phone tunnel" },
+    "dev.bronson.cow-slack": { "title": "Slack door" },
+    "dev.bronson.cow-eyes": { "title": "computer view" },
+    "dev.bronson.cow-browser": { "title": "Chrome" },
+    "dev.bronson.cow-awake": { "title": "stay awake" },
+    "dev.bronson.claude-rc": { "title": "Claude remote control" }
+  }
+}

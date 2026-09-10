@@ -15,10 +15,8 @@ fi
 dow=$(date +%u)
 hour=$(( 10#$(date +%H) ))
 minute=$(( 10#$(date +%M) ))
-[[ $dow -ge 6 ]] && exit 0
-(( hour < 8 )) && exit 0
-(( hour > 18 )) && exit 0
-(( hour == 18 && minute > 0 )) && exit 0
+[[ $dow -ge 6 ]] && { routine_skip "weekend: outside the queue window"; exit 0; }
+(( hour < 8 || hour > 18 || (hour == 18 && minute > 0) )) && { routine_skip "outside the queue window (08:00-18:00 PT)"; exit 0; }
 
 LOG_DIR="${HOME}/.coval/logs"
 STATE_DIR="${HOME}/.coval/pr-review-queue"
@@ -36,6 +34,7 @@ if ! mkdir "${LOCK}" 2>/dev/null; then
   [[ -f "${LOCK}/pid" ]] && previous_pid=$(<"${LOCK}/pid")
   if [[ -n "${previous_pid}" ]] && kill -0 "${previous_pid}" 2>/dev/null; then
     echo "$(date -Iseconds): previous review-queue run still in progress, skipping" >> "${LOG_FILE}"
+    routine_skip "previous review-queue run still in progress, skipping"
     exit 0
   fi
   rm -f "${LOCK}/pid"

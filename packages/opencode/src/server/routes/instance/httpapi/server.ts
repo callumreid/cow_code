@@ -21,6 +21,7 @@ import { MCP } from "@/mcp"
 import { McpAuth } from "@/mcp/auth"
 import { Office } from "@/office/office"
 import { OfficeDriver } from "@/office/driver"
+import { Routines } from "@/office/routines"
 import { Permission } from "@/permission"
 import { Plugin } from "@/plugin"
 import { PluginPtyEnvironment } from "@/plugin/pty-environment"
@@ -240,6 +241,7 @@ const app = LayerNode.group([
   SessionStatus.node,
   Office.node,
   OfficeDriver.node,
+  Routines.node,
   BackgroundJob.node,
   RuntimeFlags.node,
   EventV2Bridge.node,

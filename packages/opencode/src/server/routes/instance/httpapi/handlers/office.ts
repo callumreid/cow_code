@@ -1,6 +1,7 @@
 import { Auth } from "@/auth"
 import { Office } from "@/office/office"
 import { OfficeDriver } from "@/office/driver"
+import { Routines } from "@/office/routines"
 import { Effect } from "effect"
 import { HttpServerResponse } from "effect/unstable/http"
 import { HttpApiBuilder } from "effect/unstable/httpapi"
@@ -9,6 +10,8 @@ import type {
   AskInput,
   AutonomyInput,
   BriefInput,
+  RoutineLogInput,
+  RoutineRunInput,
   SpeakInput,
   ThreadMarkInput,
   ThreadPromptInput,
@@ -67,9 +70,26 @@ export const officeHandlers = HttpApiBuilder.group(RootHttpApi, "office", (handl
     const office = yield* Office.Service
     const driver = yield* OfficeDriver.Service
     const auth = yield* Auth.Service
+    const jobs = yield* Routines.Service
 
     const state = Effect.fn("OfficeHttpApi.state")(function* () {
       return yield* office.state()
+    })
+
+    // Scheduled jobs on this machine, joined with the office threads they produced.
+    const routines = Effect.fn("OfficeHttpApi.routines")(function* () {
+      const snapshot = yield* jobs.snapshot()
+      if (!snapshot.available) return snapshot
+      const current = yield* office.state()
+      return Routines.withThreads(snapshot, current.threads, Date.now())
+    })
+
+    const routineRun = Effect.fn("OfficeHttpApi.routineRun")(function* (ctx: { payload: typeof RoutineRunInput.Type }) {
+      return yield* jobs.run(ctx.payload.name)
+    })
+
+    const routineLog = Effect.fn("OfficeHttpApi.routineLog")(function* (ctx: { payload: typeof RoutineLogInput.Type }) {
+      return yield* jobs.log(ctx.payload.name, ctx.payload.lines)
     })
 
     const overseer = Effect.fn("OfficeHttpApi.overseer")(function* () {
@@ -215,5 +235,8 @@ export const officeHandlers = HttpApiBuilder.group(RootHttpApi, "office", (handl
       .handle("voiceToken", voiceToken)
       .handle("transcribe", transcribe)
       .handle("speak", speak)
+      .handle("routines", routines)
+      .handle("routineRun", routineRun)
+      .handle("routineLog", routineLog)
   }),
 )

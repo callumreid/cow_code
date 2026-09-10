@@ -15,9 +15,8 @@ set -euo pipefail
 dow=$(date +%u)
 hour=$(( 10#$(date +%H) ))
 minute=$(( 10#$(date +%M) ))
-[[ $dow -ge 6 ]] && exit 0
-(( hour < 8 )) && exit 0
-(( hour > 17 )) && exit 0
+[[ $dow -ge 6 ]] && { routine_skip "weekend: outside the sweep window"; exit 0; }
+(( hour < 8 || hour > 17 )) && { routine_skip "outside the sweep window (08:00-17:59 PT)"; exit 0; }
 
 LOG_DIR="${HOME}/.coval/logs"
 STATE_DIR="${HOME}/.coval/pr-review-sweep"
@@ -32,6 +31,7 @@ if ! mkdir "${LOCK}" 2>/dev/null; then
   [[ -f "${LOCK}/pid" ]] && previous_pid=$(<"${LOCK}/pid")
   if [[ -n "${previous_pid}" ]] && kill -0 "${previous_pid}" 2>/dev/null; then
     echo "$(date -Iseconds): previous sweep still in progress, skipping this slot" >> "${LOG_FILE}"
+    routine_skip "previous sweep still in progress, skipping this slot"
     exit 0
   fi
   rm -f "${LOCK}/pid"

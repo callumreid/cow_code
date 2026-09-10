@@ -17,6 +17,7 @@ import { globalHandlers } from "../../src/server/routes/instance/httpapi/handler
 import { officeHandlers } from "../../src/server/routes/instance/httpapi/handlers/office"
 import { Office } from "../../src/office/office"
 import { OfficeDriver } from "../../src/office/driver"
+import { Routines } from "../../src/office/routines"
 import { authorizationLayer } from "../../src/server/routes/instance/httpapi/middleware/authorization"
 import { schemaErrorLayer } from "../../src/server/routes/instance/httpapi/middleware/schema-error"
 import { testEffect } from "../lib/effect"
@@ -44,6 +45,7 @@ const apiLayer = HttpRouter.serve(
   Layer.provide(Layer.mock(Installation.Service)({})),
   Layer.provide(Layer.mock(Office.Service)({ directory: "/tmp/office", onReport: () => () => {} })),
   Layer.provide(Layer.mock(OfficeDriver.Service)({})),
+  Layer.provide(Layer.mock(Routines.Service)({})),
   Layer.provide(
     Layer.mock(MoveSession.Service)({
       moveSession: (value) => Ref.set(called, value),

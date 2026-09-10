@@ -1,9 +1,14 @@
 import { Schema } from "effect"
 import { HttpApi, HttpApiEndpoint, HttpApiGroup, OpenApi } from "effect/unstable/httpapi"
 import { Office } from "@/office/office"
+import { Routines } from "@/office/routines"
 import { described } from "./metadata"
 
 const Ok = Schema.Struct({ ok: Schema.Literal(true) })
+
+// Scheduled jobs on the machine the server runs on (launchd + the box's run ledger).
+export const RoutineRunInput = Schema.Struct({ name: Schema.String })
+export const RoutineLogInput = Schema.Struct({ name: Schema.String, lines: Schema.optional(Schema.Finite) })
 
 export const AskInput = Schema.Struct({
   text: Schema.String,
@@ -76,6 +81,9 @@ export const OfficePaths = {
   voiceToken: "/global/office/voice/token",
   transcribe: "/global/office/voice/transcribe",
   speak: "/global/office/voice/speak",
+  routines: "/global/office/routines",
+  routineRun: "/global/office/routines/run",
+  routineLog: "/global/office/routines/log",
 } as const
 
 export const OfficeApi = HttpApi.make("office").add(
@@ -123,6 +131,17 @@ export const OfficeApi = HttpApi.make("office").add(
         payload: SpeakInput,
         success: described(SpeakResult, "Spoken audio for a reply"),
       }).annotateMerge(OpenApi.annotations({ identifier: "office.voice.speak", summary: "Voice a farmer reply" })),
+      HttpApiEndpoint.get("routines", OfficePaths.routines, {
+        success: described(Routines.Snapshot, "Scheduled jobs and always-on services on this machine"),
+      }).annotateMerge(OpenApi.annotations({ identifier: "office.routines", summary: "List scheduled jobs and their runs" })),
+      HttpApiEndpoint.post("routineRun", OfficePaths.routineRun, {
+        payload: RoutineRunInput,
+        success: described(Routines.RunResult, "Whether launchd started the job"),
+      }).annotateMerge(OpenApi.annotations({ identifier: "office.routines.run", summary: "Start a scheduled job now" })),
+      HttpApiEndpoint.post("routineLog", OfficePaths.routineLog, {
+        payload: RoutineLogInput,
+        success: described(Routines.LogResult, "Tail of the job's log"),
+      }).annotateMerge(OpenApi.annotations({ identifier: "office.routines.log", summary: "Read the tail of a job's log" })),
     )
     .annotateMerge(OpenApi.annotations({ title: "office", description: "The Farmer's Office." })),
 )

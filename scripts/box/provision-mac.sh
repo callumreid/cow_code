@@ -148,10 +148,13 @@ for f in "$HERE"/coval-scripts/*.sh; do
   b=$(basename "$f")
   if ! cmp -s "$f" "$HOME/coval/scripts/$b"; then install -m 755 "$f" "$HOME/coval/scripts/$b"; log "  installed coval/scripts/$b"; fi
 done
-[ -x "$HOME/bin/cow-routine-guard.sh" ] || install -m 755 "$HERE/cow-routine-guard.sh" "$HOME/bin/cow-routine-guard.sh"
-[ -x "$HOME/bin/cow-notify.sh" ] || install -m 755 "$HERE/cow-notify.sh" "$HOME/bin/cow-notify.sh"
-[ -x "$HOME/bin/pr-keep-updated.sh" ] || install -m 755 "$HERE/pr-keep-updated.sh" "$HOME/bin/pr-keep-updated.sh"
-[ -x "$HOME/bin/cow-health.sh" ] || install -m 755 "$HERE/cow-health.sh" "$HOME/bin/cow-health.sh"
+for f in cow-routine-guard.sh cow-routine-run.sh cow-notify.sh pr-keep-updated.sh cow-health.sh; do
+  if ! cmp -s "$HERE/$f" "$HOME/bin/$f"; then install -m 755 "$HERE/$f" "$HOME/bin/$f"; log "  installed bin/$f"; fi
+done
+# Titles/descriptions/hour windows for the app's Scheduled view (the schedule itself is read from the plists).
+mkdir -p "$HOME/.config/opencode"
+if ! cmp -s "$HERE/routines.json" "$HOME/.config/opencode/routines.json"; then install -m 644 "$HERE/routines.json" "$HOME/.config/opencode/routines.json"; log "  installed routines.json"; fi
+mkdir -p "$HOME/.coval/logs/routines"
 for j in dev.coval.pr-review-sweep dev.coval.pr-review-queue dev.coval.pr-review-fixer dev.coval.pr-keep-updated dev.coval.daily-workers-health-audit dev.coval.daily-prod-validation dev.bronson.cow-health; do
   if [ -f "$HERE/launchd/$j.plist" ] && ! cmp -s "$HERE/launchd/$j.plist" "$HOME/Library/LaunchAgents/$j.plist"; then
     install -m 644 "$HERE/launchd/$j.plist" "$HOME/Library/LaunchAgents/$j.plist"

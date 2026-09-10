@@ -9,10 +9,8 @@ set -euo pipefail
 dow=$(date +%u)
 hour=$(( 10#$(date +%H) ))
 minute=$(( 10#$(date +%M) ))
-[[ $dow -ge 6 ]] && exit 0
-(( hour < 8 )) && exit 0
-(( hour > 18 )) && exit 0
-(( hour == 18 && minute > 0 )) && exit 0
+[[ $dow -ge 6 ]] && { routine_skip "weekend: outside the fixer window"; exit 0; }
+(( hour < 8 || hour > 18 || (hour == 18 && minute > 0) )) && { routine_skip "outside the fixer window (08:00-18:00 PT)"; exit 0; }
 
 LOG_DIR="${HOME}/.coval/logs"
 mkdir -p "${LOG_DIR}"
@@ -21,6 +19,7 @@ LOG_FILE="${LOG_DIR}/pr-review-fixer.log"
 LOCK="${LOG_DIR}/pr-review-fixer.lock"
 if ! mkdir "${LOCK}" 2>/dev/null; then
   echo "$(date -Iseconds): previous run still in progress, skipping" >> "${LOG_FILE}"
+  routine_skip "previous fixer run still in progress, skipping"
   exit 0
 fi
 trap 'rmdir "${LOCK}"' EXIT
