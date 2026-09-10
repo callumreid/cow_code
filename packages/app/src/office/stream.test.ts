@@ -11,7 +11,7 @@ import {
   unreadReports,
   withDivider,
 } from "./stream"
-import type { OfficeReport, OfficeThread } from "./types"
+import type { OfficeOutcome, OfficeReport, OfficeThread } from "./types"
 
 function message(id: string, role: "user" | "assistant", created: number) {
   return { id, role, sessionID: "ses", time: { created } } as unknown as Message
@@ -168,4 +168,44 @@ test("two exact decisions stay actionable independently and recovery is not an a
   expect(isLive(second, worker, latest)).toBe(true)
   worker.decisions[1].status = "reconciliation_required"
   expect(isLive(second, worker, latest)).toBe(false)
+})
+
+describe("buildStream with outcomes", () => {
+  function outcome(id: string, value: string, time: number): OfficeOutcome {
+    return { id, sessionID: "ses", text: value, time, reportIDs: [], urgent: false, observations: [] }
+  }
+  const messages = [message("m1", "user", 10), message("m2", "assistant", 20), message("m3", "assistant", 30)]
+  const parts: Record<string, Part[]> = {
+    m1: [text("p1", "howdy farmer")],
+    m2: [text("p2", "Howdy Callum — all quiet.")],
+    m3: [text("p3", "Started the EOD review.\n")],
+  }
+
+  test("keeps transcript text this client has no outcome for, and swaps in the matching outcome", () => {
+    const rows = buildStream({
+      messages,
+      parts: (id) => parts[id] ?? [],
+      reports: [],
+      lastSeen: 0,
+      outcomes: [outcome("outcome:1", "Started the EOD review.", 31)],
+    })
+    expect(rows.map((row) => row.kind)).toEqual(["user", "text", "outcome"])
+    expect(rows[2]).toMatchObject({ id: "outcome:1", time: 30 })
+  })
+
+  test("an outcome without a transcript match still shows, and none of the farmer's words are dropped", () => {
+    const rows = buildStream({
+      messages,
+      parts: (id) => parts[id] ?? [],
+      reports: [],
+      lastSeen: 0,
+      outcomes: [outcome("outcome:2", "Worker state changed during that reply.", 35)],
+    })
+    expect(rows.map((row) => row.kind)).toEqual(["user", "text", "text", "outcome"])
+  })
+
+  test("no outcomes at all leaves the transcript as it was", () => {
+    const rows = buildStream({ messages, parts: (id) => parts[id] ?? [], reports: [], lastSeen: 0 })
+    expect(rows.map((row) => row.kind)).toEqual(["user", "text", "text"])
+  })
 })

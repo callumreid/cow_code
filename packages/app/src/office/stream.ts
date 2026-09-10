@@ -116,20 +116,39 @@ export function buildStream(input: {
   lastSeen: number
   outcomes?: OfficeOutcome[]
 }): StreamRow[] {
-  const items = messageItems(input.messages, input.parts).filter(
-    (item) => input.outcomes === undefined || item.kind !== "text",
-  )
+  // The transcript is the record of what the farmer said; an outcome is the same
+  // reply as delivered to this client, with its receipt and staleness hint. Show
+  // the outcome in the reply's place when this client holds it, and the transcript
+  // text otherwise, so nothing the farmer said disappears after a relaunch, a
+  // server restart, or when another client (voice, phone) asked the question.
+  const outcomes = input.outcomes ?? []
+  const byText = new Map<string, OfficeOutcome>()
+  for (const outcome of outcomes) {
+    const key = normalize(outcome.text)
+    if (!byText.has(key)) byText.set(key, outcome)
+  }
+  const used = new Set<string>()
+  const items = messageItems(input.messages, input.parts).map((item): StreamItem => {
+    if (item.kind !== "text") return item
+    const match = byText.get(normalize(item.part.text))
+    if (!match || used.has(match.id)) return item
+    used.add(match.id)
+    return { kind: "outcome", id: match.id, time: item.time, outcome: match }
+  })
   const rows = mergeStream(items, input.reports)
-  if (input.outcomes)
-    rows.push(
-      ...input.outcomes.map(
-        (outcome): StreamItem => ({ kind: "outcome", id: outcome.id, time: outcome.time, outcome }),
-      ),
-    )
+  rows.push(
+    ...outcomes
+      .filter((outcome) => !used.has(outcome.id))
+      .map((outcome): StreamItem => ({ kind: "outcome", id: outcome.id, time: outcome.time, outcome })),
+  )
   return withDivider(
     rows.sort((a, b) => a.time - b.time),
     input.lastSeen,
   )
+}
+
+function normalize(text: string) {
+  return text.replace(/\s+/g, " ").trim()
 }
 
 export function unreadReports(reports: OfficeReport[], lastSeen: number) {
