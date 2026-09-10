@@ -252,8 +252,10 @@ function buildTrees(scene: THREE.Scene) {
   const trunk = new THREE.MeshStandardMaterial({ color: "#7a4f2e", roughness: 1 })
   const leaves = ["#3e8f3a", "#4ca046", "#2f7a2e"].map((c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.9 }))
   const rand = mulberry32(31)
+  // Behind and beside the pens only: the signs stand along the front edge
+  // and the camera looks in from the front, so nothing may grow there.
   const spots: Array<[number, number]> = [
-    [-54, -26], [-53, 2], [-55, 22], [53, -22], [54, 8], [52, 26], [-30, -38], [-8, -40], [16, -37], [36, -39], [-40, 34], [8, 35], [44, 34],
+    [-56, -26], [-56, 2], [-57, 18], [56, -22], [57, 6], [56, 20], [-30, -39], [-8, -41], [16, -38], [36, -40], [-46, -38], [48, -37],
   ]
   for (const [x, z] of spots) {
     const tree = new THREE.Group()

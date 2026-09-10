@@ -17,7 +17,8 @@ export type PastureStore = {
  * settings moved on is dropped.
  */
 export function createPastureStore(platform: () => PrDashboardPlatform | undefined, active: () => boolean): PastureStore {
-  const [days, setDays] = createSignal(7)
+  // Today by default: the merged pen is a daily scoreboard, the week is a click away.
+  const [days, setDays] = createSignal(1)
   const [herd, setHerd] = createSignal<PastureHerd>()
   const [loading, setLoading] = createSignal(false)
   let token = 0
