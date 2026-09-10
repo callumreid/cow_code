@@ -25,7 +25,7 @@ export type PrState =
   | "ready"
 
 /** Per-PR automation switches, stored as GitHub labels so the box and every client agree. */
-export type PrAutomation = { keepUpdated: boolean; autoFix: boolean }
+export type PrAutomation = { keepUpdated: boolean; autoFix: boolean; merge: boolean }
 export type PrAutomationKey = keyof PrAutomation
 
 export type OpenPullRequest = {
@@ -45,6 +45,8 @@ export type OpenPullRequest = {
   mergeQueuePosition?: number
   /** The branch is behind its base and GitHub would let us update it. */
   behind: boolean
+  /** GitHub auto-merge is armed (the box or someone enabled it); it merges or queues when green. */
+  autoMerge: boolean
   /** Changes were requested, then a newer commit or re-request happened; waiting on the reviewer again. */
   reRequested: boolean
   automation: PrAutomation

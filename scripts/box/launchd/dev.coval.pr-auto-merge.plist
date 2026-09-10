@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>dev.coval.pr-auto-merge</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/bin/bash</string>
+		<string>/Users/bronson/bin/cow-routine-run.sh</string>
+		<string>pr-auto-merge</string>
+		<string>--log</string>
+		<string>/Users/bronson/.coval/logs/pr-auto-merge.log</string>
+		<string>--</string>
+		<string>/bin/bash</string>
+		<string>/Users/bronson/bin/pr-auto-merge.sh</string>
+	</array>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>HOME</key>
+		<string>/Users/bronson</string>
+		<key>PATH</key>
+		<string>/Users/bronson/.local/bin:/opt/homebrew/bin:/usr/bin:/bin</string>
+	</dict>
+	<key>SessionCreate</key>
+	<true/>
+	<key>RunAtLoad</key>
+	<false/>
+	<key>StartCalendarInterval</key>
+	<array>
+		<dict>
+			<key>Minute</key>
+			<integer>3</integer>
+		</dict>
+		<dict>
+			<key>Minute</key>
+			<integer>13</integer>
+		</dict>
+		<dict>
+			<key>Minute</key>
+			<integer>23</integer>
+		</dict>
+		<dict>
+			<key>Minute</key>
+			<integer>33</integer>
+		</dict>
+		<dict>
+			<key>Minute</key>
+			<integer>43</integer>
+		</dict>
+		<dict>
+			<key>Minute</key>
+			<integer>53</integer>
+		</dict>
+	</array>
+	<key>StandardOutPath</key>
+	<string>/Users/bronson/.coval/logs/pr-auto-merge.launchd.log</string>
+	<key>StandardErrorPath</key>
+	<string>/Users/bronson/.coval/logs/pr-auto-merge.launchd.err.log</string>
+</dict>
+</plist>

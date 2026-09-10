@@ -5,7 +5,7 @@ import { IconButton } from "@opencode-ai/ui/icon-button"
 import { Tooltip } from "@opencode-ai/ui/tooltip"
 import { usePlatform } from "@/context/platform"
 import type { PrDashboardStore } from "@/pr-dashboard/store"
-import type { MergedPullRequest, OpenPullRequest, PrState } from "@/pr-dashboard/types"
+import type { MergedPullRequest, OpenPullRequest, PrAutomationKey, PrState } from "@/pr-dashboard/types"
 
 type Tone = "ready" | "blocked" | "muted" | "attention"
 
@@ -42,6 +42,7 @@ function detail(pr: OpenPullRequest) {
   const parts: string[] = []
   if (pr.inMergeQueue) parts.push(pr.mergeQueuePosition ? `queue #${pr.mergeQueuePosition}` : "queued")
   if (pr.behind) parts.push("behind base")
+  if (pr.autoMerge && !pr.inMergeQueue) parts.push("auto-merge armed")
   if (pr.unresolvedCount > 0) parts.push(`${pr.unresolvedCount} unresolved`)
   if (pr.checks === "failure") parts.push("CI failing")
   else if (pr.checks === "pending") parts.push("CI running")
@@ -50,7 +51,7 @@ function detail(pr: OpenPullRequest) {
   return parts.join(" · ")
 }
 
-type AutomationToggleProps = { on: boolean; label: string; icon: "branch" | "brain"; onToggle: () => void }
+type AutomationToggleProps = { on: boolean; label: string; icon: "branch" | "brain" | "circle-check"; onToggle: () => void }
 /** One of the two per-PR automation switches: keep the branch updated, auto-fix review comments. */
 const AutomationToggle = (props: AutomationToggleProps) => (
   <Tooltip placement="top" gutter={2} value={`${props.label}: ${props.on ? "on" : "off"} (click to ${props.on ? "turn off" : "turn on"})`}>
@@ -73,7 +74,7 @@ const OpenRow = (props: {
   pr: OpenPullRequest
   now: number
   onOpen: (url: string) => void
-  onAutomation?: (pr: OpenPullRequest, key: "keepUpdated" | "autoFix", on: boolean) => void
+  onAutomation?: (pr: OpenPullRequest, key: PrAutomationKey, on: boolean) => void
 }) => {
   const meta = createMemo(() => {
     if (props.pr.detailsUnavailable && !props.pr.isDraft) {
@@ -110,6 +111,12 @@ const OpenRow = (props: {
             label="Auto-fix review comments"
             icon="brain"
             onToggle={() => props.onAutomation?.(props.pr, "autoFix", !props.pr.automation.autoFix)}
+          />
+          <AutomationToggle
+            on={props.pr.automation.merge}
+            label="Merge when ready"
+            icon="circle-check"
+            onToggle={() => props.onAutomation?.(props.pr, "merge", !props.pr.automation.merge)}
           />
         </span>
       </Show>

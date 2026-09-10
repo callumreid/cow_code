@@ -27,7 +27,7 @@ query($open: String!) {
     nodes { ... on PullRequest {
       number title url isDraft createdAt updatedAt
       repository { nameWithOwner isArchived }
-      reviewDecision mergeStateStatus isInMergeQueue
+      reviewDecision mergeStateStatus isInMergeQueue autoMergeRequest { enabledAt }
       mergeQueueEntry { position state }
       labels(first: 30) { nodes { name } }
       reviewRequests(first: 10) { totalCount }
@@ -61,6 +61,7 @@ type RawOpen = {
   reviewDecision: string | null
   mergeStateStatus?: string | null
   isInMergeQueue?: boolean | null
+  autoMergeRequest?: { enabledAt?: string | null } | null
   mergeQueueEntry?: { position?: number | null; state?: string | null } | null
   labels?: { nodes?: { name: string }[] } | null
   reviewRequests?: { totalCount?: number } | null
@@ -173,6 +174,13 @@ function mergedSince(now: number) {
 export const AUTOMATION_LABELS: Record<PrAutomationKey, string> = {
   keepUpdated: "cow:no-update",
   autoFix: "cow:no-autofix",
+  merge: "cow:merge",
+}
+/** keep-updated and auto-fix are on unless their label opts the PR out; merge is off unless its label opts in. */
+export const AUTOMATION_LABEL_MEANS_ON: Record<PrAutomationKey, boolean> = {
+  keepUpdated: false,
+  autoFix: false,
+  merge: true,
 }
 
 /**
@@ -213,9 +221,11 @@ function toOpen(node: RawOpen): OpenPullRequest {
     mergeQueuePosition: node.mergeQueueEntry?.position ?? undefined,
     behind: node.mergeStateStatus === "BEHIND",
     reRequested,
+    autoMerge: !!node.autoMergeRequest,
     automation: {
       keepUpdated: !labels.includes(AUTOMATION_LABELS.keepUpdated),
       autoFix: !labels.includes(AUTOMATION_LABELS.autoFix),
+      merge: labels.includes(AUTOMATION_LABELS.merge),
     },
     state: derivePrState({ isDraft: node.isDraft, review, checks, unresolvedCount, inMergeQueue, reRequested }),
   }
@@ -230,13 +240,17 @@ export async function setPrAutomation(
   runner: PrDashboardRunner = runGh,
 ): Promise<void> {
   const label = AUTOMATION_LABELS[key]
-  if (on) {
+  const add = on === AUTOMATION_LABEL_MEANS_ON[key]
+  if (!add) {
     await runner(["api", "-X", "DELETE", `repos/${repo}/issues/${number}/labels/${encodeURIComponent(label)}`]).catch((error: Error) => {
       if (!/404|not found/i.test(error.message)) throw error
     })
     return
   }
-  await runner(["label", "create", label, "-R", repo, "--color", "5B6A5F", "--description", "cow box: automation switched off for this PR", "--force"]).catch(() => undefined)
+  const description = AUTOMATION_LABEL_MEANS_ON[key]
+    ? "cow box: merge this PR (or queue it) once it is green, approved and comment-free; retry after a merge-queue bounce"
+    : "cow box: automation switched off for this PR"
+  await runner(["label", "create", label, "-R", repo, "--color", AUTOMATION_LABEL_MEANS_ON[key] ? "2DA44E" : "5B6A5F", "--description", description, "--force"]).catch(() => undefined)
   await runner(["api", "-X", "POST", `repos/${repo}/issues/${number}/labels`, "-f", `labels[]=${label}`])
 }
 
@@ -255,7 +269,8 @@ function toOpenSummary(node: RawOpenSummary): OpenPullRequest {
     inMergeQueue: false,
     behind: false,
     reRequested: false,
-    automation: { keepUpdated: true, autoFix: true },
+    autoMerge: false,
+    automation: { keepUpdated: true, autoFix: true, merge: false },
     state: node.isDraft ? "draft" : "awaiting-review",
     detailsUnavailable: true,
   }

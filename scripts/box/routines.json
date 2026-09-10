@@ -71,6 +71,13 @@
       "title": "Box health check",
       "description": "Checks the box's services, tunnel and disk each morning and DMs the report on Slack.",
       "kind": "shell"
+    },
+    "dev.coval.pr-auto-merge": {
+      "title": "Merge when ready",
+      "description": "Every 10 minutes: for each of Callum's open PRs carrying the cow:merge label (the merge toggle in Pull requests), enable GitHub auto-merge (squash) once it is green, approved, conflict-free and has no unresolved comments; when the merge queue bounces it, an agent works out why, fixes the PR if the PR caused it, and re-queues, up to 3 times, then DMs.",
+      "kind": "shell",
+      "model": "chatgpt/gpt-5.5",
+      "log": "~/.coval/logs/pr-auto-merge.log"
     }
   },
   "services": {

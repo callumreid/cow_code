@@ -221,7 +221,7 @@ export function registerIpcHandlers(deps: Deps) {
   ipcMain.handle("pr-status", (_event: IpcMainInvokeEvent, url: string) => getPrStatus(url))
   ipcMain.handle("pr-dashboard", (_event: IpcMainInvokeEvent, force?: boolean) => getPrDashboard(force))
   ipcMain.handle("pr-dashboard-merged", (_event: IpcMainInvokeEvent, force?: boolean) => getPrMerged(force))
-  ipcMain.handle("pr-automation-set", (_event: IpcMainInvokeEvent, repo: string, number: number, key: "keepUpdated" | "autoFix", on: boolean) =>
+  ipcMain.handle("pr-automation-set", (_event: IpcMainInvokeEvent, repo: string, number: number, key: "keepUpdated" | "autoFix" | "merge", on: boolean) =>
     setPrAutomation(repo, number, key, on),
   )
 
