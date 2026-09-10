@@ -81,12 +81,12 @@ done <<< "${prs}"
   echo "Flagged PRs: ${flagged[*]}"
   cd /Users/bronson/coval
   /Users/bronson/.opencode/bin/opencode run --auto --attach http://127.0.0.1:4096 -m cloudflare-workers-ai/@cf/zai-org/glm-5.3-flash --title "routine: pr-review-fixer $(date +%Y-%m-%dT%H:%M)" "
-Apply my fix-review-comments skill at ~/.claude/skills/fix-review-comments/SKILL.md to each of these PRs, which currently have unresolved automated review-bot comments:
+Apply my fix-review-comments skill at ~/.agents/skills/fix-review-comments/SKILL.md to each of these PRs, which currently have unresolved automated review-bot comments:
 
 $(printf '%s\n' "${flagged[@]}")
 
-For each PR follow the skill end to end: gather the UNRESOLVED bot review threads (GraphQL reviewThreads), set up a fresh git worktree from the PR head branch (repo checkouts live in /Users/bronson/coval/<repo> but their working trees may be dirty - never commit there), triage every comment against the actual current code, apply minimal fixes for valid ones, run only the affected tests plus ruff, commit with the PR's [COVAL-XXXX] prefix and push to the PR branch, reply to every comment via the REST replies API, do NOT resolve the threads, then remove the worktree.
+For each PR follow the skill end to end: first record every human reviewer whose standing review is CHANGES_REQUESTED (pulls reviews via the GitHub API, dedupe, skip bots) as that PR's re-request list, then gather the UNRESOLVED bot review threads (GraphQL reviewThreads), set up a fresh git worktree from the PR head branch (repo checkouts live in /Users/bronson/coval/<repo> but their working trees may be dirty - never commit there), triage every comment against the actual current code, apply minimal fixes for valid ones, run only the affected tests plus ruff, commit with the PR's [COVAL-XXXX] prefix and push to the PR branch, verify the remote branch head is your fix commit, reply to every comment via the REST replies API with evidence, do NOT resolve the threads, then remove the worktree. After all fixes and replies: if no required check is known failed, re-request review from every login on the re-request list via POST to the pulls requested_reviewers API, then verify the PR's requested reviewers through the GitHub API and report their exact logins.
 
-If more than one PR is listed, fix them concurrently using parallel subagents. If a fix would require large or risky changes, skip it, reply explaining, and flag it in your report. End with a per-PR summary table (comment, file, triage, action, commit hash)."
+If more than one PR is listed, fix them concurrently using parallel subagents. If a fix would require large or risky changes, skip it, reply explaining, and flag it in your report. End with a per-PR summary table (comment, file, triage, action, commit hash) plus each PR's re-requested reviewer logins."
 } >> "${LOG_FILE}" 2>&1
 routine_finish "routine: pr-review-fixer"
