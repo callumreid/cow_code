@@ -7,7 +7,13 @@
       "kind": "llm",
       "model": "chatgpt/gpt-5.5",
       "log": "~/.coval/logs/pr-review-sweep.log",
-      "window": { "hours": [8, 17], "weekdays": true }
+      "window": {
+        "hours": [
+          8,
+          17
+        ],
+        "weekdays": true
+      }
     },
     "dev.coval.pr-review-queue": {
       "title": "PR review queue",
@@ -15,7 +21,17 @@
       "kind": "llm",
       "model": "chatgpt/gpt-5.5",
       "log": "~/.coval/logs/pr-review-queue.log",
-      "window": { "hours": [8, 18], "weekdays": true }
+      "window": {
+        "hours": [
+          8,
+          18
+        ],
+        "until": [
+          18,
+          0
+        ],
+        "weekdays": true
+      }
     },
     "dev.coval.pr-review-fixer": {
       "title": "PR review auto-fixer",
@@ -23,7 +39,17 @@
       "kind": "llm",
       "model": "cloudflare-workers-ai/@cf/zai-org/glm-5.3-flash",
       "log": "~/.coval/logs/pr-review-fixer.log",
-      "window": { "hours": [8, 18], "weekdays": true }
+      "window": {
+        "hours": [
+          8,
+          18
+        ],
+        "until": [
+          18,
+          0
+        ],
+        "weekdays": true
+      }
     },
     "dev.coval.pr-keep-updated": {
       "title": "Keep PRs updated with base",
@@ -48,13 +74,29 @@
     }
   },
   "services": {
-    "dev.bronson.cow-server": { "title": "cow server" },
-    "dev.bronson.cow-gate": { "title": "phone gate" },
-    "dev.bronson.cow-public": { "title": "phone tunnel" },
-    "dev.bronson.cow-slack": { "title": "Slack door" },
-    "dev.bronson.cow-eyes": { "title": "computer view" },
-    "dev.bronson.cow-browser": { "title": "Chrome" },
-    "dev.bronson.cow-awake": { "title": "stay awake" },
-    "dev.bronson.claude-rc": { "title": "Claude remote control" }
+    "dev.bronson.cow-server": {
+      "title": "cow server"
+    },
+    "dev.bronson.cow-gate": {
+      "title": "phone gate"
+    },
+    "dev.bronson.cow-public": {
+      "title": "phone tunnel"
+    },
+    "dev.bronson.cow-slack": {
+      "title": "Slack door"
+    },
+    "dev.bronson.cow-eyes": {
+      "title": "computer view"
+    },
+    "dev.bronson.cow-browser": {
+      "title": "Chrome"
+    },
+    "dev.bronson.cow-awake": {
+      "title": "stay awake"
+    },
+    "dev.bronson.claude-rc": {
+      "title": "Claude remote control"
+    }
   }
 }

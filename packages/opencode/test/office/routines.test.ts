@@ -96,3 +96,16 @@ describe("routines joined with office threads", () => {
     expect(withThreads(empty, [], wednesday)).toBe(empty)
   })
 })
+
+describe("routines window with a last start time", () => {
+  test("allows the final slot and refuses later ones", () => {
+    const window = { hours: [8, 18] as [number, number], until: [18, 0] as [number, number], weekdays: true }
+    const at = new Date(2026, 8, 9, 17, 40).getTime() // Wed 17:40 → 18:00 is the last allowed :00/:30 slot
+    expect(new Date(nextCalendar([{ Minute: 0 }, { Minute: 30 }], at, window)!).getHours()).toBe(18)
+    const later = new Date(2026, 8, 9, 18, 5).getTime() // Wed 18:05 → next is Thu 08:00
+    const next = new Date(nextCalendar([{ Minute: 0 }, { Minute: 30 }], later, window)!)
+    expect(next.getDay()).toBe(4)
+    expect(next.getHours()).toBe(8)
+    expect(next.getMinutes()).toBe(0)
+  })
+})

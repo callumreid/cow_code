@@ -100,7 +100,8 @@ type Plist = {
   RunAtLoad?: boolean
   StandardOutPath?: string
 }
-type Window = { hours?: [number, number]; weekdays?: boolean }
+/** The gate a script enforces itself: inclusive hour range, optional last start time (h, m), weekdays only. */
+type Window = { hours?: [number, number]; until?: [number, number]; weekdays?: boolean }
 type Meta = { title?: string; description?: string; kind?: "llm" | "shell"; model?: string; log?: string; window?: Window }
 type Registry = { routines?: Record<string, Meta>; services?: Record<string, { title?: string }> }
 type LaunchdState = { loaded: boolean; running: boolean; pid?: number; lastExitCode?: number }
@@ -240,6 +241,7 @@ function inWindow(window: Window | undefined, date: Date) {
   if (!window) return true
   if (window.weekdays && (date.getDay() === 0 || date.getDay() === 6)) return false
   if (window.hours && (date.getHours() < window.hours[0] || date.getHours() > window.hours[1])) return false
+  if (window.until && date.getHours() * 60 + date.getMinutes() > window.until[0] * 60 + window.until[1]) return false
   return true
 }
 
@@ -283,7 +285,8 @@ function describeWindow(window?: Window) {
   if (!window) return ""
   const bits: string[] = []
   if (window.weekdays) bits.push("weekdays")
-  if (window.hours) bits.push(`${pad(window.hours[0])}:00–${pad(window.hours[1])}:59`)
+  const end = window.until ? `${pad(window.until[0])}:${pad(window.until[1])}` : window.hours ? `${pad(window.hours[1])}:59` : undefined
+  if (window.hours || window.until) bits.push(`${pad(window.hours?.[0] ?? 0)}:00–${end}`)
   return bits.length ? ` · ${bits.join(" ")}` : ""
 }
 
