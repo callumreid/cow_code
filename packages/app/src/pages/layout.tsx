@@ -2260,7 +2260,7 @@ export default function LegacyLayout(props: ParentProps) {
                 unread={office.unread().length}
                 onOpen={openOffice}
               />
-              <SidebarPasture store={pasture} active={state.pasture} onOpen={openPasture} />
+              <SidebarPasture store={pasture} open={pullRequests.data()?.openCount} active={state.pasture} onOpen={openPasture} />
 
               <div class="flex-1 min-h-0 flex flex-col">
                 <Show

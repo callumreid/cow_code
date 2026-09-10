@@ -4,10 +4,10 @@ import cowSide from "@/assets/cow/cow-side.png"
 import type { PastureStore } from "@/pasture/store"
 
 /**
- * Sidebar launcher for the Pasture: one cow per merged pull request. Hidden
+ * Sidebar launcher for the Pasture: one cow per pull request, open or merged. Hidden
  * where the host cannot reach GitHub (the web build has no `gh`).
  */
-export const SidebarPasture = (props: { store: PastureStore; active: boolean; onOpen: () => void }): JSX.Element => (
+export const SidebarPasture = (props: { store: PastureStore; open?: number; active: boolean; onOpen: () => void }): JSX.Element => (
   <Show when={props.store.available()}>
     <div class="shrink-0 border-t border-border-weaker-base py-1">
       <button
@@ -19,7 +19,7 @@ export const SidebarPasture = (props: { store: PastureStore; active: boolean; on
       >
         <img src={cowSide} alt="" class="size-4 shrink-0 object-contain" />
         <span class="text-14-regular text-text-strong flex-1 truncate">Pasture</span>
-        <Show when={props.store.herd()?.items.length}>
+        <Show when={(props.store.herd()?.items.length ?? 0) + (props.open ?? 0)}>
           {(count) => (
             <span class="text-12-regular text-text-base" title="cows in the field">
               {count()}
