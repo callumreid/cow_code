@@ -1,7 +1,13 @@
 import { describe, expect, test } from "bun:test"
 import type { SessionNotFoundError } from "@opencode-ai/sdk/v2/client"
 import type { ConfigInvalidError, ProviderModelNotFoundError } from "./server-errors"
-import { formatServerError, isSessionNotFoundError, parseReadableConfigInvalidError } from "./server-errors"
+import {
+  formatServerError,
+  isSessionNotFoundError,
+  isTransportError,
+  parseReadableConfigInvalidError,
+} from "./server-errors"
+import { ClientError } from "@opencode-ai/client"
 
 function fill(text: string, vars?: Record<string, string | number>) {
   if (!vars) return text
@@ -171,5 +177,30 @@ describe("isSessionNotFoundError", () => {
         "ses_tab",
       ),
     ).toBe(false)
+  })
+})
+
+describe("isTransportError", () => {
+  test("recognizes the fetch failures browsers and node raise when the server is unreachable", () => {
+    expect(isTransportError(new TypeError("Failed to fetch"))).toBe(true)
+    expect(isTransportError(new TypeError("Load failed"))).toBe(true)
+    expect(isTransportError(new TypeError("NetworkError when attempting to fetch resource."))).toBe(true)
+    expect(isTransportError(new ClientError("Transport", { cause: new TypeError("Failed to fetch") }))).toBe(true)
+  })
+
+  test("follows the cause chain to a socket error", () => {
+    const socket = Object.assign(new Error("connect ECONNREFUSED 127.0.0.1:4096"), { code: "ECONNREFUSED" })
+    expect(isTransportError(new TypeError("fetch failed", { cause: socket }))).toBe(true)
+    expect(isTransportError(new Error("wrapped", { cause: { code: "UND_ERR_SOCKET" } }))).toBe(true)
+  })
+
+  test("leaves server answers, aborts, and ordinary bugs alone", () => {
+    expect(isTransportError(new ClientError("UnexpectedStatus"))).toBe(false)
+    expect(isTransportError(new Error("Session not found: ses_1"))).toBe(false)
+    expect(isTransportError(new TypeError("Cannot read properties of undefined (reading 'id')"))).toBe(false)
+    expect(isTransportError(new DOMException("Aborted", "AbortError"))).toBe(false)
+    expect(isTransportError({ name: "ConfigInvalidError", data: { path: "opencode.json" } })).toBe(false)
+    expect(isTransportError(undefined)).toBe(false)
+    expect(isTransportError("boom")).toBe(false)
   })
 })

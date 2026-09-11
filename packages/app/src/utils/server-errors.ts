@@ -1,3 +1,5 @@
+import { ClientError } from "@opencode-ai/client"
+
 export type ConfigInvalidError = {
   name: "ConfigInvalidError"
   data: {
@@ -106,4 +108,26 @@ function parseReadableProviderModelNotFoundError(errorInput: ProviderModelNotFou
     )
   }
   return [body, tail].join("\n")
+}
+
+const transportMessage =
+  /failed to fetch|fetch failed|load failed|networkerror|network connection was lost|network request failed|econnreset|econnrefused|enotfound|etimedout|ehostunreach|enetunreach|timed out|socket hang up/i
+const transportCode =
+  /^(E(CONNRESET|CONNREFUSED|NOTFOUND|TIMEDOUT|HOSTUNREACH|NETUNREACH|PIPE|AI_AGAIN)|UND_ERR_[A-Z_]+)$/
+
+// A transport error means the request never got an answer from the server: the
+// tunnel dropped, the box is restarting, the laptop is offline. Nothing about
+// the directory itself is wrong, and the sync layer re-bootstraps every active
+// directory on the next `server.connected`, so per-project error toasts for
+// these are noise. Aborts and timeouts we asked for are not transport errors.
+export function isTransportError(error: unknown, depth = 0): boolean {
+  if (!error || depth > 4) return false
+  if (error instanceof ClientError) return error.reason === "Transport"
+  if (typeof error === "string") return transportMessage.test(error)
+  if (typeof error !== "object") return false
+  const err = error as { name?: unknown; message?: unknown; code?: unknown; cause?: unknown }
+  if (err.name === "AbortError" || err.name === "TimeoutError") return false
+  if (typeof err.code === "string" && transportCode.test(err.code)) return true
+  if (typeof err.message === "string" && transportMessage.test(err.message)) return true
+  return isTransportError(err.cause, depth + 1)
 }

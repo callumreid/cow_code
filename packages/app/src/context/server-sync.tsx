@@ -31,7 +31,7 @@ import { estimateRootSessionTotal, loadRootSessions, loadRootSessionsV1 } from "
 import { trimSessions } from "./global-sync/session-trim"
 import type { ProjectMeta } from "./global-sync/types"
 import { SESSION_RECENT_LIMIT } from "./global-sync/types"
-import { formatServerError } from "@/utils/server-errors"
+import { formatServerError, isTransportError } from "@/utils/server-errors"
 import { queryOptions, useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/solid-query"
 import type { SolidQueryOptions } from "@tanstack/solid-query"
 import { createRefreshQueue } from "./global-sync/queue"
@@ -353,6 +353,10 @@ export function createServerSyncContextInner(serverSDK: ServerSDK) {
     bootstrapInstance,
   })
 
+  // Command loads that failed because the server was unreachable; replayed on
+  // the next `server.connected` (bootstrapDirectory does not load commands).
+  const commandsRetry = new Map<string, () => Promise<void>>()
+
   const children = createChildStoreManager({
     owner,
     scope: serverSDK.scope,
@@ -363,17 +367,28 @@ export function createServerSyncContextInner(serverSDK: ServerSDK) {
       void bootstrapInstance(directory)
     },
     onMcp: (directory, setStore) => {
-      void loadCommands(directory, serverSDK.api.command, sdkFor(directory), serverSDK.protocol)
-        .then((commands) => setStore("command", commands))
-        .catch((err) => {
-          showToast({
-            variant: "error",
-            title: language.t("toast.project.reloadFailed.title", { project: getFilename(directory) }),
-            description: formatServerError(err, language.t),
+      const load = () =>
+        loadCommands(directory, serverSDK.api.command, sdkFor(directory), serverSDK.protocol)
+          .then((commands) => {
+            commandsRetry.delete(directory)
+            setStore("command", commands)
           })
-        })
+          .catch((err) => {
+            if (isTransportError(err)) {
+              commandsRetry.set(directory, load)
+              console.warn(`Commands for ${getFilename(directory)} reload once the server is reachable again`, err)
+              return
+            }
+            showToast({
+              variant: "error",
+              title: language.t("toast.project.reloadFailed.title", { project: getFilename(directory) }),
+              description: formatServerError(err, language.t),
+            })
+          })
+      void load()
     },
     onDispose: (directory) => {
+      commandsRetry.delete(directory)
       const key = directoryKey(directory)
       queue.clear(key)
       sessionMeta.delete(key)
@@ -562,6 +577,9 @@ export function createServerSyncContextInner(serverSDK: ServerSDK) {
         eventType === "project.directories.updated"
       )
         bootstrap.refetch()
+      if (eventType === "server.connected") {
+        for (const load of [...commandsRetry.values()]) void load()
+      }
       if (eventType === "server.connected" || eventType === "global.disposed") {
         if (recent) return
         for (const directory of Object.keys(children.children)) {

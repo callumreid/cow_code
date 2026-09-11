@@ -37,7 +37,7 @@ import {
   normalizeProjectInfo,
   normalizeProviderList,
 } from "./utils"
-import { formatServerError } from "@/utils/server-errors"
+import { formatServerError, isTransportError } from "@/utils/server-errors"
 import { QueryClient, queryOptions } from "@tanstack/solid-query"
 import { loadMcpQuery, loadMcpResourcesQuery } from "../server-sync"
 import { NormalizedProviderListResponse } from "@opencode-ai/session-ui/context"
@@ -529,6 +529,10 @@ export async function bootstrapDirectory(input: {
           .fetchQuery(loadProvidersQuery(input.scope, input.directory, input.api, input.sdk, input.protocol))
           .catch((err) => {
             const project = getFilename(input.directory)
+            if (isTransportError(err)) {
+              console.warn(`Providers for ${project} reload once the server is reachable again`, err)
+              return
+            }
             showToast({
               variant: "error",
               title: input.translate("toast.project.reloadFailed.title", { project }),
@@ -541,12 +545,17 @@ export async function bootstrapDirectory(input: {
     const slowErrs = errors(await runAll(slow))
     if (slowErrs.length > 0) {
       console.error("Failed to finish bootstrap instance", slowErrs[0])
-      const project = getFilename(input.directory)
-      showToast({
-        variant: "error",
-        title: input.translate("toast.project.reloadFailed.title", { project }),
-        description: formatServerError(slowErrs[0], input.translate),
-      })
+      // The directory stays out of "complete", so the next `server.connected`
+      // re-bootstraps it; a dropped connection is not worth a toast per project.
+      const shown = slowErrs.filter((err) => !isTransportError(err))
+      if (shown.length > 0) {
+        const project = getFilename(input.directory)
+        showToast({
+          variant: "error",
+          title: input.translate("toast.project.reloadFailed.title", { project }),
+          description: formatServerError(shown[0], input.translate),
+        })
+      }
     }
 
     if (loading && slowErrs.length === 0) input.setStore("status", "complete")

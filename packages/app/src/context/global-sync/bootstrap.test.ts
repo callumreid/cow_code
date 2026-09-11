@@ -1,4 +1,6 @@
-import { describe, expect, test } from "bun:test"
+import { afterAll, beforeAll, describe, expect, spyOn, test } from "bun:test"
+import { ClientError } from "@opencode-ai/client"
+import * as toast from "@/utils/toast"
 import { createStore } from "solid-js/store"
 import { QueryClient } from "@tanstack/solid-query"
 import type { Config, OpencodeClient, Project } from "@opencode-ai/sdk/v2/client"
@@ -74,6 +76,91 @@ function directoryState() {
     part_text_accum_delta: {},
   })
 }
+
+const toasts: unknown[] = []
+const showToast = spyOn(toast, "showToast")
+
+beforeAll(() => {
+  showToast.mockImplementation((options) => {
+    toasts.push(options)
+    return 0
+  })
+})
+
+afterAll(() => {
+  showToast.mockRestore()
+})
+
+function legacySdk(overrides: { agents?: () => Promise<unknown>; providers?: () => Promise<unknown> }) {
+  return {
+    app: { agents: overrides.agents ?? (async () => ({ data: [] })) },
+    config: { get: async () => ({ data: {} }) },
+    session: { status: async () => ({ data: {} }) },
+    vcs: { get: async () => ({ data: undefined }) },
+    command: { list: async () => ({ data: [] }) },
+    permission: { list: async () => ({ data: [] }) },
+    question: { list: async () => ({ data: [] }) },
+    v2: { reference: { list: async () => ({ data: { data: [] } }) } },
+    provider: { list: overrides.providers ?? (async () => ({ data: { all: [], connected: [], default: {} } })) },
+  } as unknown as OpencodeClient
+}
+
+function bootWith(sdk: OpencodeClient, store: ReturnType<typeof directoryState>) {
+  return bootstrapDirectory({
+    directory: "/project",
+    scope: ServerScope.local,
+    mcp: false,
+    global: {
+      config: {} satisfies Config,
+      path: { state: "", config: "", worktree: "/project", directory: "/project", home: "/home" },
+      project: [{ id: "project", worktree: "/project" } as Project],
+      provider,
+    },
+    sdk,
+    api,
+    store: store[0],
+    setStore: store[1],
+    vcsCache: { setStore() {} } as unknown as VcsCache,
+    loadSessions() {},
+    translate: (key) => key,
+    queryClient: new QueryClient({ defaultOptions: { queries: { retry: false } } }),
+    protocol: Promise.resolve("v1"),
+  })
+}
+
+describe("bootstrapDirectory reload failures", () => {
+  test("stays quiet when the server is unreachable and leaves the directory to the reconnect", async () => {
+    toasts.length = 0
+    const store = directoryState()
+    const unreachable = async () => {
+      throw new ClientError("Transport", { cause: new TypeError("Failed to fetch") })
+    }
+    await bootWith(legacySdk({ agents: unreachable, providers: unreachable }), store)
+    await new Promise((resolve) => setTimeout(resolve, 80))
+
+    expect(toasts).toEqual([])
+    expect(store[0].status).toBe("partial")
+  })
+
+  test("still reports a failure the server actually answered with", async () => {
+    toasts.length = 0
+    const store = directoryState()
+    await bootWith(
+      legacySdk({
+        agents: async () => {
+          throw new Error("agent config is broken")
+        },
+      }),
+      store,
+    )
+    await new Promise((resolve) => setTimeout(resolve, 80))
+
+    expect(toasts).toEqual([
+      { variant: "error", title: "toast.project.reloadFailed.title", description: "agent config is broken" },
+    ])
+    expect(store[0].status).toBe("partial")
+  })
+})
 
 describe("bootstrapDirectory", () => {
   test("uses legacy MCP endpoints while refreshing a v1 directory", async () => {
