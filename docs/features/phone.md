@@ -34,7 +34,8 @@ in the line at the coffee place. it is the link this page is about.
 - **the cow's DM.** whenever the address moves, the cow DMs you the new link:
   _the barn door moved: … open it once on your phone and re-add it to your home
   screen_. this is the one copy that stays right on its own. (the DMs start once
-  Callum says yes to them; until then the box only watches and logs.)
+  Callum says yes to them, by touching `~/.config/cow/cow-phone-watch.armed` on
+  the box; until then the box only watches and logs.)
 
 the link is the key. it goes in a DM, never in a channel.
 

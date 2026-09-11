@@ -204,5 +204,6 @@ log "health"
 sleep 3
 curl -fsS -u "${COW_SERVER_USERNAME:-cow}:$(head -1 "$PW")" http://127.0.0.1:4096/global/health && echo
 echo "phone url: $HOME/.config/cow/phone-url (written by cow-phone-watch within 2 min; cow-phone-url on the laptop reads it)"
+[ -e "$HOME/.config/cow/cow-phone-watch.armed" ] && echo "phone watch: armed (DMs + tunnel restarts on)" || echo "phone watch: NOT armed; to turn on the DMs and tunnel restarts: touch ~/.config/cow/cow-phone-watch.armed"
 echo "dev pipeline: cow-pipeline.sh start|stop|status|logs (workers take dev_id=callum runs only)"
 log "done"

@@ -35,7 +35,8 @@ else
 fi
 swap=$(sysctl -n vm.swapusage | sed -E 's/.*used = ([0-9.]+)M.*/\1/')
 awk -v s="${swap:-0}" 'BEGIN{exit !(s>4096)}' && problems+=("swap in use: ${swap} MB")
-echo "$(date '+%F %T') box health: ${#problems[@]} problem(s); disk ${avail_gb} GB free; swap ${swap:-?} MB; phone origin ${origin:-none}; phone door $door; phone url file $phone_url"
+armed="not armed (touch ~/.config/cow/cow-phone-watch.armed)"; [ -e "$HOME/.config/cow/cow-phone-watch.armed" ] && armed=armed
+echo "$(date '+%F %T') box health: ${#problems[@]} problem(s); disk ${avail_gb} GB free; swap ${swap:-?} MB; phone origin ${origin:-none}; phone door $door; phone url file $phone_url; phone watch $armed"
 for p in "${problems[@]}"; do echo "  - $p"; done
 if [ "${#problems[@]}" -gt 0 ] && [ "${1:-}" != "--quiet" ]; then
   # Tell Callum through the cow Slack bot (a DM); no model call needed for a health report.

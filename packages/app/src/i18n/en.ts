@@ -120,7 +120,7 @@ export const dict = {
   "dialog.phone.door.description":
     "scan it, then park it on your home screen: open in safari, share → add to home screen. after that, stop thinking about it.",
   "dialog.phone.door.anywhere":
-    "works anywhere · the key is baked in, so no wifi or tailnet needed. the cow keeps this link current in its slack DM.",
+    "works anywhere · the key is baked in, so no wifi or tailnet needed. once armed, the cow keeps this link current in its slack DM.",
   "dialog.phone.door.since": "this door has been open since {{date}}",
 
   "theme.scheme.system": "System",
