@@ -80,7 +80,7 @@ done <<< "${prs}"
   fi
   echo "Flagged PRs: ${flagged[*]}"
   cd /Users/bronson/coval
-  /Users/bronson/.opencode/bin/opencode run --auto --attach http://127.0.0.1:4096 -m alibaba/glm-5.2 --title "routine: pr-review-fixer $(date +%Y-%m-%dT%H:%M)" "
+  /Users/bronson/.opencode/bin/opencode run --auto --attach http://127.0.0.1:4096 -m cloudflare-workers-ai/@cf/zai-org/glm-5.3 --title "routine: pr-review-fixer $(date +%Y-%m-%dT%H:%M)" "
 Apply my fix-review-comments skill at ~/.agents/skills/fix-review-comments/SKILL.md to each of these PRs, which currently have unresolved automated review-bot comments:
 
 $(printf '%s\n' "${flagged[@]}")

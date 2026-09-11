@@ -20,6 +20,17 @@
 
 ## Default model for headless workers
 
-- Headless Farmer-dispatched workers and the PR review routines run on the plain Alibaba
-  provider's `alibaba/glm-5.2` by default. Use another model only when Callum explicitly
-  names it for that job.
+- Headless Farmer-dispatched workers and the PR review routines run on the Cloudflare Workers AI
+  provider's plain `cloudflare-workers-ai/@cf/zai-org/glm-5.3` by default. Use another model only
+  when Callum explicitly names it for that job. The `-flash` variant
+  (`@cf/zai-org/glm-5.3-flash`) is reserved for when Callum explicitly asks for flash.
+- Never route any work to the API-billed `openai/gpt-5.6-sol`. It was the Farmer coordinator model
+  until 2026-09-11 and every call bills the OpenAI API key. Farmer itself runs on the ChatGPT
+  subscription provider as `chatgpt/gpt-5.5`.
+
+## Office communication
+
+- After accepting work, send no admission receipts ("started", "received", "I'll update you") and
+  no routine progress messages. Stay silent unless there is a completed outcome, a blocker or
+  error that needs Callum, or a decision. An explicitly requested status check still answers
+  immediately.
