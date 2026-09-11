@@ -18,6 +18,10 @@ Valid types are `feat`, `fix`, `docs`, `chore`, `refactor`, and `test`. Scopes a
 
 Examples: `fix(tui): simplify thinking toggle styling`, `docs: update contributing guide`, `chore(sdk): regenerate types`.
 
+## Changelog
+
+Every change that adds, changes or removes something a user can notice MUST add a line to `CHANGELOG.md` in the same commit, under today's date, Keep a Changelog style (`## YYYY-MM-DD`, newest first; `### Added` / `### Changed` / `### Fixed` / `### Removed`; one line per thing, in the fork's voice). Docs-only and refactor commits may skip it. This applies to agents and humans.
+
 ## Style Guide
 
 ### General Principles

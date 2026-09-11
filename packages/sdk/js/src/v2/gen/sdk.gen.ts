@@ -133,6 +133,8 @@ import type {
   OfficeEventsResponses,
   OfficeOverseerErrors,
   OfficeOverseerResponses,
+  OfficePhoneErrors,
+  OfficePhoneResponses,
   OfficeRequestErrors,
   OfficeRequestResponses,
   OfficeRequestStatusErrors,
@@ -2048,6 +2050,16 @@ export class Office extends HeyApiClient {
   public routines<ThrowOnError extends boolean = false>(options?: Options<never, ThrowOnError>) {
     return (options?.client ?? this.client).get<OfficeRoutinesResponses, OfficeRoutinesErrors, ThrowOnError>({
       url: "/global/office/routines",
+      ...options,
+    })
+  }
+
+  /**
+   * Get the public phone link
+   */
+  public phone<ThrowOnError extends boolean = false>(options?: Options<never, ThrowOnError>) {
+    return (options?.client ?? this.client).get<OfficePhoneResponses, OfficePhoneErrors, ThrowOnError>({
+      url: "/global/office/phone",
       ...options,
     })
   }

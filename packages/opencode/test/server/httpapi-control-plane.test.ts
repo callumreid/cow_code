@@ -20,6 +20,7 @@ import { OfficeLedger } from "../../src/office/ledger"
 import { OfficeControl } from "../../src/office/control"
 import { OfficeDriver } from "../../src/office/driver"
 import { Routines } from "../../src/office/routines"
+import { PhoneDoor } from "../../src/office/phone"
 import { authorizationLayer } from "../../src/server/routes/instance/httpapi/middleware/authorization"
 import { schemaErrorLayer } from "../../src/server/routes/instance/httpapi/middleware/schema-error"
 import { testEffect } from "../lib/effect"
@@ -50,6 +51,7 @@ const apiLayer = HttpRouter.serve(
   Layer.provide(Layer.mock(OfficeLedger.Service)({})),
   Layer.provide(Layer.mock(OfficeControl.Service)({})),
   Layer.provide(Layer.mock(Routines.Service)({})),
+  Layer.provide(Layer.mock(PhoneDoor.Service)({})),
   Layer.provide(
     Layer.mock(MoveSession.Service)({
       moveSession: (value) => Ref.set(called, value),

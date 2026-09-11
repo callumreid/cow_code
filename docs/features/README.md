@@ -11,7 +11,7 @@ links on this page are public. hand them out.
 | [🚦 pull requests, ranked](#-pull-requests-ranked) | every open PR you wrote, one badge each, worst thing first. three switches per PR: keep updated, auto-fix review comments, merge when ready. | 📹 soon |
 | [🧑‍🌾 the farmer's office](#-the-farmers-office) | tell the farmer what to do. the farmer sends cows out to do it in their own worktrees and reports back. | 📹 soon |
 | [🗓️ scheduled](#️-scheduled) | everything the barn runs on a clock, with the last run, the next run, and a run-now button. | 📹 soon |
-| [📱 the phone](#-the-phone) | scan a square, the whole barn is on your phone, live sessions included. | 🎬 in the [hype film](../../artifacts/hype-video/README.md) |
+| [📱 the barn door](phone.md) | scan a square, or open the link from the cow's DM: the whole barn on your phone, live sessions included, from anywhere. | 🎬 in the [hype film](../../artifacts/hype-video/README.md) |
 | [🎨 the wardrobe](#-the-wardrobe) | eighteen cow-breed themes, light and dark pelts. | 📹 soon |
 | [🏠 the pen](#-the-pen) | the remodeled sidebar: always out, pinned threads, inline rename. | 📹 soon |
 | [🏆 the big dog census](#-the-big-dog-census) | counts every big dog, yours and the agent's. | 📹 soon |
@@ -70,9 +70,14 @@ happen instead of hoping it did.
 
 ## 📱 the phone
 
-type `/qr` in the terminal or hit ⌘K → connect phone in the desktop app, point your
-camera at the square, and your real sessions are on your phone. not read-only:
-send into a running session and watch it keep going.
+two doors. **same network:** type `/qr` in the terminal or hit ⌘K → connect phone
+in the desktop app and point your camera at a square. **anywhere:** the barn door,
+one public link with its key baked in; the desktop dialog shows it too, and the cow
+keeps it current in your slack DM. either way your real sessions are on your phone,
+not read-only: send into a running session and watch it keep going.
+
+👉 **[full page: the barn door →](phone.md)** — getting the link, the home-screen
+icon, every screen you might see, and what to do when it breaks (nothing).
 
 🎬 the phone has its own segment in the [hype film](../../artifacts/hype-video/README.md).
 

@@ -46,6 +46,8 @@ with milk and moooing. and then moooing some more. thats the barn.
 every trick the cow knows, on film, with public links you can hand to people:
 **[docs/features](docs/features/README.md)**.
 
+what changed and when: **[CHANGELOG.md](CHANGELOG.md)**, newest first, one line per thing you would notice.
+
 [<img src="docs/features/pasture/poster.jpg" alt="the pasture: one cow per pull request, five pens, the hand of god" width="840" />](docs/features/pasture.md)
 
 newest: **[the pasture](docs/features/pasture.md)** — every one of your pull requests
@@ -148,9 +150,12 @@ real sessions — and not a little read-only window either, a working one. you c
 send new messages into a session thats already running and watch it keep going.
 couch. kitchen. yard. the line at the coffee place.
 
-your mac has to be awake and your phone has to be able to reach it, same wifi or
-same tailnet, thats the entire rulebook. the link keeps working after you restart
-the app, so park it on your home screen and stop thinking about it.
+two doors. **same network:** the squares in that dialog, your phone on the same wifi
+or tailnet as your mac, the mac awake. **anywhere:** the barn door, one public link
+with its key baked in, that the box keeps current in the cow's slack DM, so the walk,
+the train and the dentist's waiting room all count. park it on your home screen and
+stop thinking about it. the whole story, including what to do when it breaks
+(nothing), is in **[the barn door](docs/features/phone.md)**.
 
 ## 🧬 LINEAGE
 

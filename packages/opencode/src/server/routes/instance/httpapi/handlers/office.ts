@@ -5,6 +5,7 @@ import { OfficeControl } from "@/office/control"
 import { ConflictError } from "../errors"
 import { OfficeDriver } from "@/office/driver"
 import { Routines } from "@/office/routines"
+import { PhoneDoor } from "@/office/phone"
 import { Effect } from "effect"
 import { HttpServerResponse } from "effect/unstable/http"
 import { HttpApiBuilder } from "effect/unstable/httpapi"
@@ -64,6 +65,7 @@ export const officeHandlers = HttpApiBuilder.group(RootHttpApi, "office", (handl
     const control = yield* OfficeControl.Service
     const auth = yield* Auth.Service
     const jobs = yield* Routines.Service
+    const door = yield* PhoneDoor.Service
 
     const state = Effect.fn("OfficeHttpApi.state")(function* () {
       return yield* office.state()
@@ -307,5 +309,6 @@ export const officeHandlers = HttpApiBuilder.group(RootHttpApi, "office", (handl
       .handle("routines", routines)
       .handle("routineRun", routineRun)
       .handle("routineLog", routineLog)
+      .handle("phone", () => door.state())
   }),
 )

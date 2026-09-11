@@ -2132,7 +2132,15 @@ export type OfficeThread = {
   }
 }
 
-export type OfficeReportKind = "finished" | "permission" | "question" | "error" | "pr" | "stalled" | "auto_allowed"
+export type OfficeReportKind =
+  | "started"
+  | "finished"
+  | "permission"
+  | "question"
+  | "error"
+  | "pr"
+  | "stalled"
+  | "auto_allowed"
 
 export type OfficeReport = {
   id: string
@@ -2274,6 +2282,12 @@ export type RoutinesSnapshot = {
 export type RoutineLog = {
   path?: string
   text: string
+}
+
+export type PhoneDoor = {
+  url: string
+  origin: string
+  since: number
 }
 
 export type Model = {
@@ -8377,6 +8391,31 @@ export type OfficeRoutinesLogResponses = {
 }
 
 export type OfficeRoutinesLogResponse = OfficeRoutinesLogResponses[keyof OfficeRoutinesLogResponses]
+
+export type OfficePhoneData = {
+  body?: never
+  path?: never
+  query?: never
+  url: "/global/office/phone"
+}
+
+export type OfficePhoneErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type OfficePhoneError = OfficePhoneErrors[keyof OfficePhoneErrors]
+
+export type OfficePhoneResponses = {
+  /**
+   * The box's public phone link (the barn door); all null off the box
+   */
+  200: PhoneDoor
+}
+
+export type OfficePhoneResponse = OfficePhoneResponses[keyof OfficePhoneResponses]
 
 export type EventSubscribeData = {
   body?: never

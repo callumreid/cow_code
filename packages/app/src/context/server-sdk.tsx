@@ -218,6 +218,9 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
   const FLUSH_FRAME_MS = 16
   const STREAM_YIELD_MS = 8
   const RECONNECT_DELAY_MS = 250
+  // Backs off to this while the server stays unreachable (a phone through a dead tunnel), so
+  // the loop stops knocking four times a second; the first event that arrives resets it.
+  const RECONNECT_MAX_MS = 5_000
 
   let queue: Queued[] = []
   let buffer: Queued[] = []
@@ -256,6 +259,7 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
   let run: Promise<void> | undefined
   let started = false
   let generation = 0
+  let delay = RECONNECT_DELAY_MS
 
   const start = () => {
     if (started) return run
@@ -280,6 +284,7 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
           let yielded = Date.now()
           for await (const event of events) {
             streamErrorLogged = false
+            delay = RECONNECT_DELAY_MS
             const legacy = "payload" in event
             if (legacy && event.payload.type === "sync") continue
             const directory = legacy ? (event.directory ?? "global") : (event.location?.directory ?? "global")
@@ -305,7 +310,8 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
         }
 
         if (abort.signal.aborted || !started || generation !== active) return
-        await wait(RECONNECT_DELAY_MS)
+        await wait(delay)
+        delay = Math.min(delay * 2, RECONNECT_MAX_MS)
       }
     })().finally(() => {
       if (run !== current) return

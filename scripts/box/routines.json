@@ -90,6 +90,9 @@
     "dev.bronson.cow-public": {
       "title": "phone tunnel"
     },
+    "dev.bronson.cow-phone-watch": {
+      "title": "phone door watch"
+    },
     "dev.bronson.cow-slack": {
       "title": "Slack door"
     },

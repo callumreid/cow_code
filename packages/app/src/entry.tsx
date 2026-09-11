@@ -103,7 +103,13 @@ const getCurrentUrl = () => {
   return location.origin
 }
 
+// Served over https from a gated remote origin (the barn door): the page must
+// talk to the origin it came from, and the health check must run so an
+// unreachable server shows "could not reach" instead of an endless splash.
+const served = location.protocol === "https:" && !location.hostname.includes("opencode.ai") && !import.meta.env.DEV
+
 const getDefaultUrl = () => {
+  if (served) return location.origin
   const lsDefault = readDefaultServerUrl()
   if (lsDefault) return lsDefault
   return getCurrentUrl()
@@ -169,7 +175,7 @@ if (root instanceof HTMLElement) {
               defaultServer={ServerConnection.Key.make(getDefaultUrl())}
               canonicalLocalServer={ServerConnection.key(server)}
               servers={[server]}
-              disableHealthCheck
+              disableHealthCheck={!served}
             />
           </AppBaseProviders>
         </PlatformProvider>

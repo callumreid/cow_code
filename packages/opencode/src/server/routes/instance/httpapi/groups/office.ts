@@ -6,6 +6,7 @@ import { OfficeDriver } from "@/office/driver"
 import { OfficeLedger } from "@/office/ledger"
 import { ConflictError } from "../errors"
 import { Routines } from "@/office/routines"
+import { PhoneDoor } from "@/office/phone"
 import { described } from "./metadata"
 
 const Ok = Schema.Struct({ ok: Schema.Literal(true) })
@@ -115,6 +116,7 @@ export const OfficePaths = {
   routines: "/global/office/routines",
   routineRun: "/global/office/routines/run",
   routineLog: "/global/office/routines/log",
+  phone: "/global/office/phone",
 } as const
 
 export const OfficeApi = HttpApi.make("office").add(
@@ -246,6 +248,9 @@ export const OfficeApi = HttpApi.make("office").add(
       }).annotateMerge(
         OpenApi.annotations({ identifier: "office.routines.log", summary: "Read the tail of a job's log" }),
       ),
+      HttpApiEndpoint.get("phone", OfficePaths.phone, {
+        success: described(PhoneDoor.State, "The box's public phone link (the barn door); all null off the box"),
+      }).annotateMerge(OpenApi.annotations({ identifier: "office.phone", summary: "Get the public phone link" })),
     )
     .annotateMerge(OpenApi.annotations({ title: "office", description: "The Farmer's Office." })),
 )

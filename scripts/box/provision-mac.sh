@@ -66,18 +66,24 @@ changed=0
 for f in cow-serve.sh cow-gate.js cow-slack.sh claude-rc.sh cow-browser.sh cow-eyes.sh cow-pipeline.sh; do
   if ! cmp -s "$HERE/$f" "$HOME/bin/$f"; then install -m 755 "$HERE/$f" "$HOME/bin/$f"; changed=1; fi
 done
+# The watchdog only ever reloads itself: a change to it must not bounce cow-server.
+watch_changed=0
+if ! cmp -s "$HERE/cow-phone-watch.sh" "$HOME/bin/cow-phone-watch.sh"; then install -m 755 "$HERE/cow-phone-watch.sh" "$HOME/bin/cow-phone-watch.sh"; watch_changed=1; fi
+# cloudflared logs the full URL of failed requests; launchd recreates the log 644 after a truncation.
+[ ! -f "$HOME/Library/Logs/cow-public.log" ] || chmod 600 "$HOME/Library/Logs/cow-public.log"
 [ -x "$HOME/.local/bin/cow-slack" ] || warn "~/.local/bin/cow-slack missing: build with 'bun run build' in packages/slack and copy it here"
 [ -x "$HOME/.local/bin/cow-eyes" ] || warn "~/.local/bin/cow-eyes missing: build with 'bun run build' in packages/cow-eyes and copy it here"
 [ -d "/Applications/Google Chrome.app" ] || warn "Google Chrome missing: the box's browser (cow-browser) needs it"
 # (Re)load a job only when its plist changed, a script it runs changed, or it is not loaded.
 # cow-public is a cloudflared quick tunnel: restarting it rotates the phone URL, so leave it alone when nothing changed.
-for j in cow-awake cow-browser cow-eyes cow-server cow-gate cow-public cow-slack claude-rc; do
+for j in cow-awake cow-browser cow-eyes cow-server cow-gate cow-public cow-phone-watch cow-slack claude-rc; do
   src="$HERE/launchd/dev.bronson.$j.plist"; dst="$HOME/Library/LaunchAgents/dev.bronson.$j.plist"
   loaded=0; launchctl print "gui/$UID_NUM/dev.bronson.$j" >/dev/null 2>&1 && loaded=1
   same=0; cmp -s "$src" "$dst" && same=1
   needs=0
   [ "$same" = 1 ] && [ "$loaded" = 1 ] || needs=1
   [ "$j" != cow-public ] && [ "$changed" = 1 ] && needs=1
+  [ "$j" = cow-phone-watch ] && [ "$watch_changed" = 1 ] && needs=1
   [ "$needs" = 1 ] || { log "  $j unchanged, left running"; continue; }
   install -m 644 "$src" "$dst"
   launchctl bootout "gui/$UID_NUM/dev.bronson.$j" >/dev/null 2>&1 || true
@@ -197,6 +203,6 @@ fi
 log "health"
 sleep 3
 curl -fsS -u "${COW_SERVER_USERNAME:-cow}:$(head -1 "$PW")" http://127.0.0.1:4096/global/health && echo
-echo "phone url: run  cow-phone-url  on the laptop (or read ~/Library/Logs/cow-public.log here)"
+echo "phone url: $HOME/.config/cow/phone-url (written by cow-phone-watch within 2 min; cow-phone-url on the laptop reads it)"
 echo "dev pipeline: cow-pipeline.sh start|stop|status|logs (workers take dev_id=callum runs only)"
 log "done"
