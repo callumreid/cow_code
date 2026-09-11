@@ -5,8 +5,8 @@
 // env: COW_SLACK_BOT_TOKEN (xoxb), COW_SLACK_APP_TOKEN (xapp, connections:write), optional
 //      COW_SLACK_NOTIFY_CHANNEL (channel/DM id for pushes), COW_SERVER_URL (default
 //      http://127.0.0.1:4096), COW_SERVER_PASSWORD_FILE (default ~/.config/opencode/server-password).
-import { App } from "@slack/bolt"
-import { readFileSync } from "node:fs"
+import { App, LogLevel, SocketModeReceiver } from "@slack/bolt"
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { homedir } from "node:os"
 import { join } from "node:path"
 
@@ -22,7 +22,51 @@ const password = readFileSync(passwordFile, "utf8").split("\n")[0].trim()
 const auth = `Basic ${Buffer.from(`${process.env.COW_SERVER_USERNAME ?? "cow"}:${password}`).toString("base64")}`
 const notify = process.env.COW_SLACK_NOTIFY_CHANNEL
 
-const app = new App({ token: bot, appToken, socketMode: true })
+// The receiver is built by hand so the Socket Mode client is reachable: launchd keeps this process
+// alive, but a wedged client (2026-09-10: a "server explicit disconnect" during the handshake left
+// the state machine reconnecting 76 times a minute for a day, answering nobody) never dies on its
+// own. So: leave on any uncaught error, on a reconnect storm, or after three minutes without a
+// connection, and let launchd start a clean process. A heartbeat file lets the box's watchdog
+// notice a door that is up but not connected.
+const receiver = new SocketModeReceiver({ appToken, logLevel: LogLevel.INFO })
+const app = new App({ token: bot, receiver })
+const heartbeat = process.env.COW_SLACK_HEARTBEAT ?? join(homedir(), ".coval/logs/cow-slack.heartbeat")
+mkdirSync(join(heartbeat, ".."), { recursive: true })
+let leaving = false
+function leave(why: string) {
+  if (leaving) return
+  leaving = true
+  console.error(`cow-slack: ${why}; exiting so launchd starts a clean process`)
+  setTimeout(() => process.exit(3), 500)
+}
+process.on("uncaughtException", (error) => leave(`uncaught error: ${error instanceof Error ? error.message : String(error)}`))
+process.on("unhandledRejection", (error) => leave(`unhandled rejection: ${error instanceof Error ? error.message : String(error)}`))
+app.error(async (error) => console.error("cow-slack: bolt error", error.message))
+const socket = receiver.client
+const reconnects: number[] = []
+let connected = false
+let lastConnected = Date.now()
+socket.on("connected", () => {
+  connected = true
+  lastConnected = Date.now()
+})
+socket.on("disconnected", () => {
+  connected = false
+})
+socket.on("reconnecting", () => {
+  const now = Date.now()
+  reconnects.push(now)
+  while (reconnects.length && reconnects[0] < now - 60_000) reconnects.shift()
+  if (reconnects.length >= 8) leave("reconnect storm (8 reconnects in a minute)")
+})
+setInterval(() => {
+  if (connected) {
+    lastConnected = Date.now()
+    writeFileSync(heartbeat, `${lastConnected}\n`)
+    return
+  }
+  if (Date.now() - lastConnected > 3 * 60_000) leave("no Slack connection for three minutes")
+}, 30_000)
 
 type AskResult = { text: string; sessionID: string }
 async function ask(text: string): Promise<AskResult> {
