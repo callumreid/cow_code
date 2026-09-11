@@ -29,11 +29,17 @@ mkdir -p "$(dirname "$log")" "$(dirname "$state")" "$(dirname "$url_file")"
 
 get() { grep "^$1=" "$state" 2>/dev/null | head -1 | cut -d= -f2-; }
 save() {
-  printf 'origin=%s\nannounced=%s\nfails=%s\ndown_since=%s\nlast_dm=%s\nlast_restart=%s\nstuck_dm=%s\n' \
-    "$origin" "$announced" "$fails" "$down_since" "$last_dm" "$last_restart" "$stuck_dm" > "$state.tmp" && mv "$state.tmp" "$state"
+  printf 'origin=%s\nannounced=%s\nfails=%s\ndown_since=%s\nlast_dm=%s\nlast_restart=%s\nstuck_dm=%s\nwould_dm=%s\n' \
+    "$origin" "$announced" "$fails" "$down_since" "$last_dm" "$last_restart" "$stuck_dm" "$would_dm" > "$state.tmp" && mv "$state.tmp" "$state"
 }
 dm() {
-  [ -e "$armed_file" ] || { echo "$(date +%FT%T%z) (not armed) would DM: ${1//$token/<key>}" >> "$log"; return 1; }
+  if [ ! -e "$armed_file" ]; then
+    # Log each withheld message once, not every tick.
+    local would="${1//$token/<key>}"
+    [ "$would" = "$(get would_dm)" ] || echo "$(date +%FT%T%z) (not armed) would DM: $would" >> "$log"
+    would_dm=$would
+    return 1
+  fi
   "$HOME/bin/cow-notify.sh" "$1" >/dev/null 2>&1
 }
 ping_ok() { curl -s -m "$2" -H "Cookie: cowcode_gate=$token" "$1/_cow/ping" 2>/dev/null | grep -q '"ok":true'; }
@@ -58,6 +64,7 @@ while :; do
   last_dm=$(get last_dm); last_dm=${last_dm:-0}
   last_restart=$(get last_restart); last_restart=${last_restart:-0}
   stuck_dm=$(get stuck_dm); stuck_dm=${stuck_dm:-0}
+  would_dm=$(get would_dm)
   actions=""
 
   local_ok=down; ping_ok "$gate_url" 8 && local_ok=ok
