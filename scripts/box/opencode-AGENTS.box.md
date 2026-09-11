@@ -17,3 +17,9 @@
   URL, e.g. https://github.com/coval-ai/backend/pull/7279, as plain text. Never a bare "#7279".
 - Archived repositories (today: coval-ai/sofia-infra) are dead: never list, mention, review, or
   update their PRs. Filter searches with `archived:false` / `--archived=false`.
+
+## Default model for headless workers
+
+- Headless Farmer-dispatched workers and the PR review routines run on the plain Alibaba
+  provider's `alibaba/glm-5.2` by default. Use another model only when Callum explicitly
+  names it for that job.

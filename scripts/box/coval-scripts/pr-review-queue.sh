@@ -24,7 +24,7 @@ REPORT_DIR="${STATE_DIR}/reports"
 LOG_FILE="${LOG_DIR}/pr-review-queue.log"
 STATE_FILE="${STATE_DIR}/reviewed-heads.tsv"
 LOCK="${STATE_DIR}/lock"
-QUEUE_SCRIPT="/Users/bronson/.claude/skills/review-queue/scripts/find-queue.sh"
+QUEUE_SCRIPT="/Users/bronson/.agents/skills/review-queue/scripts/find-queue.sh"
 
 mkdir -p "${LOG_DIR}" "${REPORT_DIR}"
 touch "${STATE_FILE}"
@@ -105,19 +105,19 @@ stamp=$(date +%Y%m%dT%H%M%S)
 report="${REPORT_DIR}/${stamp}.log"
 pending=$(cat "${pending_file}")
 
-NO_COLOR=1 /Users/bronson/.opencode/bin/opencode run --auto --attach http://127.0.0.1:4096 -m chatgpt/gpt-5.5 \
+NO_COLOR=1 /Users/bronson/.opencode/bin/opencode run --auto --attach http://127.0.0.1:4096 -m alibaba/glm-5.2 \
   --title "routine: pr-review-queue $(date +%Y-%m-%dT%H:%M)" "
 Run the review queue against exactly these pending PR heads:
 
 ${pending}
 
 Each row is repo, PR number, exact head SHA, queue classification, and title. Read and follow:
-- /Users/bronson/.claude/skills/review-queue/SKILL.md
+- /Users/bronson/.agents/skills/review-queue/SKILL.md
 - /Users/bronson/.agents/skills/review-pr/SKILL.md
 
 Group related PRs before dispatching and cap concurrency at six. Use a separate temporary git worktree per PR from its exact listed head, fetch fresh origin/main for comparison, and remove every worktree at the end. Do not edit code, commit, push, resolve threads, merge, or enable auto-merge. Verify every finding against current code and anchor it to a changed line. Keep a dispatch ledger and report only agent results that actually returned.
 
-Publish each completed review using /Users/bronson/.agents/skills/review-pr/scripts/post-inline-review.py. Always run its --dry-run first and fix every invalid anchor before the real post. Put code findings inline, not in a wall of body text. Submit APPROVE when there is no definite blocking bug or issue; P3-only nits belong inline on an approval. Submit REQUEST_CHANGES when there is a definite P0, P1, or blocking P2 defect. Do not use COMMENT as the final event. Re-read the stored review and comments after posting. For coval-infra, remember that APPROVE can trigger Atlantis apply and merge: approve only when the exact-head review is clean under this same rule, and never run Atlantis or merge directly.
+Publish each completed review using /Users/bronson/.agents/skills/review-pr/scripts/post-inline-review.py. Always run its --dry-run first and fix every invalid anchor before the real post. Put code findings inline, not in a wall of body text. Submit APPROVE when there is no definite blocking bug or issue; P3-only nits belong inline on an approval. Submit REQUEST_CHANGES when there is a definite P0, P1, or blocking P2 defect inside the PR's own diff. Cross-PR dependency/stack/cycle/merge-order findings are advisory-only: post them inline or in the body, never as the sole basis for REQUEST_CHANGES. Draft PRs are excluded from discovery and never receive APPROVE or REQUEST_CHANGES - the poster refuses those events on a draft; if you hit that refusal, skip the PR and report it. Do not use COMMENT as the final event. Re-read the stored review and comments after posting. For coval-infra, remember that APPROVE can trigger Atlantis apply and merge: approve only when the exact-head review is clean under this same rule, and never run Atlantis or merge directly.
 
 Return a concise per-PR report containing exact head SHA, verdict, findings, verified-clean areas, checks run, and residual uncertainty. If a listed head moved, report it as stale and do not review or mark the replacement. Immediately after successfully reading back each posted review, print a standalone completion line in this exact format, using the row's values:
 

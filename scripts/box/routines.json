@@ -5,7 +5,7 @@
       "title": "PR review sweep",
       "description": "Reviews pull requests that ask for Callum's review, including re-reviews when a PR he already reviewed gets new commits. Posts the review as him; skips PRs he approved at their current head.",
       "kind": "llm",
-      "model": "chatgpt/gpt-5.5",
+      "model": "alibaba/glm-5.2",
       "log": "~/.coval/logs/pr-review-sweep.log",
       "window": {
         "hours": [
@@ -19,7 +19,7 @@
       "title": "PR review queue",
       "description": "Hourly pass over the review queue: anything the sweep left, plus the queue state file.",
       "kind": "llm",
-      "model": "chatgpt/gpt-5.5",
+      "model": "alibaba/glm-5.2",
       "log": "~/.coval/logs/pr-review-queue.log",
       "window": {
         "hours": [
@@ -37,7 +37,7 @@
       "title": "PR review auto-fixer",
       "description": "Fixes bot review comments on Callum's open PRs and pushes the fix. Skips PRs labeled cow:no-autofix (the brain toggle in Pull requests).",
       "kind": "llm",
-      "model": "cloudflare-workers-ai/@cf/zai-org/glm-5.3-flash",
+      "model": "alibaba/glm-5.2",
       "log": "~/.coval/logs/pr-review-fixer.log",
       "window": {
         "hours": [
