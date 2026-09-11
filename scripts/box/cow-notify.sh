@@ -6,7 +6,8 @@ export HOME=/Users/bronson
 python3 - "$COW_SLACK_BOT_TOKEN" "$COW_SLACK_NOTIFY_CHANNEL" "$1" <<'PY'
 import json, sys, urllib.request
 tok, ch, text = sys.argv[1:4]
-req = urllib.request.Request("https://slack.com/api/chat.postMessage", data=json.dumps({"channel": ch, "text": text}).encode(),
+# No unfurling: a DM can carry the keyed phone link, and Slack's crawler must not fetch it.
+req = urllib.request.Request("https://slack.com/api/chat.postMessage", data=json.dumps({"channel": ch, "text": text, "unfurl_links": False, "unfurl_media": False}).encode(),
   headers={"authorization": f"Bearer {tok}", "content-type": "application/json"})
 print("slack:", json.load(urllib.request.urlopen(req, timeout=20)).get("ok"))
 PY

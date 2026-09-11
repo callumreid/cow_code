@@ -29,8 +29,8 @@ mkdir -p "$(dirname "$log")" "$(dirname "$state")" "$(dirname "$url_file")"
 
 get() { grep "^$1=" "$state" 2>/dev/null | head -1 | cut -d= -f2-; }
 save() {
-  printf 'origin=%s\nannounced=%s\nfails=%s\ndown_since=%s\nlast_dm=%s\nlast_restart=%s\nstuck_dm=%s\nwould_dm=%s\n' \
-    "$origin" "$announced" "$fails" "$down_since" "$last_dm" "$last_restart" "$stuck_dm" "$would_dm" > "$state.tmp" && mv "$state.tmp" "$state"
+  printf 'origin=%s\nannounced=%s\nfails=%s\ndown_since=%s\nlast_dm=%s\nlast_restart=%s\nstuck_dm=%s\nwould_dm=%s\nrestarts=%s\n' \
+    "$origin" "$announced" "$fails" "$down_since" "$last_dm" "$last_restart" "$stuck_dm" "$would_dm" "$restarts" > "$state.tmp" && mv "$state.tmp" "$state"
 }
 dm() {
   if [ ! -e "$armed_file" ]; then
@@ -63,6 +63,7 @@ while :; do
   down_since=$(get down_since); down_since=${down_since:-0}
   last_dm=$(get last_dm); last_dm=${last_dm:-0}
   last_restart=$(get last_restart); last_restart=${last_restart:-0}
+  restarts=$(get restarts)
   stuck_dm=$(get stuck_dm); stuck_dm=${stuck_dm:-0}
   would_dm=$(get would_dm)
   actions=""
@@ -98,11 +99,16 @@ while :; do
     [ "$last_restart" != 0 ] && restart_note="restarted $(((now - last_restart) / 60)) min ago"
     [ -e "$no_restart" ] && restart_note="restart off ($no_restart)"
     [ -e "$armed_file" ] || restart_note="restart off (not armed)"
+    # Restart timestamps from the last hour, so a flapping edge cannot mint a new hostname every ten minutes.
+    recent=""; for t in $(echo "$restarts" | tr , " "); do [ -n "$t" ] && [ $((now - t)) -lt 3600 ] && recent="$recent,$t"; done
+    recent=${recent#,}; hour_count=0; [ -n "$recent" ] && hour_count=$(echo "$recent" | tr , "\n" | grep -c .)
+    [ "$hour_count" -ge 2 ] && restart_note="restart off (2 already this hour)"
     # Only restart when the box itself is online: with the WAN down a restart just burns the hostname.
-    if [ "$local_ok" = ok ] && [ "$fails" -ge 3 ] && [ "$down_for" -ge 300 ] && [ $((now - last_restart)) -ge 600 ] && [ "$wan" = ok ] && [ ! -e "$no_restart" ] && [ -e "$armed_file" ]; then
+    if [ "$local_ok" = ok ] && [ "$fails" -ge 3 ] && [ "$down_for" -ge 300 ] && [ $((now - last_restart)) -ge 600 ] && [ "$wan" = ok ] && [ ! -e "$no_restart" ] && [ -e "$armed_file" ] && [ "$hour_count" -lt 2 ]; then
       ${COW_PHONE_RESTART_CMD:-launchctl kickstart -k gui/$(id -u)/dev.bronson.cow-public} >> "$log" 2>&1
-      last_restart=$now; actions="$actions restart"
+      last_restart=$now; recent="${recent:+$recent,}$now"; actions="$actions restart"
     fi
+    restarts=$recent
     if [ "$down_for" -gt 600 ] && [ $((now - last_dm)) -ge 3600 ]; then
       what="no answer from ${origin:-the tunnel (no hostname in cow-public.log)} for $((down_for / 60)) min; gate on the box $local_ok, box internet $wan, tunnel ready=$ready, $restart_note"
       dm "the barn door is stuck: $what" && { last_dm=$now; stuck_dm=1; actions="$actions dm-stuck"; }

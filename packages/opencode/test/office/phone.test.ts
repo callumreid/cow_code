@@ -14,9 +14,9 @@ const log = [
   banner("2026-09-07T10:00:02Z", "old-barn-door"),
   "2026-09-07T10:00:03Z INF Registered tunnel connection connIndex=0",
   "2026-09-09T03:09:44Z INF Requesting new quick Tunnel on trycloudflare.com...",
-  banner("2026-09-09T03:09:47Z", "ours-composition-fellow-gamma"),
+  banner("2026-09-09T03:09:47Z", "fixture-quick-tunnel-abcd"),
   "2026-09-09T03:09:48Z INF Registered tunnel connection connIndex=0",
-  failed("2026-09-11T14:49:06Z", "ours-composition-fellow-gamma"),
+  failed("2026-09-11T14:49:06Z", "fixture-quick-tunnel-abcd"),
   "",
 ].join("\n")
 
@@ -25,7 +25,7 @@ const token = "a".repeat(43)
 describe("phone door log", () => {
   test("takes the current origin and the banner that minted it, not a later failed request", () => {
     expect(parseLog(log)).toEqual({
-      origin: "https://ours-composition-fellow-gamma.trycloudflare.com",
+      origin: "https://fixture-quick-tunnel-abcd.trycloudflare.com",
       since: Date.parse("2026-09-09T03:09:47Z"),
     })
   })
@@ -56,8 +56,8 @@ describe("phone door files", () => {
     const { paths, cleanup } = await fixture({ log, token: `${token}\n` })
     try {
       expect(await read(paths)).toEqual({
-        url: `https://ours-composition-fellow-gamma.trycloudflare.com/?_cowcode_gate=${token}`,
-        origin: "https://ours-composition-fellow-gamma.trycloudflare.com",
+        url: `https://fixture-quick-tunnel-abcd.trycloudflare.com/?_cowcode_gate=${token}`,
+        origin: "https://fixture-quick-tunnel-abcd.trycloudflare.com",
         since: Date.parse("2026-09-09T03:09:47Z"),
       })
     } finally {

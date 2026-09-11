@@ -123,13 +123,16 @@ function parseManifest(text) {
   }
 }
 function sendManifest(response, upstream) {
+  if (response.headersSent) return
   const keyed = `/?${GATE_QUERY}=${gate}`
   const body = JSON.stringify({ ...MANIFEST, ...upstream, name: MANIFEST.name, short_name: MANIFEST.short_name, id: keyed, start_url: keyed }, null, 2)
   response.writeHead(200, { "content-type": "application/manifest+json; charset=utf-8", "cache-control": "no-store", "set-cookie": cookie })
   response.end(body)
 }
 function manifest(response) {
-  const upstream = http.request({ host: "127.0.0.1", port: TARGET_PORT, method: "GET", path: "/site.webmanifest", headers: { host: `127.0.0.1:${TARGET_PORT}`, authorization } })
+  // A stalled server must not hold the phone's manifest fetch: after 3 s the defaults stand in.
+  const upstream = http.request({ host: "127.0.0.1", port: TARGET_PORT, method: "GET", path: "/site.webmanifest", headers: { host: `127.0.0.1:${TARGET_PORT}`, authorization }, timeout: 3000 })
+  upstream.on("timeout", () => upstream.destroy())
   upstream.on("response", (up) => {
     const chunks = []
     up.on("data", (chunk) => chunks.push(chunk))
