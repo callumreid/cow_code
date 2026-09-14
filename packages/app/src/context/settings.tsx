@@ -1,5 +1,5 @@
 import { createStore, reconcile } from "solid-js/store"
-import { batch, createEffect, createMemo, createSignal, onCleanup } from "solid-js"
+import { batch, createEffect, createMemo } from "solid-js"
 import { createSimpleContext } from "@opencode-ai/ui/context"
 import { persisted } from "@/utils/persist"
 import { usePlatform } from "@/context/platform"
@@ -46,6 +46,7 @@ export interface Settings {
     showCustomAgents: boolean
     mobileTitlebarPosition: "top" | "bottom"
     newLayoutDesigns?: boolean
+    sidebarNavigationInitialized?: boolean
     layoutTransitionEligible?: boolean
     agentVisibilityInitialized?: boolean
     newInterfaceNoticeDismissed?: boolean
@@ -71,11 +72,9 @@ export interface Settings {
 export const monoDefault = "System Mono"
 export const sansDefault = "System Sans"
 export const terminalDefault = "JetBrainsMono Nerd Font Mono"
-const legacyNewLayoutDesignsDefault = import.meta.env.VITE_OPENCODE_CHANNEL !== "prod"
-export const newLayoutDesignsDefault = true
-// Existing users can switch layouts until local midnight on this date. Set new Date(YYYY, M-1, D) to show.
-export const oldInterfaceSunset = new Date(2026, 8, 14)
-const newLayoutDesignsUpgradeCutoff = "1.17.19"
+// CowCode's persistent sidebar owns the Office, Pasture and in-place session navigation.
+// It must not expire or switch to upstream tab navigation after a date or version upgrade.
+export const newLayoutDesignsDefault = false
 
 function compareVersions(a: string, b: string) {
   const parse = (version: string) => {
@@ -111,38 +110,6 @@ export function hasExistingWebState(settings: Promise<string> | string | null, p
 export function initialAgentVisibility(initialized: boolean | undefined, existing: boolean, previousVersion?: string) {
   if (initialized === true) return
   return existing || previousVersion !== undefined
-}
-
-export function shouldEnableNewLayout(previous: string | undefined, current: string | undefined) {
-  if (!current) return false
-  const currentComparison = compareVersions(current, newLayoutDesignsUpgradeCutoff)
-  if (!previous) return currentComparison !== undefined && currentComparison > 0
-  if (!isAppUpgrade(previous, current)) return false
-  const previousComparison = compareVersions(previous, newLayoutDesignsUpgradeCutoff)
-  return (
-    previousComparison !== undefined &&
-    currentComparison !== undefined &&
-    previousComparison <= 0 &&
-    currentComparison > 0
-  )
-}
-
-export function layoutTransitionState(scheduled: boolean, eligible: boolean, retired: boolean, dismissed: boolean) {
-  return {
-    available: scheduled && eligible && !retired,
-    notice: scheduled && eligible && retired && !dismissed,
-  }
-}
-
-export const maximumSunsetTimeout = 2_147_483_647
-
-export function nextSunsetCheckDelay(sunset: number, now: number) {
-  return Math.min(Math.max(0, sunset - now), maximumSunsetTimeout)
-}
-
-export function resolveNewLayoutDesigns(retired: boolean, preference: boolean | undefined, fallback = true) {
-  if (retired) return true
-  return preference ?? fallback
 }
 
 const monoFallback =
@@ -209,6 +176,7 @@ const defaultSettings: Settings = {
     editToolPartsExpanded: false,
     showCustomAgents: false,
     mobileTitlebarPosition: "top",
+    sidebarNavigationInitialized: true,
   },
   appearance: {
     fontSize: 14,
@@ -249,16 +217,20 @@ function withFallback<T>(read: () => T | undefined, fallback: T) {
   return createMemo(() => read() ?? fallback)
 }
 
-// Queued follow-ups briefly shipped disabled and persisted every profile as
-// "steer". Treat that value as the retired default so existing installs get
-// the queue behavior too, while keeping the setting type available for a
-// future explicit preference.
-function migrateStoredSettings(value: unknown) {
-  if (!value || typeof value !== "object") return value
-  const stored = value as { general?: { followup?: string } }
-  if (stored.general?.followup !== "steer") return value
+// Upstream's September 14 retirement overwrote the sidebar choice with true.
+// Repair existing profiles once; later explicit layout choices remain preferences.
+export function migrateStoredSettings(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return value
+  const stored = value as { general?: Partial<Settings["general"]> }
+  if (stored.general?.sidebarNavigationInitialized && stored.general.followup !== "steer") return value
   const general = { ...stored.general }
-  delete general.followup
+  if (!general.sidebarNavigationInitialized) {
+    general.newLayoutDesigns = false
+    general.sidebarNavigationInitialized = true
+    general.shouldDisplayTabsToast = false
+  }
+  // Queued follow-ups briefly persisted the retired steer default in every profile.
+  if (general.followup === "steer") delete general.followup
   return { ...stored, general }
 }
 
@@ -277,7 +249,6 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
     )
     const [launchState, setLaunchState] = createStore({
       classified: false,
-      migrationApplied: false,
       previous: undefined as string | undefined,
     })
     const showFileTree = withFallback(() => store.general?.showFileTree, defaultSettings.general.showFileTree)
@@ -287,35 +258,9 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
       () => store.general?.showCustomAgents,
       defaultSettings.general.showCustomAgents,
     )
-    const sunset = oldInterfaceSunset
-    const [oldInterfaceRetired, setOldInterfaceRetired] = createSignal(sunset ? Date.now() >= sunset.getTime() : false)
     const layoutTransitionClassified = createMemo(() => typeof store.general?.layoutTransitionEligible === "boolean")
     const layoutTransitionEligible = withFallback(() => store.general?.layoutTransitionEligible, false)
-    const newInterfaceNoticeDismissed = withFallback(() => store.general?.newInterfaceNoticeDismissed, false)
-    const layoutUpgrade = createMemo(() =>
-      launchState.classified && !launchState.migrationApplied
-        ? shouldEnableNewLayout(launchState.previous, platform.version)
-        : false,
-    )
-    const layoutTransition = createMemo(() =>
-      layoutTransitionState(!!sunset, layoutTransitionEligible(), oldInterfaceRetired(), newInterfaceNoticeDismissed()),
-    )
-    const newLayoutDesigns = createMemo(() => {
-      if (layoutUpgrade()) return true
-      if (!ready() && !oldInterfaceRetired()) return legacyNewLayoutDesignsDefault
-      if (!layoutTransitionClassified()) {
-        return resolveNewLayoutDesigns(
-          oldInterfaceRetired(),
-          store.general?.newLayoutDesigns,
-          legacyNewLayoutDesignsDefault,
-        )
-      }
-      return resolveNewLayoutDesigns(
-        oldInterfaceRetired(),
-        store.general?.newLayoutDesigns,
-        layoutTransitionEligible() ? legacyNewLayoutDesignsDefault : newLayoutDesignsDefault,
-      )
-    })
+    const newLayoutDesigns = withFallback(() => store.general?.newLayoutDesigns, newLayoutDesignsDefault)
     const visible = (preference: () => boolean) => createMemo(() => !newLayoutDesigns() || preference())
     const initializeAgentVisibility = (existing: boolean) => {
       const initial = initialAgentVisibility(store.general?.agentVisibilityInitialized, existing, launchState.previous)
@@ -323,21 +268,6 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
       batch(() => {
         setStore("general", "showCustomAgents", initial)
         setStore("general", "agentVisibilityInitialized", true)
-      })
-    }
-
-    if (sunset && !oldInterfaceRetired()) {
-      const timeout = { current: undefined as ReturnType<typeof setTimeout> | undefined }
-      const checkSunset = () => {
-        if (Date.now() >= sunset.getTime()) {
-          setOldInterfaceRetired(true)
-          return
-        }
-        timeout.current = setTimeout(checkSunset, nextSunsetCheckDelay(sunset.getTime(), Date.now()))
-      }
-      checkSunset()
-      onCleanup(() => {
-        if (timeout.current !== undefined) clearTimeout(timeout.current)
       })
     }
 
@@ -359,14 +289,6 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
     })
 
     createEffect(() => {
-      if (!ready() || !launchState.classified || launchState.migrationApplied) return
-      if (layoutUpgrade() && store.general?.newLayoutDesigns !== true) {
-        setStore("general", "newLayoutDesigns", true)
-      }
-      setLaunchState("migrationApplied", true)
-    })
-
-    createEffect(() => {
       if (!ready() || !launchState.classified) return
       if (typeof store.general?.shouldDisplayTabsToast === "boolean") return
       if (!launchState.previous && !layoutTransitionClassified()) return
@@ -375,12 +297,6 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
         "shouldDisplayTabsToast",
         shouldDisplayTabsToast(launchState.previous, platform.version, layoutTransitionEligible()),
       )
-    })
-
-    createEffect(() => {
-      if (!ready() || !oldInterfaceRetired()) return
-      if (store.general?.newLayoutDesigns === true) return
-      setStore("general", "newLayoutDesigns", true)
     })
 
     // The whole settings object is persisted on first run, so changing the
@@ -483,9 +399,8 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
         },
         newLayoutDesigns,
         setNewLayoutDesigns(value: boolean) {
-          const next = oldInterfaceRetired() ? true : value
-          if (newLayoutDesigns() === next) return
-          setStore("general", "newLayoutDesigns", next)
+          if (newLayoutDesigns() === value) return
+          setStore("general", "newLayoutDesigns", value)
           if (typeof window !== "undefined") setTimeout(() => window.location.reload())
         },
         layoutTransitionClassified,
@@ -495,8 +410,8 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
           setStore("general", "layoutTransitionEligible", eligible)
         },
         initializeAgentVisibility,
-        layoutTransitionAvailable: createMemo(() => ready() && layoutTransition().available),
-        newInterfaceNoticeVisible: createMemo(() => ready() && layoutTransition().notice),
+        layoutTransitionAvailable: ready,
+        newInterfaceNoticeVisible: () => false,
         dismissNewInterfaceNotice() {
           setStore("general", "newInterfaceNoticeDismissed", true)
         },
