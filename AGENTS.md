@@ -1,8 +1,8 @@
 - To regenerate the legacy JavaScript SDK, run `./packages/sdk/js/script/build.ts`.
 - After changing the public Protocol or Server `HttpApi`, run `bun run generate` from `packages/client`. Do not edit `src/generated` or `src/generated-effect` directly.
 - Keep runtime dependencies directed from Schema to Core and Protocol, then from Core and Protocol to Server. Client runtime code may depend on Schema and Protocol but never Core or Server; `sdk-next` composes Client, Core, and Server.
-- The default branch in this repo is `dev`.
-- Local `main` ref may not exist; use `dev` or `origin/dev` for diffs.
+- The default branch in this repo is `main` (since 2026-09-16), and it is always the latest version. Push finished work directly to `main`, or merge it into `main` yourself; never leave it on a side branch waiting for Callum to ask. `dev` and `feat/cow-ui` are frozen history, not targets.
+- Use `main` or `origin/main` for diffs.
 
 ## Branch Names
 

@@ -25,12 +25,11 @@ companion, and eighteen cow-breed skins.
 ```bash
 git clone https://github.com/callumreid/cow_code.git
 cd cow_code
-git checkout feat/cow-ui   # the show barn: skins, tab-mooo, PR barn, phone companion
+git checkout main          # the whole barn: skins, tab-mooo, PR barn, phone companion, the office and the pasture
 bun install
 ```
 
-`dev` is the quieter default pasture; `feat/cow-ui` is where the herd actually lives.
-For the gold star experience, use the show barn.
+`main` is where the herd lives now (it swallowed `dev` and `feat/cow-ui` on 2026-09-16). Everything lands there directly.
 
 ## 3. let her rip
 
