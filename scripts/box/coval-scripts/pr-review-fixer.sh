@@ -126,7 +126,7 @@ echo "Flagged PRs (${#flagged[@]}), up to ${MAX_PARALLEL} in parallel: ${(j:, :)
 stamp=$(date +%Y%m%dT%H%M%S)
 
 launch_one() {  # usage: launch_one <repo> <number> <count>  -> starts one opencode session in the background
-  local repo="$1" number="$2" count="$3"
+  local repo="$1" number="$2" count="$3" pid
   local key="${repo}#${number}"
   local report="${REPORT_DIR}/${stamp}-${repo}-${number}.log"
   (
@@ -146,7 +146,9 @@ Follow the skill end to end for this PR. The non-negotiable parts:
 
 Do not merge, do not enable auto-merge, do not promote the draft state, do not debug the environment — if a tool misbehaves, state it plainly and stop. End with a summary table (comment, author, file, triage, action, commit hash, resolved yes/no) plus the re-requested reviewer logins."
   ) > "${report}" 2>&1 &
-  running_pid[$key]=$!
+  # zsh 5.9 leaves `assoc[$key]=$!` as the literal text "$!"; capture the pid into a plain variable first.
+  pid=$!
+  running_pid[$key]=${pid}
   running_start[$key]=$SECONDS
   running_report[$key]="${report}"
   echo "$(date -Iseconds): started ${key} (${count} threads) pid ${running_pid[$key]} -> ${report}" >> "${LOG_FILE}"
