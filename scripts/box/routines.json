@@ -35,9 +35,9 @@
     },
     "dev.coval.pr-review-fixer": {
       "title": "PR review auto-fixer",
-      "description": "Fixes bot review comments on Callum's open PRs and pushes the fix. Skips PRs labeled cow:no-autofix (the brain toggle in Pull requests).",
+      "description": "Fixes review comments from bots and coworkers on Callum's open PRs, one parallel thread per PR (GLM 5.3, medium reasoning): pushes the fix, replies with evidence, resolves the fixed threads and re-requests review from whoever requested changes. Skips PRs labeled cow:no-autofix (the brain toggle in Pull requests).",
       "kind": "llm",
-      "model": "cloudflare-workers-ai/@cf/zai-org/glm-5.3-flash",
+      "model": "cloudflare-workers-ai/@cf/zai-org/glm-5.3",
       "log": "~/.coval/logs/pr-review-fixer.log",
       "window": {
         "hours": [
