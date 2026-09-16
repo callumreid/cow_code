@@ -27,6 +27,8 @@ MODEL=cloudflare-workers-ai/@cf/zai-org/glm-5.3
 VARIANT=medium
 MAX_PARALLEL=${COW_FIXER_MAX_PARALLEL:-4}
 PER_PR_TIMEOUT=${COW_FIXER_PR_TIMEOUT:-2700}   # seconds; one PR's session is killed past this
+MAX_ATTEMPTS=${COW_FIXER_MAX_ATTEMPTS:-3}      # a session that dies on the provider's rate limit is relaunched up to this many times
+RATE_LIMIT_BACKOFF=${COW_FIXER_RATE_LIMIT_BACKOFF:-90}   # seconds to hold new launches after a rate-limit death
 OPENCODE=/Users/bronson/.opencode/bin/opencode
 SKILL=/Users/bronson/.claude/skills/fix-review-comments/SKILL.md
 
@@ -51,7 +53,7 @@ if ! mkdir "${LOCK}" 2>/dev/null; then
 fi
 printf '%s\n' "$$" > "${LOCK}/pid"
 
-typeset -A running_pid running_start running_report
+typeset -A running_pid running_start running_report running_item attempts
 cleanup() {
   local key pid
   for key in ${(k)running_pid}; do
@@ -128,7 +130,9 @@ stamp=$(date +%Y%m%dT%H%M%S)
 launch_one() {  # usage: launch_one <repo> <number> <count>  -> starts one opencode session in the background
   local repo="$1" number="$2" count="$3" pid
   local key="${repo}#${number}"
+  local attempt=$(( ${attempts[$key]:-0} + 1 ))
   local report="${REPORT_DIR}/${stamp}-${repo}-${number}.log"
+  (( attempt > 1 )) && report="${REPORT_DIR}/${stamp}-${repo}-${number}-attempt${attempt}.log"
   (
     cd /Users/bronson/coval
     NO_COLOR=1 "${OPENCODE}" run --auto --attach http://127.0.0.1:4096 \
@@ -139,7 +143,7 @@ Apply my fix-review-comments skill at ${SKILL} to exactly ONE pull request: ${OR
 Follow the skill end to end for this PR. The non-negotiable parts:
 1. FIRST record the re-request list: every human reviewer whose latest review on the PR is CHANGES_REQUESTED (dedupe by login, skip bots). Capture it before any fix lands.
 2. Gather every UNRESOLVED review thread whose first comment is not by ${ME} and whose last comment is not by ${ME}. Review-bot threads AND coworker threads alike — a coworker's comment gets exactly the same triage and fix as a bot's.
-3. Set up a fresh git worktree from the PR head branch (repo checkouts live in /Users/bronson/coval/<repo>; their working trees may be dirty — never commit there). Triage every comment against the actual current code, apply minimal fixes for the valid ones, run only the affected tests plus the repo's linter, commit with the PR's [COVAL-XXXX] prefix, push to the PR branch, and verify the remote branch head is your fix commit before replying.
+3. Set up a fresh git worktree from the PR head branch (repo checkouts live in /Users/bronson/coval/<repo>; their working trees may be dirty — never commit there; if a worktree or temp branch from an earlier attempt on this PR is still around, remove it first). Triage every comment against the actual current code, apply minimal fixes for the valid ones, run only the affected tests plus the repo's linter, commit with the PR's [COVAL-XXXX] prefix, push to the PR branch, and verify the remote branch head is your fix commit before replying.
 4. Reply to every thread through the REST replies API with evidence (the commit hash for fixes). Then RESOLVE the thread (resolveReviewThread with the thread's GraphQL node id) for every comment you fixed, showed already fixed, or rejected as a bot false positive, and read isResolved back to confirm. The only threads left open are a coworker's you disagree with and comments you skipped as too large or risky — reply explaining, and flag them in your report.
 5. After the fixes are pushed and every reply is posted, re-request review from every login on the re-request list (POST pulls/${number}/requested_reviewers), then read requested_reviewers back and report the exact logins. Never request anyone who is not on that list; if the list is empty say so.
 6. Remove the worktree and any temporary branch.
@@ -151,24 +155,42 @@ Do not merge, do not enable auto-merge, do not promote the draft state, do not d
   running_pid[$key]=${pid}
   running_start[$key]=$SECONDS
   running_report[$key]="${report}"
-  echo "$(date -Iseconds): started ${key} (${count} threads) pid ${running_pid[$key]} -> ${report}" >> "${LOG_FILE}"
+  running_item[$key]="${repo} ${number} ${count}"
+  attempts[$key]=${attempt}
+  echo "$(date -Iseconds): started ${key} (${count} threads, attempt ${attempts[$key]}) pid ${running_pid[$key]} -> ${report}" >> "${LOG_FILE}"
 }
 
-ok=0; failed=0; timed_out=0
+# opencode run exits 0 even when the session died on a provider error; the report's last line says so.
+report_last_line() { sed -E $'s/\x1b\\[[0-9;]*[A-Za-z]//g' "$1" | grep -v '^[[:space:]]*$' | tail -1 | cut -c1-200; }
+
+ok=0; failed=0; timed_out=0; relaunched=0
+not_before=0   # SECONDS before which no new session is launched (set after a rate-limit death)
 pending=("${flagged[@]}")
 while (( ${#pending[@]} > 0 || ${#running_pid[@]} > 0 )); do
-  while (( ${#pending[@]} > 0 && ${#running_pid[@]} < MAX_PARALLEL )); do
+  # One launch per 10-second tick: staggering the sessions keeps the provider's per-minute rate in check.
+  if (( ${#pending[@]} > 0 && ${#running_pid[@]} < MAX_PARALLEL && SECONDS >= not_before )); then
     item=${pending[1]}
     shift pending
     launch_one ${=item}
-  done
+  fi
   for key in ${(k)running_pid}; do
     pid=${running_pid[$key]}
     if ! kill -0 "${pid}" 2>/dev/null; then
       rc=0; wait "${pid}" || rc=$?
-      if (( rc == 0 )); then ok=$((ok + 1)); else failed=$((failed + 1)); fi
-      echo "$(date -Iseconds): finished ${key} rc=${rc} after $(( SECONDS - running_start[$key] ))s; report ${running_report[$key]}" >> "${LOG_FILE}"
-      unset "running_pid[$key]" "running_start[$key]" "running_report[$key]"
+      last=$(report_last_line "${running_report[$key]}")
+      elapsed=$(( SECONDS - running_start[$key] ))
+      if [[ "${last}" == Error:* ]] && (( rc == 0 )); then rc=2; fi
+      if [[ "${last:l}" == *"too many requests"* || "${last:l}" == *"rate limit"* ]] && (( attempts[$key] < MAX_ATTEMPTS )); then
+        pending+=("${running_item[$key]}")
+        not_before=$(( SECONDS + RATE_LIMIT_BACKOFF ))
+        relaunched=$((relaunched + 1))
+        echo "$(date -Iseconds): ${key} died on the provider rate limit after ${elapsed}s (attempt ${attempts[$key]}); relaunching in ${RATE_LIMIT_BACKOFF}s; report ${running_report[$key]}" >> "${LOG_FILE}"
+      else
+        if (( rc == 0 )); then ok=$((ok + 1)); else failed=$((failed + 1)); fi
+        echo "$(date -Iseconds): finished ${key} rc=${rc} after ${elapsed}s; report ${running_report[$key]}" >> "${LOG_FILE}"
+        (( rc != 0 )) && echo "  last line: ${last}" >> "${LOG_FILE}"
+      fi
+      unset "running_pid[$key]" "running_start[$key]" "running_report[$key]" "running_item[$key]"
     elif (( SECONDS - running_start[$key] >= PER_PR_TIMEOUT )); then
       kill -TERM "${pid}" 2>/dev/null || true
       sleep 5
@@ -176,7 +198,7 @@ while (( ${#pending[@]} > 0 || ${#running_pid[@]} > 0 )); do
       wait "${pid}" 2>/dev/null || true
       timed_out=$((timed_out + 1))
       echo "$(date -Iseconds): ${key} TIMED OUT after ${PER_PR_TIMEOUT}s; killed; report ${running_report[$key]}" >> "${LOG_FILE}"
-      unset "running_pid[$key]" "running_start[$key]" "running_report[$key]"
+      unset "running_pid[$key]" "running_start[$key]" "running_report[$key]" "running_item[$key]"
     fi
   done
   sleep 10
@@ -186,7 +208,7 @@ routine_finish "routine: pr-review-fixer"
 
 rc=0
 (( failed > 0 || timed_out > 0 )) && rc=1
-summary="PR_REVIEW_FIXER_COMPLETE $(date +%Y-%m-%dT%H:%M:%S%z) prs=${#flagged[@]} ok=${ok} failed=${failed} timed_out=${timed_out}"
+summary="PR_REVIEW_FIXER_COMPLETE $(date +%Y-%m-%dT%H:%M:%S%z) prs=${#flagged[@]} ok=${ok} failed=${failed} timed_out=${timed_out} relaunched=${relaunched}"
 echo "${summary}" >> "${LOG_FILE}"
 echo "${summary}"
 exit "${rc}"
