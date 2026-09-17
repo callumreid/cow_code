@@ -5,7 +5,7 @@
 // env: COW_SLACK_BOT_TOKEN (xoxb), COW_SLACK_APP_TOKEN (xapp, connections:write), optional
 //      COW_SLACK_NOTIFY_CHANNEL (channel/DM id for pushes), COW_SERVER_URL (default
 //      http://127.0.0.1:4096), COW_SERVER_PASSWORD_FILE (default ~/.config/opencode/server-password).
-import { App, LogLevel, SocketModeReceiver } from "@slack/bolt"
+import { App, LogLevel, SocketModeReceiver, type Logger } from "@slack/bolt"
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { homedir } from "node:os"
 import { join } from "node:path"
@@ -28,7 +28,29 @@ const notify = process.env.COW_SLACK_NOTIFY_CHANNEL
 // own. So: leave on any uncaught error, on a reconnect storm, or after three minutes without a
 // connection, and let launchd start a clean process. A heartbeat file lets the box's watchdog
 // notice a door that is up but not connected.
-const receiver = new SocketModeReceiver({ appToken, logLevel: LogLevel.INFO })
+// The Socket Mode client only says WHY it reconnects at DEBUG: the WebSocket close code and reason,
+// Slack's own "disconnect" message and its reason, and its missed ping/pong verdicts. Six days of INFO
+// logs (2026-09-17: 908 reconnects, 92 storm exits) could not tell those apart, so this logger runs
+// the client at DEBUG, keeps exactly those lines, drops the rest of the debug chatter, and stamps
+// every line with the time (the launchd log has no timestamps of its own).
+const REASON = /WebSocket close event|"disconnect"|explicit disconnect|pings not received|pongs not received/i
+let socketLevel: LogLevel = LogLevel.DEBUG
+const stamp = () => new Date().toISOString()
+const socketLogger: Logger = {
+  debug: (...msg: unknown[]) => {
+    const line = msg.map(String).join(" ")
+    if (REASON.test(line)) console.log(`${stamp()} [socket] ${line}`)
+  },
+  info: (...msg: unknown[]) => console.log(`${stamp()} [INFO]`, ...msg),
+  warn: (...msg: unknown[]) => console.warn(`${stamp()} [WARN]`, ...msg),
+  error: (...msg: unknown[]) => console.error(`${stamp()} [ERROR]`, ...msg),
+  setLevel: (level: LogLevel) => {
+    socketLevel = level
+  },
+  getLevel: () => socketLevel,
+  setName: () => {},
+}
+const receiver = new SocketModeReceiver({ appToken, logger: socketLogger, logLevel: LogLevel.DEBUG })
 const app = new App({ token: bot, receiver })
 const heartbeat = process.env.COW_SLACK_HEARTBEAT ?? join(homedir(), ".coval/logs/cow-slack.heartbeat")
 mkdirSync(join(heartbeat, ".."), { recursive: true })
@@ -36,7 +58,7 @@ let leaving = false
 function leave(why: string) {
   if (leaving) return
   leaving = true
-  console.error(`cow-slack: ${why}; exiting so launchd starts a clean process`)
+  console.error(`${stamp()} cow-slack: ${why}; exiting so launchd starts a clean process`)
   setTimeout(() => process.exit(3), 500)
 }
 process.on("uncaughtException", (error) => leave(`uncaught error: ${error instanceof Error ? error.message : String(error)}`))
