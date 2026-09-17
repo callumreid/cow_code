@@ -1,0 +1,87 @@
+/* The pasture's overlays: the farmer's speech bubble, upsidedown time, and the chips on the field. */
+
+.pasture-bubble {
+  position: absolute;
+  z-index: 12;
+  transform: translate(-50%, calc(-100% - 14px));
+  max-width: 260px;
+  background: #fff;
+  color: #2b2118;
+  border: 2px solid #2b2118;
+  border-radius: 14px;
+  padding: 8px 12px;
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1.25;
+  text-align: center;
+  pointer-events: none;
+  box-shadow: 0 10px 30px rgba(43, 33, 24, 0.14);
+}
+
+.pasture-bubble::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -11px;
+  width: 16px;
+  height: 16px;
+  background: #fff;
+  border-right: 2px solid #2b2118;
+  border-bottom: 2px solid #2b2118;
+  transform: translateX(-50%) rotate(45deg);
+}
+
+.pasture-upsidedown {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 16px;
+  pointer-events: none;
+  font-size: clamp(36px, 10vw, 160px);
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  text-align: center;
+  color: #fff;
+  -webkit-text-stroke: 3px #2b2118;
+  text-shadow:
+    0 8px 0 #2b2118,
+    0 0 40px rgba(0, 0, 0, 0.5);
+  animation: pasture-shake 90ms steps(2) infinite;
+}
+
+@keyframes pasture-shake {
+  0% {
+    transform: translate(-7px, 5px) rotate(-2.5deg) scale(1.03);
+  }
+  25% {
+    transform: translate(8px, -6px) rotate(2.5deg);
+  }
+  50% {
+    transform: translate(-6px, -7px) rotate(-1.5deg) scale(0.97);
+  }
+  75% {
+    transform: translate(7px, 7px) rotate(2deg) scale(1.02);
+  }
+  100% {
+    transform: translate(-7px, 5px) rotate(-2.5deg) scale(1.03);
+  }
+}
+
+.pasture-blackout {
+  position: absolute;
+  inset: 0;
+  z-index: 39;
+  background: #000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.9s ease;
+}
+
+.pasture-blackout.on {
+  opacity: 1;
+  transition-duration: 1.9s;
+}

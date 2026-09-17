@@ -12,7 +12,10 @@
     "./updater": "./src/updater.ts",
     "./wsl/types": "./src/wsl/types.ts",
     "./vite": "./vite.js",
-    "./index.css": "./src/index.css"
+    "./index.css": "./src/index.css",
+    "./pasture/events": "./src/pasture/events.ts",
+    "./pasture/datadog-parse": "./src/pasture/datadog-parse.ts",
+    "./pasture/sky": "./src/pasture/sky.ts"
   },
   "scripts": {
     "typecheck": "tsgo -b",

@@ -83,4 +83,18 @@ describe("pasture members", () => {
     expect(openDetail(open(3, "checks-failing"))).toBe("Checks not green · CI failing")
     expect(openDetail({ ...open(4, "unresolved"), autoMerge: true })).toBe("Unresolved comments · CI green · 2 unresolved · auto-merge armed")
   })
+
+  test("a closed PR is never held: its cow burns instead of waiting for the merged search", () => {
+    const before = [open(41), open(42)]
+    const limbo = advanceLimbo(new Map(), before, [], new Set(), 1_000, new Set(["coval-ai/backend#41"]))
+    expect([...limbo.keys()]).toEqual(["coval-ai/backend#42"])
+    const later = advanceLimbo(limbo, [], [], new Set(), 2_000, new Set(["coval-ai/backend#42"]))
+    expect(later.size).toBe(0)
+  })
+
+  test("open cows wear the signed-in person's collar; merged ones their author's", () => {
+    const members = buildMembers([open(1)], [merged(2)], new Map(), 150, "callumreid")
+    expect(members.map((m) => m.author)).toEqual(["callumreid", "callumreid"])
+    expect(buildMembers([open(1)], [], new Map(), 150)[0].author).toBe("you")
+  })
 })

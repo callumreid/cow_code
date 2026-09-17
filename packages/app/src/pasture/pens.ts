@@ -17,14 +17,16 @@ export const PENS: Pen[] = [
   { id: "awaiting", name: "Awaiting review", rect: { x0: -22.6, x1: -0.6, z0: 6, z1: 28 } },
   { id: "changes", name: "Changes requested", rect: { x0: 0.8, x1: 22.8, z0: 6, z1: 28 } },
   { id: "ready", name: "Ready to merge", rect: { x0: 24.2, x1: 46.2, z0: 6, z1: 28 } },
-  { id: "merged", name: "Merged", rect: { x0: -46, x1: 46.2, z0: -30, z1: 3 } },
+  { id: "merged", name: "Merged", rect: { x0: -46, x1: 46.2, z0: -34, z1: 3 } },
 ]
+
+export const PEN_ORDER: PenID[] = ["draft", "awaiting", "changes", "ready", "merged"]
 
 export function penFor(id: PenID): Pen {
   return PENS.find((pen) => pen.id === id) ?? PENS[PENS.length - 1]
 }
 
-/** The pen an open pull request grazes in, from the dashboard's single badge. */
+/** The pen an open pull request grazes in, from its single stage. */
 export function penForState(state: PrState): PenID {
   switch (state) {
     case "draft":

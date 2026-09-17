@@ -1,6 +1,14 @@
-import type { PasturePullRequest } from "./types"
+import { hashString } from "./rng"
 
-export type BreedPattern = "solid" | "patches" | "belt" | "whiteface" | "roan" | "backstripe"
+export { hashString } from "./rng"
+export { cowID } from "./types"
+
+type Ref = { repo: string; number: number }
+
+export type BreedPattern = "solid" | "patches" | "belt" | "whiteface" | "roan" | "backstripe" | "nguni"
+
+/** short: stubby and curved. long: a sweep out and up. huge: the lateral Texas span. lyre: the tall, thick Watusi pair. */
+export type HornStyle = "none" | "short" | "long" | "huge" | "lyre"
 
 export type Breed = {
   id: string
@@ -10,7 +18,7 @@ export type Breed = {
   /** Second colour for patches, belts, stripes or the face. */
   patch?: string
   pattern: BreedPattern
-  horns: "none" | "short" | "long" | "huge"
+  horns: HornStyle
   hump?: boolean
   shaggy?: boolean
   ears: "up" | "droop"
@@ -42,7 +50,7 @@ export const BREEDS: Breed[] = [
   { id: "shorthorn", name: "Shorthorn", body: "#b45a3c", patch: "#f4ece2", pattern: "roan", horns: "short", ears: "up", size: 1.05, muzzle: "#e8c0b0" },
   { id: "brown-swiss", name: "Brown Swiss", body: "#8f8073", pattern: "solid", horns: "none", ears: "up", size: 1.1, muzzle: "#d8cfc4", dairy: true },
   { id: "chianina", name: "Chianina", body: "#f7f4ee", pattern: "solid", horns: "short", ears: "up", size: 1.25, muzzle: "#3a3535" },
-  { id: "watusi", name: "Ankole-Watusi", body: "#7a3b2a", patch: "#f2e8dc", pattern: "patches", horns: "huge", ears: "up", size: 1.1, muzzle: "#4a2a20" },
+  { id: "watusi", name: "Ankole-Watusi", body: "#7a3b2a", patch: "#f2e8dc", pattern: "patches", horns: "lyre", ears: "up", size: 1.1, muzzle: "#4a2a20" },
   { id: "pinzgauer", name: "Pinzgauer", body: "#8a4a34", patch: "#f4efe6", pattern: "backstripe", horns: "short", ears: "up", size: 1.05, muzzle: "#e0b8a8" },
   { id: "dutch-belted", name: "Dutch Belted", body: "#1c1c1c", patch: "#f5f2ec", pattern: "belt", horns: "none", ears: "up", size: 1, muzzle: "#2c2828", dairy: true },
   { id: "gloucester", name: "Gloucester", body: "#3a2a24", patch: "#f4efe6", pattern: "backstripe", horns: "long", ears: "up", size: 1, muzzle: "#4a3a34" },
@@ -51,36 +59,15 @@ export const BREEDS: Breed[] = [
   { id: "murray-grey", name: "Murray Grey", body: "#9a9aa0", pattern: "solid", horns: "none", ears: "up", size: 1, muzzle: "#3a3a40" },
   { id: "white-park", name: "White Park", body: "#f6f4ef", patch: "#1a1a1a", pattern: "solid", horns: "long", ears: "up", size: 1.05, muzzle: "#1a1a1a" },
   { id: "speckle-park", name: "Speckle Park", body: "#f4f1ec", patch: "#1e1e1e", pattern: "roan", horns: "none", ears: "up", size: 1, muzzle: "#2a2a2a" },
+  { id: "nguni", name: "Nguni", body: "#f4efe4", patch: "#3a2a22", pattern: "nguni", horns: "long", ears: "up", size: 0.95, muzzle: "#3a2a22" },
+  { id: "nguni-red", name: "Nguni", body: "#efe6d6", patch: "#8e4a2c", pattern: "nguni", horns: "long", ears: "up", size: 0.95, muzzle: "#5a3a2a" },
   { id: "fleckvieh", name: "Fleckvieh", body: "#f6efe4", patch: "#c96a3f", pattern: "patches", horns: "none", ears: "up", size: 1.1, muzzle: "#e4bcac", dairy: true },
 ]
 
-/** Stable, well-spread hash of a string (FNV-1a). */
-export function hashString(value: string) {
-  let hash = 2166136261
-  for (let i = 0; i < value.length; i++) {
-    hash ^= value.charCodeAt(i)
-    hash = Math.imul(hash, 16777619) >>> 0
-  }
-  return hash >>> 0
-}
-
 /** The same PR always grows up to be the same cow. */
-export function breedFor(pr: Pick<PasturePullRequest, "repo" | "number">): Breed {
+export function breedFor(pr: Ref): Breed {
   return BREEDS[hashString(`${pr.repo}#${pr.number}`) % BREEDS.length]
 }
 
-export const cowID = (pr: Pick<PasturePullRequest, "repo" | "number">) => `${pr.repo}#${pr.number}`
-
 /** Coat and temperament seed. Stage-independent, so a cow keeps its markings as it moves between pens. */
-export const cowSeed = (pr: Pick<PasturePullRequest, "repo" | "number">) => hashString(`${pr.number}:${pr.repo}`)
-
-export type HerdMember = { id: string; pr: PasturePullRequest; breed: Breed; seed: number }
-
-export function herd(items: PasturePullRequest[]): HerdMember[] {
-  return items.map((pr) => ({
-    id: cowID(pr),
-    pr,
-    breed: breedFor(pr),
-    seed: cowSeed(pr),
-  }))
-}
+export const cowSeed = (pr: Ref) => hashString(`${pr.number}:${pr.repo}`)

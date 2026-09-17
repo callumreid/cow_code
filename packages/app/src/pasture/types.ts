@@ -37,3 +37,32 @@ export type PastureHerd = {
   truncated?: number
   error?: string
 }
+
+/** A pull request closed without merging inside the window: its cow burns. */
+export type ClosedPullRequest = { repo: string; number: number; closedAt: string }
+
+export const cowID = (pr: { repo: string; number: number }) => `${pr.repo}#${pr.number}`
+
+/** A firing alert, as the desktop reads it from Datadog: one wolf each. */
+export type PastureAlert = { id: number; name: string; since: string | null; url: string }
+
+/** An event on the team calendar: while it is on, the barn doors are open. */
+export type PastureEvent = { name: string; start: string; end: string; url: string | null; location: string | null }
+
+/**
+ * Everything the field needs beyond the herd, read by the desktop on the
+ * renderer's behalf: closed PRs (they burn), firing alerts (wolves), the
+ * event on right now (the party barn), and who the signed-in person is.
+ */
+export type PastureExtras = {
+  closed: ClosedPullRequest[]
+  alerts: PastureAlert[]
+  /** Where the alerts live, for the link on the wolves pill. */
+  datadogSite: string | null
+  party: PastureEvent | null
+  upcoming: PastureEvent[]
+  login: string | null
+  fetchedAt: number
+  /** Something went wrong reading one of the sources; the rest is still good. */
+  notice?: string
+}

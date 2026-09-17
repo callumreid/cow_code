@@ -146,7 +146,7 @@ function checkState(state: string | null | undefined): PrCheckState {
   }
 }
 
-function runGh(args: string[]): Promise<string> {
+export function runGh(args: string[]): Promise<string> {
   return new Promise((resolve, reject) => {
     execFile(
       "gh",
@@ -410,7 +410,7 @@ export async function fetchPrMerged(now: number, runner: PrDashboardRunner = run
   }
 }
 
-async function request(runner: PrDashboardRunner, query: string, fields: string[]) {
+export async function request(runner: PrDashboardRunner, query: string, fields: string[]) {
   const args = ["api", "graphql", "-f", `query=${query}`]
   for (const field of fields) args.push("-F", field)
   const parsed: RawResponse = JSON.parse(await runner(args))

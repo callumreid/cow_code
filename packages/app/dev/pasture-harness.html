@@ -3,12 +3,12 @@
   <head>
     <meta charset="utf-8" />
     <title>Pasture harness</title>
-    <!-- Dev only: bun --cwd packages/app dev, then open /dev/pasture-harness.html. Fake cows, manual hand-of-god transfers. -->
+    <!-- Dev only: bun --cwd packages/app dev, then open /dev/pasture-harness.html. Fake cows, manual hand-of-god transfers, every effect on a button. ?fake=1 drives frames by hand (window.harness.advance). -->
     <style>
       html, body { margin: 0; height: 100%; background: #111; font: 13px system-ui, sans-serif; }
       #host { position: absolute; inset: 0; }
       canvas { display: block; width: 100%; height: 100%; }
-      #bar { position: absolute; left: 12px; top: 12px; z-index: 2; display: flex; gap: 8px; align-items: center; background: rgba(255,255,255,.85); padding: 8px 10px; border-radius: 8px; }
+      #bar { position: absolute; left: 12px; top: 12px; z-index: 2; display: flex; flex-wrap: wrap; max-width: 70%; gap: 8px; align-items: center; background: rgba(255,255,255,.85); padding: 8px 10px; border-radius: 8px; }
       #log { position: absolute; left: 12px; bottom: 12px; z-index: 2; background: rgba(255,255,255,.85); padding: 6px 10px; border-radius: 8px; max-width: 60%; white-space: pre-wrap; }
     </style>
   </head>
@@ -19,6 +19,15 @@
       <button id="arrive">Arrive</button>
       <button id="depart">Depart</button>
       <button id="select">Select one</button>
+      <button id="burn">Burn one</button>
+      <button id="queue">Queue one</button>
+      <button id="wolf">Wolves +1</button>
+      <button id="party">Party barn</button>
+      <button id="tour">Tour</button>
+      <button id="flip">Upsidedown</button>
+      <button id="day">Day</button>
+      <button id="night">Night</button>
+      <button id="rain">Rain</button>
       <span id="status"></span>
     </div>
     <div id="log"></div>

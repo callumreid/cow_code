@@ -26,6 +26,7 @@ import { createDesktopDraftStore } from "./draft-store"
 import { nativeT } from "./native-translations"
 import { getPrStatus } from "./pr-status"
 import { getPrDashboard, getPrMerged, getPrPasture, setPrAutomation } from "./pr-dashboard"
+import { getPastureExtras } from "./pasture-extras"
 
 const pickerFilters = (ext?: string[]) => {
   if (!ext || ext.length === 0) return undefined
@@ -223,6 +224,9 @@ export function registerIpcHandlers(deps: Deps) {
   ipcMain.handle("pr-dashboard-merged", (_event: IpcMainInvokeEvent, force?: boolean) => getPrMerged(force))
   ipcMain.handle("pr-pasture", (_event: IpcMainInvokeEvent, input: { days: number; scope: "mine" | "everyone" }, force?: boolean) =>
     getPrPasture(input, force),
+  )
+  ipcMain.handle("pr-pasture-extras", (_event: IpcMainInvokeEvent, input: { days: number; scope: "mine" | "everyone" }, force?: boolean) =>
+    getPastureExtras(input, force),
   )
   ipcMain.handle("pr-automation-set", (_event: IpcMainInvokeEvent, repo: string, number: number, key: "keepUpdated" | "autoFix" | "merge", on: boolean) =>
     setPrAutomation(repo, number, key, on),

@@ -1,12 +1,12 @@
 import type { OpenPullRequest, PrState } from "@/pr-dashboard/types"
-import { breedFor, cowID, cowSeed, type Breed } from "./breeds"
+import { breedFor, cowSeed, type Breed } from "./breeds"
 import { penForState, type PenID } from "./pens"
-import type { PasturePullRequest } from "./types"
+import { cowID, type PasturePullRequest } from "./types"
 
 /** One cow on the field: an open pull request in a stage pen, or a merged one out back. */
 export type PastureMember =
-  | { id: string; kind: "open"; pen: PenID; breed: Breed; seed: number; pr: OpenPullRequest; held: boolean }
-  | { id: string; kind: "merged"; pen: "merged"; breed: Breed; seed: number; pr: PasturePullRequest }
+  | { id: string; kind: "open"; pen: PenID; breed: Breed; seed: number; author: string; pr: OpenPullRequest; held: boolean }
+  | { id: string; kind: "merged"; pen: "merged"; breed: Breed; seed: number; author: string; pr: PasturePullRequest }
 
 export const PR_STATE_LABEL: Record<PrState, string> = {
   ready: "Ready to merge",
@@ -32,45 +32,57 @@ export type Limbo = Map<string, Held>
 
 /**
  * Advance the limbo: open PRs that dropped out of `open` since `previous` are
- * held; anything that reappears, shows up merged, or times out is let go.
+ * held; anything that reappears, shows up merged or closed, or times out is let go.
  */
-export function advanceLimbo(limbo: Limbo, previous: OpenPullRequest[], open: OpenPullRequest[], merged: Set<string>, now: number): Limbo {
+export function advanceLimbo(
+  limbo: Limbo,
+  previous: OpenPullRequest[],
+  open: OpenPullRequest[],
+  merged: Set<string>,
+  now: number,
+  closed: Set<string> = new Set(),
+): Limbo {
   const next: Limbo = new Map()
   const current = new Set(open.map(cowID))
   for (const [id, held] of limbo) {
-    if (current.has(id) || merged.has(id) || now - held.since > LIMBO_MS) continue
+    if (current.has(id) || merged.has(id) || closed.has(id) || now - held.since > LIMBO_MS) continue
     next.set(id, held)
   }
   for (const pr of previous) {
     const id = cowID(pr)
-    if (current.has(id) || merged.has(id) || next.has(id)) continue
+    if (current.has(id) || merged.has(id) || closed.has(id) || next.has(id)) continue
     next.set(id, { pr, since: now })
   }
   return next
 }
 
-/** Merged first (capped), then live open PRs, then the held ones. Ids are unique; merged wins a tie. */
-export function buildMembers(open: OpenPullRequest[], merged: PasturePullRequest[], limbo: Limbo, cap: number): PastureMember[] {
+/**
+ * Merged first (newest, capped), then live open PRs, then the held ones. Ids
+ * are unique; merged wins a tie. The open PRs are all the signed-in person's,
+ * so they wear `login`'s collar.
+ */
+export function buildMembers(open: OpenPullRequest[], merged: PasturePullRequest[], limbo: Limbo, cap: number, login = "you"): PastureMember[] {
   const members: PastureMember[] = []
   const seen = new Set<string>()
-  for (const pr of merged.slice(0, cap)) {
+  const mergedCap = Math.max(0, cap - open.length - limbo.size)
+  for (const pr of merged.slice(0, mergedCap)) {
     const id = cowID(pr)
     if (seen.has(id)) continue
     seen.add(id)
-    members.push({ id, kind: "merged", pen: "merged", breed: breedFor(pr), seed: cowSeed(pr), pr })
+    members.push({ id, kind: "merged", pen: "merged", breed: breedFor(pr), seed: cowSeed(pr), author: pr.author || login, pr })
   }
   for (const pr of open) {
     const id = cowID(pr)
     if (seen.has(id)) continue
     seen.add(id)
-    members.push({ id, kind: "open", pen: penForState(pr.state), breed: breedFor(pr), seed: cowSeed(pr), pr, held: false })
+    members.push({ id, kind: "open", pen: penForState(pr.state), breed: breedFor(pr), seed: cowSeed(pr), author: login, pr, held: false })
   }
   for (const [id, held] of limbo) {
     if (seen.has(id)) continue
     seen.add(id)
-    members.push({ id, kind: "open", pen: penForState(held.pr.state), breed: breedFor(held.pr), seed: cowSeed(held.pr), pr: held.pr, held: true })
+    members.push({ id, kind: "open", pen: penForState(held.pr.state), breed: breedFor(held.pr), seed: cowSeed(held.pr), author: login, pr: held.pr, held: true })
   }
-  return members
+  return members.slice(0, cap)
 }
 
 export function penCounts(members: PastureMember[]): Record<PenID, number> {
@@ -89,8 +101,7 @@ export function openDetail(pr: OpenPullRequest): string {
     if (pr.checks === "failure") parts.push("CI failing")
     else if (pr.checks === "pending") parts.push("CI running")
     else if (pr.checks === "success") parts.push("CI green")
-    if (pr.unresolvedCount > 0 && pr.state !== "unresolved") parts.push(`${pr.unresolvedCount} unresolved`)
-    else if (pr.state === "unresolved") parts.push(`${pr.unresolvedCount} unresolved`)
+    if (pr.unresolvedCount > 0) parts.push(`${pr.unresolvedCount} unresolved`)
   }
   if (pr.behind) parts.push("behind base")
   if (pr.autoMerge) parts.push("auto-merge armed")

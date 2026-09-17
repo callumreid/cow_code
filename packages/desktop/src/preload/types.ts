@@ -1,6 +1,6 @@
 import type { DesktopMenuAction } from "@opencode-ai/app/desktop-menu"
 import type { PrDashboard, PrMergedHistory } from "@opencode-ai/app/pr-dashboard/types"
-import type { PastureHerd, PastureRequest } from "@opencode-ai/app/pasture/types"
+import type { PastureExtras, PastureHerd, PastureRequest } from "@opencode-ai/app/pasture/types"
 import type { WslServersPlatform } from "@opencode-ai/app/wsl/types"
 import type { UpdaterState } from "@opencode-ai/app/updater"
 import type { DesktopNativeBundle } from "@opencode-ai/app/i18n/desktop-native"
@@ -110,6 +110,7 @@ export type ElectronAPI = {
   prDashboard: (force?: boolean) => Promise<PrDashboard>
   prDashboardMerged: (force?: boolean) => Promise<PrMergedHistory>
   prPasture: (input: PastureRequest, force?: boolean) => Promise<PastureHerd>
+  prPastureExtras: (input: PastureRequest, force?: boolean) => Promise<PastureExtras>
   prAutomationSet: (repo: string, number: number, key: "keepUpdated" | "autoFix" | "merge", on: boolean) => Promise<void>
   openLocalFile: (url: string) => void
   openPath: (path: string, app?: string) => Promise<void>

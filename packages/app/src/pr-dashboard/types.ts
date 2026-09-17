@@ -1,4 +1,4 @@
-import type { PastureHerd, PastureRequest } from "@/pasture/types"
+import type { PastureExtras, PastureHerd, PastureRequest } from "@/pasture/types"
 /**
  * Shared shape for the sidebar pull-request dashboard.
  *
@@ -100,6 +100,8 @@ export type PrDashboardPlatform = {
   fetchMerged(force?: boolean): Promise<PrMergedHistory>
   /** The merged pull requests behind the Pasture, for a timeframe and a scope. */
   fetchPasture?(input: PastureRequest, force?: boolean): Promise<PastureHerd>
+  /** Closed PRs, firing alerts, the event on right now and who is signed in; the field's extras. */
+  fetchPastureExtras?(input: PastureRequest, force?: boolean): Promise<PastureExtras>
 }
 
 const CHECKS_RANK: Record<PrCheckState, number> = { failure: 0, pending: 1, none: 2, success: 3 }
