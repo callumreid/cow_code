@@ -11,6 +11,9 @@
 # Usage: pr-auto-merge.sh [--dry-run [repo number]]   (dry run: decide, never act)
 export HOME=/Users/bronson
 export PATH=$HOME/.local/bin:/opt/homebrew/bin:/usr/bin:/bin
+# The opencode server on :4096 needs basic auth; without it `opencode run --attach` fails with "Session not found".
+export OPENCODE_SERVER_USERNAME=${COW_SERVER_USERNAME:-cow}
+export OPENCODE_SERVER_PASSWORD="$(head -1 "$HOME/.config/opencode/server-password")"
 LOG_DIR="$HOME/.coval/logs"; mkdir -p "$LOG_DIR"; LOG="$LOG_DIR/pr-auto-merge.log"
 STATE="$LOG_DIR/pr-auto-merge.state.json"
 LOCK="$LOG_DIR/pr-auto-merge.lock"
@@ -26,7 +29,7 @@ source "$HOME/bin/cow-routine-guard.sh"
 trap 'routine_release; rmdir "$LOCK" 2>/dev/null' EXIT
 [ -s "$STATE" ] || echo '{}' > "$STATE"
 
-log() { echo "$(date -Iseconds): $*" >> "$LOG"; [ "$DRY" = 1 ] && echo "$*"; }
+log() { echo "$(date -Iseconds): $*" >> "$LOG"; [ "$DRY" = 1 ] && echo "$*"; return 0; }
 notify() { [ "$DRY" = 1 ] && { echo "DM: $1"; return; }; "$HOME/bin/cow-notify.sh" "$1" >> "$LOG" 2>&1 || true; }
 
 # GitHub's PR search ignores archived:false, so ask each repo once per run (bash 3.2 friendly).

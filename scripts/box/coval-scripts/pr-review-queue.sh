@@ -96,6 +96,19 @@ if (( pending_count == 0 )); then
   exit 0
 fi
 
+# One 45-minute GLM session cannot review eight heads: on 2026-09-17 three consecutive runs hit the
+# rc 124 kill with reviews composed but never posted, and because this job holds the shared LLM lock
+# from :25 to :12 the :09 and :39 sweeps were skipped all day. Review a bounded batch per run; the
+# deferred heads stay unmarked in the state file, so the next hourly run picks them up.
+max_prs=${PR_REVIEW_QUEUE_MAX_PRS:-3}
+if (( pending_count > max_prs )); then
+  batch_file=$(mktemp "${STATE_DIR}/pending.XXXXXX")
+  head -n "${max_prs}" "${pending_file}" > "${batch_file}"
+  mv "${batch_file}" "${pending_file}"
+  echo "$(date -Iseconds): reviewing ${max_prs} of ${pending_count} pending heads this run; $(( pending_count - max_prs )) deferred to the next run" >> "${LOG_FILE}"
+  pending_count=${max_prs}
+fi
+
 if [[ "${mode}" == "--dry-run" ]]; then
   cat "${pending_file}"
   exit 0

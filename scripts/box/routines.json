@@ -67,6 +67,12 @@
       "description": "Morning validation run against production.",
       "kind": "llm"
     },
+    "dev.bronson.eod-review": {
+      "title": "End-of-day review",
+      "description": "Nightly at 22:00: cross-references Slack, GitHub, Claude conversations, git commits and Obsidian to fill gaps in the day's daily note.",
+      "kind": "llm",
+      "log": "~/.coval/logs/eod-review.log"
+    },
     "dev.bronson.cow-health": {
       "title": "Box health check",
       "description": "Checks the box's services, tunnel and disk each morning and DMs the report on Slack.",

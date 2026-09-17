@@ -99,7 +99,8 @@ done
 log "retire jobs that compete with the box (moved to ~/Library/LaunchAgents.disabled)"
 for j in dev.bronson.llama-server ai.openclaw.awake ai.openclaw.sentinel ai.openclaw.ddbd ai.openclaw.watchdog ai.openclaw.morning-brief \
          ai.openclaw.pr-comment-fixer com.bronson.bloviate-driver-desktop-codex com.bronson.bloviate-driver-global-ptt \
-         com.bronson.bloviate-driver-phone com.bronson.bloviate-driver-voice-overlay com.bronson.obsidian-auto-push; do
+         com.bronson.bloviate-driver-phone com.bronson.bloviate-driver-voice-overlay com.bronson.obsidian-auto-push \
+         dev.coval.pipecat-agent; do
   if [ -f "$HOME/Library/LaunchAgents/$j.plist" ]; then
     launchctl bootout "gui/$UID_NUM/$j" >/dev/null 2>&1 || true
     mv "$HOME/Library/LaunchAgents/$j.plist" "$HOME/Library/LaunchAgents.disabled/"
@@ -162,6 +163,9 @@ mkdir -p "$HOME/.config/opencode"
 if ! cmp -s "$HERE/routines.json" "$HOME/.config/opencode/routines.json"; then install -m 644 "$HERE/routines.json" "$HOME/.config/opencode/routines.json"; log "  installed routines.json"; fi
 mkdir -p "$HOME/.coval/logs/routines"
 for j in dev.coval.pr-review-sweep dev.coval.pr-review-queue dev.coval.pr-review-fixer dev.coval.pr-keep-updated dev.coval.pr-auto-merge dev.coval.daily-workers-health-audit dev.coval.daily-prod-validation dev.bronson.cow-health; do
+  # A job someone parked as <label>.plist.disabled stays parked: re-provisioning must not quietly re-arm it
+  # (the two daily coval jobs have been parked that way since their 2026-09-10 failures).
+  if [ -e "$HOME/Library/LaunchAgents/$j.plist.disabled" ] && [ ! -f "$HOME/Library/LaunchAgents/$j.plist" ]; then log "  $j stays disabled ($j.plist.disabled)"; continue; fi
   if [ -f "$HERE/launchd/$j.plist" ] && ! cmp -s "$HERE/launchd/$j.plist" "$HOME/Library/LaunchAgents/$j.plist"; then
     install -m 644 "$HERE/launchd/$j.plist" "$HOME/Library/LaunchAgents/$j.plist"
     launchctl bootout "gui/$UID_NUM/$j" >/dev/null 2>&1 || true
