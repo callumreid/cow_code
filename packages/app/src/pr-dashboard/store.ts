@@ -19,9 +19,12 @@ export type PrDashboardStore = {
 /**
  * Polls the dashboard on an interval and on demand.
  *
- * The interval is cleared on cleanup, and a refresh that lands while one is
- * already in flight is dropped rather than queued — the panel is a status
- * readout, so the newest single result is always the right answer.
+ * The interval is cleared on cleanup. A background refresh that lands while
+ * one is already in flight is dropped rather than queued — the panel is a
+ * status readout, so the newest single result is always the right answer —
+ * but a forced refresh (the refresh button, an automation flip) is chained
+ * behind whatever is running, so a click always ends in a reload of fresh
+ * values instead of being swallowed.
  */
 export function createPrDashboardStore(
   platform: () => PrDashboardPlatform | undefined,
@@ -33,12 +36,18 @@ export function createPrDashboardStore(
   const [mergedLoading, setMergedLoading] = createSignal(false)
   let inflight = false
   let mergedInflight = false
+  let pendingForce = false
+  let mergedPendingForce = false
   let mergedRequested = false
   let disposed = false
 
   const refresh = (force = false) => {
     const api = platform()
-    if (!api || inflight || disposed) return
+    if (!api || disposed) return
+    if (inflight) {
+      if (force) pendingForce = true
+      return
+    }
     inflight = true
     setLoading(true)
     api
@@ -65,13 +74,23 @@ export function createPrDashboardStore(
       })
       .finally(() => {
         inflight = false
+        const queued = pendingForce
+        pendingForce = false
+        // A forced refresh that arrived mid-flight runs now and keeps the
+        // loading state up; when it takes over, inflight is true again.
+        if (queued && !disposed) refresh(true)
+        if (inflight) return
         if (!disposed) setLoading(false)
       })
   }
 
   const loadMerged = (force = false) => {
     const api = platform()
-    if (!api || mergedInflight || disposed) return
+    if (!api || disposed) return
+    if (mergedInflight) {
+      if (force) mergedPendingForce = true
+      return
+    }
     if (mergedRequested && !force) return
     mergedRequested = true
     mergedInflight = true
@@ -88,6 +107,10 @@ export function createPrDashboardStore(
       })
       .finally(() => {
         mergedInflight = false
+        const queued = mergedPendingForce
+        mergedPendingForce = false
+        if (queued && !disposed) loadMerged(true)
+        if (mergedInflight) return
         if (!disposed) setMergedLoading(false)
       })
   }

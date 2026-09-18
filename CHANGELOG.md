@@ -3,6 +3,12 @@
 every change to the cow lands here, newest first, one line per thing you would notice.
 what each feature is, and the films, live in the [feature reel](docs/features/README.md).
 
+## 2026-09-18 🔄
+
+### Fixed
+
+- the pull requests panel says and shows when it is refreshing — the header swaps to "Refreshing…", the refresh button spins while it works — and a refresh click that lands while a fetch is already running is chained behind it instead of swallowed, so it always ends in reloaded numbers (merged history included)
+
 ## 2026-09-11 🚪
 
 ### Added

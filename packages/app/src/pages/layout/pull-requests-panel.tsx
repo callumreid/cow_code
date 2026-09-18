@@ -2,6 +2,7 @@ import { createMemo, createSignal, For, Show, type JSX } from "solid-js"
 import { makeEventListener } from "@solid-primitives/event-listener"
 import { Icon, type IconProps } from "@opencode-ai/ui/icon"
 import { IconButton } from "@opencode-ai/ui/icon-button"
+import { Spinner } from "@opencode-ai/ui/spinner"
 import { Tooltip } from "@opencode-ai/ui/tooltip"
 import { usePlatform } from "@/context/platform"
 import type { PrDashboardStore } from "@/pr-dashboard/store"
@@ -185,20 +186,23 @@ export const PullRequestsPanel = (props: { store: PrDashboardStore; onClose: () 
               <span class="text-16-medium text-text-strong">Pull requests</span>
               <Show when={data()} fallback={<span class="text-12-regular text-text-base">Loading…</span>}>
                 <span class="text-12-regular text-text-base">
-                  <Show when={!data()!.unavailable} fallback={<>Unavailable</>}>
-                    {data()!.openCount} open
-                    <Show when={data()!.readyCount > 0}>
-                      <span class="text-icon-success-base"> · {data()!.readyCount} ready to merge</span>
+                  <Show when={!props.store.loading()} fallback={<>Refreshing…</>}>
+                    <Show when={!data()!.unavailable} fallback={<>Unavailable</>}>
+                      {data()!.openCount} open
+                      <Show when={data()!.readyCount > 0}>
+                        <span class="text-icon-success-base"> · {data()!.readyCount} ready to merge</span>
+                      </Show>
                     </Show>
                   </Show>
                 </span>
               </Show>
             </div>
-            <Tooltip placement="bottom" gutter={2} value="Refresh pull requests">
+            <Tooltip placement="bottom" gutter={2} value={props.store.loading() ? "Refreshing…" : "Refresh pull requests"}>
               <IconButton
                 icon="reset"
                 variant="ghost"
                 aria-label="Refresh pull requests"
+                aria-busy={props.store.loading()}
                 disabled={props.store.loading()}
                 onClick={() => {
                   setNow(Date.now())
@@ -277,6 +281,9 @@ export const PullRequestsPanel = (props: { store: PrDashboardStore; onClose: () 
               <span class="text-12-medium text-text-strong">Recently merged</span>
               <Show when={props.store.merged()}>
                 <span class="text-12-regular text-text-base">{props.store.merged()!.items.length}</span>
+                <Show when={props.store.mergedLoading()}>
+                  <Spinner class="size-[9px] shrink-0 text-text-weak" />
+                </Show>
               </Show>
             </button>
 

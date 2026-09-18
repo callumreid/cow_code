@@ -150,6 +150,12 @@
     transform-box: fill-box;
     animation: stop-pulse 1.8s ease-in-out infinite;
   }
+
+  [data-component="icon-button"][aria-busy="true"] [data-slot="icon-svg"] {
+    transform-origin: center;
+    transform-box: fill-box;
+    animation: busy-spin 0.8s linear infinite;
+  }
 }
 
 @keyframes stop-pulse {
@@ -159,6 +165,12 @@
   }
   50% {
     transform: scale(1.12);
+  }
+}
+
+@keyframes busy-spin {
+  to {
+    transform: rotate(360deg);
   }
 }
 

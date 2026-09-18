@@ -90,7 +90,7 @@ describe("createPrDashboardStore", () => {
     })
   })
 
-  test("drops an open refresh that overlaps one in flight", async () => {
+  test("drops a background refresh that overlaps one in flight", async () => {
     let calls = 0
     let release: (v: PrDashboard) => void = () => {}
     await createRoot(async (dispose) => {
@@ -110,6 +110,38 @@ describe("createPrDashboardStore", () => {
       release(open())
       await tick()
       expect(store.loading()).toBe(false)
+      dispose()
+    })
+  })
+
+  test("chains a forced refresh that overlaps one in flight", async () => {
+    let calls = 0
+    let release: (v: PrDashboard) => void = () => {}
+    await createRoot(async (dispose) => {
+      const store = createPrDashboardStore(() =>
+        platform({
+          fetch: () => {
+            calls++
+            return new Promise<PrDashboard>((r) => {
+              release = r
+            })
+          },
+        }),
+      )
+      store.refresh(true)
+      expect(calls).toBe(1)
+      release(open({ openCount: 1 }))
+      await tick()
+      store.refresh(true)
+      expect(calls).toBe(2)
+      release(open({ openCount: 2 }))
+      await tick()
+      expect(calls).toBe(3)
+      expect(store.loading()).toBe(true)
+      release(open({ openCount: 3 }))
+      await tick()
+      expect(store.loading()).toBe(false)
+      expect(store.data()?.openCount).toBe(3)
       dispose()
     })
   })
@@ -148,6 +180,36 @@ describe("createPrDashboardStore", () => {
       await tick()
       expect(store.data()?.unavailable).toBe(true)
       expect(store.data()?.error).toBe("offline")
+      dispose()
+    })
+  })
+
+  test("chains a forced merged load that overlaps one in flight", async () => {
+    let calls = 0
+    let release: (v: PrMergedHistory) => void = () => {}
+    await createRoot(async (dispose) => {
+      const store = createPrDashboardStore(() =>
+        platform({
+          fetchMerged: () => {
+            calls++
+            return new Promise<PrMergedHistory>((r) => {
+              release = r
+            })
+          },
+        }),
+      )
+      store.loadMerged()
+      expect(calls).toBe(1)
+      store.loadMerged(true)
+      expect(calls).toBe(1)
+      release(history())
+      await tick()
+      expect(calls).toBe(2)
+      expect(store.mergedLoading()).toBe(true)
+      release(history({ items: [{ repo: "o/r", number: 1, title: "t", url: "u", mergedAt: "2026-08-01T00:00:00Z" }] }))
+      await tick()
+      expect(store.mergedLoading()).toBe(false)
+      expect(store.merged()!.items).toHaveLength(1)
       dispose()
     })
   })
