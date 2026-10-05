@@ -18,7 +18,7 @@ import { sessionTitle } from "@/utils/session-title"
 import { officeOpen } from "@/office/presence"
 import { sessionPermissionRequest } from "../session/composer/session-request-tree"
 import { useServerSDK } from "@/context/server-sdk"
-import { childSessionOnPath, getProjectAvatarSource, hasProjectPermissions } from "./helpers"
+import { childSessionOnPath, getProjectAvatarSource, hasProjectPermissions, routineSessionName } from "./helpers"
 import { createInlineEditorController } from "./inline-editor"
 
 export const ProjectIcon = (props: {
@@ -102,6 +102,7 @@ const SessionRow = (props: {
   hasPermissions: Accessor<boolean>
   hasError: Accessor<boolean>
   unseenCount: Accessor<number>
+  routine: Accessor<string | undefined>
   clearHoverProjectSoon: () => void
   sidebarOpened: Accessor<boolean>
   warmPress: () => void
@@ -122,14 +123,26 @@ const SessionRow = (props: {
         props.clearHoverProjectSoon()
       }}
     >
-      <Show when={props.isWorking() || props.hasPermissions() || props.hasError() || props.unseenCount() > 0}>
+      <Show
+        when={
+          props.isWorking() ||
+          props.hasPermissions() ||
+          props.hasError() ||
+          props.unseenCount() > 0 ||
+          !!props.routine()
+        }
+      >
         <div
           class="shrink-0 size-6 flex items-center justify-center"
           style={{ color: props.tint() ?? "var(--icon-interactive-base)" }}
         >
           <Switch>
             <Match when={props.isWorking()}>
-              <CowWorking seed={props.session.id} class="size-[19px]" title="Working" />
+              <CowWorking
+                seed={props.session.id}
+                class="size-[19px]"
+                title={props.routine() ? `Scheduled job running: ${props.routine()}` : "Working"}
+              />
             </Match>
             <Match when={props.hasPermissions()}>
               <div class="size-1.5 rounded-full bg-surface-warning-strong" />
@@ -139,6 +152,17 @@ const SessionRow = (props: {
             </Match>
             <Match when={props.unseenCount() > 0}>
               <CowReady class="size-[19px]" title="Ready for you" />
+            </Match>
+            {/* Idle routine run: mark it as scheduled rather than something started by hand. The
+                checklist icon is the one the Scheduled sidebar row already uses. The title sits on
+                a wrapping span, not on the Icon - Icon spreads it onto its <svg>, and a title
+                ATTRIBUTE on an svg shows no tooltip (svg wants a <title> child). */}
+            <Match when={props.routine()}>
+              {(name) => (
+                <span class="flex items-center justify-center" title={`Scheduled job: ${name()}`}>
+                  <Icon name="checklist" size="small" class="text-text-base" />
+                </span>
+              )}
             </Match>
           </Switch>
         </div>
@@ -162,6 +186,7 @@ export const SessionItem = (props: SessionItemProps): JSX.Element => {
   const permission = usePermission()
   const serverSync = useServerSync()
   const unseenCount = createMemo(() => notification.session.unseenCount(props.session.id))
+  const routine = createMemo(() => routineSessionName(props.session))
   const hasError = createMemo(() => notification.session.unseenHasError(props.session.id))
   const [sessionStore] = serverSync().child(props.session.directory)
   const hasPermissions = createMemo(() => {
@@ -228,6 +253,7 @@ export const SessionItem = (props: SessionItemProps): JSX.Element => {
       hasPermissions={hasPermissions}
       hasError={hasError}
       unseenCount={unseenCount}
+      routine={routine}
       clearHoverProjectSoon={props.clearHoverProjectSoon}
       sidebarOpened={layout.sidebar.opened}
       warmPress={() => warm(2, "high")}

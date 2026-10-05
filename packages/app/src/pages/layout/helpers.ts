@@ -18,6 +18,20 @@ export function compareSessionTime(a: Session, b: Session) {
 /** The Farmer's Office owns its overseer session; it is not an ordinary session row. */
 export const isOfficeOverseerSession = (session: Session) => session.metadata?.office === "overseer"
 
+/**
+ * The scheduled job that produced this thread, if any, so a session row can be marked as a routine
+ * run rather than something started by hand.
+ *
+ * Same precedence the server uses in `packages/opencode/src/office/office.ts`: the `routineName`
+ * the routine runner stamps into metadata, falling back to the "routine: <name> <stamp>" title for
+ * threads written before that metadata existed.
+ */
+export const routineSessionName = (session: Session): string | undefined => {
+  const stamped = session.metadata?.routineName
+  if (typeof stamped === "string" && stamped) return stamped
+  return session.title?.match(/^routine:\s*(\S+)/i)?.[1]
+}
+
 const isRootVisibleSession = (session: Session, directory: string, hidden?: (session: Session) => boolean) =>
   pathKey(session.directory) === pathKey(directory) &&
   !session.parentID &&

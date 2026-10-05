@@ -19,6 +19,7 @@ import {
   homeProjectDirectories,
   homeSessionServerStatus,
   isOfficeOverseerSession,
+  routineSessionName,
   latestRootSession,
   sortedRootSessions,
   toggleHomeProjectSelection,
@@ -374,5 +375,33 @@ describe("layout workspace helpers", () => {
     expect(errorMessage({ data: { message: "boom" } }, "fallback")).toBe("boom")
     expect(errorMessage(new Error("broken"), "fallback")).toBe("broken")
     expect(errorMessage("unknown", "fallback")).toBe("fallback")
+  })
+
+  test("names the scheduled job behind a routine thread, and leaves ordinary threads alone", () => {
+    const stamped = session({
+      id: "ses_routine",
+      directory: "/workspace",
+      title: "routine: pr-review-sweep 2026-10-05T08:09",
+      metadata: { routineName: "pr-review-sweep", officeOrigin: "routine" },
+    })
+    expect(routineSessionName(stamped)).toBe("pr-review-sweep")
+
+    // Threads written before the runner stamped metadata: fall back to the title, as the server does.
+    const legacy = session({
+      id: "ses_legacy",
+      directory: "/workspace",
+      title: "routine: eod-review 2026-10-02T22:00",
+    })
+    expect(routineSessionName(legacy)).toBe("eod-review")
+
+    const ordinary = session({ id: "ordinary", directory: "/workspace", title: "Fix the sidebar badge" })
+    expect(routineSessionName(ordinary)).toBeUndefined()
+
+    // A thread that merely mentions routines is not one.
+    const mentions = session({ id: "mentions", directory: "/workspace", title: "make the routine: faster" })
+    expect(routineSessionName(mentions)).toBeUndefined()
+
+    const untitled = session({ id: "untitled", directory: "/workspace" })
+    expect(routineSessionName(untitled)).toBeUndefined()
   })
 })
