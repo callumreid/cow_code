@@ -71,10 +71,20 @@ fi
 
 current_count=0
 actionable_count=0
+own_pr_count=0
 while IFS=$'\t' read -r repo number state author request_kind commit_time last_review review_state classification unresolved title; do
   [[ -z "${repo}" ]] && continue
   if [[ "${classification}" == "CURRENT" ]]; then
     (( current_count += 1 ))
+    continue
+  fi
+
+  # Every GitHub credential on this box authenticates as callumreid, so GitHub answers an APPROVE
+  # or REQUEST_CHANGES on his own PR with 422 "Can not approve your own pull request" - but only
+  # after the agent has already spent 20-35 minutes composing the review and holding the LLM lock.
+  # Drop them here instead. The sweep has always had this guard; the queue did not (fixed 2026-10-05).
+  if [[ "${author}" == "callumreid" ]]; then
+    (( own_pr_count += 1 ))
     continue
   fi
 
@@ -89,7 +99,7 @@ done < "${queue_file}"
 pending_count=$(wc -l < "${pending_file}" | tr -d ' ')
 {
   echo "=== $(date -Iseconds) ==="
-  echo "Queue: ${actionable_count} actionable, ${current_count} current, ${pending_count} unseen heads/re-requests"
+  echo "Queue: ${actionable_count} actionable, ${current_count} current, ${own_pr_count} own-PR skipped, ${pending_count} unseen heads/re-requests"
 } >> "${LOG_FILE}"
 
 if (( pending_count == 0 )); then

@@ -53,7 +53,7 @@
     },
     "dev.coval.pr-keep-updated": {
       "title": "Keep PRs updated with base",
-      "description": "Updates Callum's open PR branches from their base every half hour; DMs once when one conflicts. Skips PRs labeled cow:no-update (the branch toggle in Pull requests).",
+      "description": "Updates Callum's open PR branches that are behind their base, up to 5 a run; DMs when the conflict set changes and re-raises an unchanged backlog weekly. Skips PRs labeled cow:no-update (the branch toggle in Pull requests).",
       "kind": "shell",
       "log": "~/.coval/logs/pr-keep-updated.log"
     },
