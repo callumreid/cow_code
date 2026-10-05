@@ -1,10 +1,12 @@
 import { base64Encode } from "@opencode-ai/core/util/encode"
-import { createMemo, For, type JSX, Show } from "solid-js"
+import { createEffect, createMemo, For, type JSX, Show } from "solid-js"
 import { useServerSync } from "@/context/server-sync"
 import type { RoutinesStore } from "@/routines/store"
 import { latestRoutineSessions } from "./helpers"
 import { SessionItem } from "./sidebar-items"
 import type { WorkspaceSidebarContext } from "./sidebar-workspace"
+
+const RETAINED_ROOTS = 100
 
 /**
  * Each scheduled job's latest thread, shown in the sidebar like any other thread whatever project
@@ -40,6 +42,15 @@ export const SidebarScheduledRuns = (props: {
 
   // child() bootstraps the directory and keeps it live, so new runs and working state stream in.
   const stores = createMemo(() => directories().map((directory) => serverSync().child(directory)[0]))
+
+  // A directory's store keeps only its 5 newest root threads - plenty for a project list, but one
+  // morning of sweeps and per-PR fixer runs fills all five, and a job that last ran days ago drops
+  // out (on 2026-10-05 eod-review and the queue sat at #10 and #11, so only 2 of 4 jobs showed).
+  // ~/coval gains about 9 root threads a day, so 100 still reaches a job idle for ten days or so.
+  // The limit is remembered per directory and live events trim to it, so this sticks.
+  createEffect(() => {
+    for (const directory of directories()) void serverSync().project.loadSessions(directory, { limit: RETAINED_ROOTS })
+  })
 
   const latest = createMemo(() =>
     latestRoutineSessions(
