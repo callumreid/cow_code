@@ -32,6 +32,22 @@ export const routineSessionName = (session: Session): string | undefined => {
   return session.title?.match(/^routine:\s*(\S+)/i)?.[1]
 }
 
+/**
+ * Each scheduled job's most recent root thread, newest first. Subagent and archived threads are
+ * skipped, and so are threads from jobs not in `jobs`, so a retired job's old runs drop out.
+ */
+export const latestRoutineSessions = (sessions: Iterable<Session>, jobs: ReadonlySet<string>): Session[] => {
+  const byJob = new Map<string, Session>()
+  for (const session of sessions) {
+    if (session.parentID || session.time?.archived) continue
+    const name = routineSessionName(session)
+    if (!name || !jobs.has(name)) continue
+    const current = byJob.get(name)
+    if (!current || compareSessionTime(session, current) < 0) byJob.set(name, session)
+  }
+  return [...byJob.values()].sort(compareSessionTime)
+}
+
 const isRootVisibleSession = (session: Session, directory: string, hidden?: (session: Session) => boolean) =>
   pathKey(session.directory) === pathKey(directory) &&
   !session.parentID &&

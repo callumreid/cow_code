@@ -89,6 +89,7 @@ import { SidebarPullRequests } from "./layout/sidebar-pull-requests"
 import { PullRequestsPanel } from "./layout/pull-requests-panel"
 import { createPrDashboardStore } from "@/pr-dashboard/store"
 import { SidebarScheduled } from "./layout/sidebar-scheduled"
+import { SidebarScheduledRuns } from "./layout/sidebar-scheduled-runs"
 import { ScheduledPanel } from "./layout/scheduled-panel"
 import { createRoutinesStore } from "@/routines/store"
 import { SidebarPasture } from "./layout/sidebar-pasture"
@@ -2281,6 +2282,7 @@ export default function LegacyLayout(props: ParentProps) {
                           {language.t("command.session.new")}
                         </Button>
                       </div>
+                      <SidebarScheduledRuns store={routines} ctx={workspaceSidebarCtx} mobile={panelProps.mobile} />
                       <div class="flex-1 min-h-0">
                         <LocalWorkspace
                           ctx={workspaceSidebarCtx}
@@ -2305,6 +2307,7 @@ export default function LegacyLayout(props: ParentProps) {
                         {language.t("workspace.new")}
                       </Button>
                     </div>
+                    <SidebarScheduledRuns store={routines} ctx={workspaceSidebarCtx} mobile={panelProps.mobile} />
                     <div class="relative flex-1 min-h-0">
                       <DragDropProvider
                         onDragStart={handleWorkspaceDragStart}

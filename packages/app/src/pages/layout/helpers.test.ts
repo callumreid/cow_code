@@ -19,6 +19,7 @@ import {
   homeProjectDirectories,
   homeSessionServerStatus,
   isOfficeOverseerSession,
+  latestRoutineSessions,
   routineSessionName,
   latestRootSession,
   sortedRootSessions,
@@ -403,5 +404,31 @@ describe("layout workspace helpers", () => {
 
     const untitled = session({ id: "untitled", directory: "/workspace" })
     expect(routineSessionName(untitled)).toBeUndefined()
+  })
+  test("keeps each scheduled job's latest root thread, newest first", () => {
+    const run = (id: string, routine: string, updated: number, extra: Partial<Session> = {}) =>
+      session({
+        id,
+        directory: "/Users/bronson/coval",
+        title: `routine: ${routine} stamp`,
+        metadata: { routineName: routine },
+        time: { created: updated, updated, archived: undefined },
+        ...extra,
+      })
+
+    const sweepOld = run("sweep-old", "pr-review-sweep", 10)
+    const sweepNew = run("sweep-new", "pr-review-sweep", 30)
+    const eod = run("eod", "eod-review", 20)
+    // A sweep spawns per-PR subagents; those nest under their parent, not as rows of their own.
+    const subagent = run("sub", "pr-review-sweep", 99, { parentID: "sweep-new" })
+    const archived = run("arch", "pr-review-fixer", 50, { time: { created: 50, updated: 50, archived: 51 } })
+    // A job no longer in the feed drops out, however recent its last run.
+    const retired = run("retired", "daily-prod-validation", 40)
+    const ordinary = session({ id: "mine", directory: "/Users/bronson/coval", title: "a thread I started" })
+
+    const jobs = new Set(["pr-review-sweep", "eod-review", "pr-review-fixer"])
+    const picked = latestRoutineSessions([sweepOld, eod, subagent, sweepNew, archived, retired, ordinary], jobs)
+
+    expect(picked.map((item) => item.id)).toEqual(["sweep-new", "eod"])
   })
 })
