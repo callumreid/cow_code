@@ -1,0 +1,35 @@
+[data-component="legacy-home"] {
+  max-width: 560px;
+  padding-block: clamp(40px, 12vh, 128px) 32px;
+}
+
+[data-component="legacy-home"] .home-project-row {
+  height: auto;
+  min-height: 64px;
+  gap: 12px;
+  padding-block: 10px;
+  border-radius: 10px;
+  transition: background-color 120ms ease;
+}
+
+[data-component="legacy-home"] button:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+
+@media (max-width: 480px) {
+  [data-component="legacy-home"] .home-project-row {
+    flex-wrap: wrap;
+  }
+
+  [data-component="legacy-home"] .home-project-row > span:last-child {
+    width: 100%;
+    padding-inline-start: 28px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-component="legacy-home"] .home-project-row {
+    transition: none;
+  }
+}

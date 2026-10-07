@@ -331,6 +331,7 @@ body[data-new-layout] [data-component="markdown"] {
 
 body:not([data-new-layout]) [data-component="markdown"] {
   color: var(--text-strong);
+  line-height: 1.7;
 
   h1,
   h2,
@@ -338,9 +339,24 @@ body:not([data-new-layout]) [data-component="markdown"] {
   h4,
   h5,
   h6 {
-    font-size: 14px;
     color: var(--text-strong);
-    font-weight: var(--font-weight-medium);
+    font-weight: 600;
+    line-height: 1.4;
+  }
+
+  h1 {
+    font-size: var(--font-size-x-large);
+  }
+
+  h2 {
+    font-size: var(--font-size-large);
+  }
+
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-size: var(--font-size-base);
   }
 
   strong,
@@ -363,9 +379,9 @@ body:not([data-new-layout]) [data-component="markdown"] {
 
   :not(pre) > code {
     color: var(--syntax-string);
-    padding: 0;
-    border-radius: 0;
-    background: none;
+    padding: 0.1em 0.3em;
+    border-radius: var(--radius-sm);
+    background: var(--surface-inset-base);
   }
 
   th,

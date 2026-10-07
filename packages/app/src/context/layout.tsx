@@ -190,7 +190,7 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
           typeof sidebar.workspaces === "boolean"
             ? { ...sidebar, workspaces: {}, workspacesDefault: sidebar.workspaces }
             : sidebar
-        return { ...base, opened: true }
+        return { ...base, opened: typeof sidebar.opened === "boolean" ? sidebar.opened : true }
       })()
 
       const review = value.review
@@ -660,7 +660,7 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
         },
       },
       sidebar: {
-        opened: createMemo(() => true),
+        opened: createMemo(() => store.sidebar.opened),
         open() {
           setStore("sidebar", "opened", true)
         },

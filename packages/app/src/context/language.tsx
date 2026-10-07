@@ -34,6 +34,9 @@ type PluralKey =
   | "session.followupDock.summary"
   | "session.revertDock.summary"
   | "pr.hover.files"
+  | "sidebar.nav.runningNow"
+  | "sidebar.nav.officeUnread"
+  | "sidebar.nav.officeNeedsYou"
 type Source = { dict: Record<string, string> }
 
 function cookie(locale: Locale) {

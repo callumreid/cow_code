@@ -1,0 +1,100 @@
+[data-component="prompt-composer"] {
+  container-type: inline-size;
+  border-radius: 16px;
+  background: var(--surface-raised-stronger-non-alpha);
+  box-shadow: var(--shadow-xs-border-base);
+  transition: box-shadow 160ms ease;
+
+  &:focus-within {
+    box-shadow:
+      0 0 0 1px var(--border-focus),
+      var(--shadow-xs);
+  }
+
+  > [data-dock-surface="shell"] {
+    box-shadow: none;
+    border-radius: 16px 16px 0 0;
+  }
+
+  > [data-dock-surface="tray"] {
+    margin-top: 0;
+    border: 0;
+    border-radius: 0 0 16px 16px;
+    background: var(--surface-raised-stronger-non-alpha);
+  }
+
+  [data-component="prompt-input"] {
+    min-height: 96px;
+    padding-inline: 16px;
+    padding-top: 14px;
+    line-height: 1.65;
+    overflow-wrap: anywhere;
+  }
+
+  [data-component="prompt-input"] + div {
+    padding-inline: 16px;
+    padding-top: 14px;
+    line-height: 1.65;
+  }
+
+  [data-slot="prompt-toolbar"] {
+    min-height: 44px;
+    margin-inline: 12px;
+    padding-block: 7px;
+    border-top: 1px solid var(--border-weaker-base);
+  }
+
+  [data-slot="prompt-selectors"] {
+    min-height: 28px;
+    flex-wrap: wrap;
+    row-gap: 4px;
+  }
+
+  [data-component="prompt-agent-control"],
+  [data-component="prompt-model-control"],
+  [data-component="prompt-variant-control"] {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  [data-component="prompt-model-control"] {
+    flex: 0 1 auto;
+  }
+
+  [data-action="prompt-submit"] {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+  }
+
+  [data-action="prompt-attach"] {
+    border-radius: 50%;
+  }
+
+  :is(button, [role="button"]):focus-visible {
+    outline: 2px solid var(--border-selected);
+    outline-offset: 2px;
+  }
+}
+
+@container (max-width: 440px) {
+  [data-component="prompt-composer"] [data-component="prompt-model-control"] {
+    flex: 1 1 160px;
+  }
+
+  [data-component="prompt-composer"] [data-action="prompt-model"] {
+    max-width: 100%;
+  }
+}
+
+@media (max-height: 700px) {
+  [data-component="prompt-composer"] [data-component="prompt-input"] {
+    min-height: 84px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-component="prompt-composer"] {
+    transition: none;
+  }
+}

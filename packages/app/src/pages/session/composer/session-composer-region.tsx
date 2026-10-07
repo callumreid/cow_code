@@ -27,7 +27,7 @@ export function SessionComposerRegion(props: {
       classList={{
         "w-full shrink-0 flex flex-col justify-center items-center pb-3 pointer-events-none": true,
         "bg-v2-background-bg-base": settings.general.newLayoutDesigns(),
-        "bg-background-stronger": !settings.general.newLayoutDesigns(),
+        "bg-background-stronger pb-4": !settings.general.newLayoutDesigns(),
       }}
     >
       <div
@@ -99,7 +99,9 @@ export function SessionComposerRegion(props: {
                   )}
                 </Show>
                 <div
-                  class="w-full min-h-32 md:min-h-40 rounded-md border border-border-weak-base bg-background-base/50 px-4 py-3 text-text-weak whitespace-pre-wrap pointer-events-none"
+                  role="status"
+                  aria-live="polite"
+                  class="w-full min-h-32 md:min-h-40 rounded-[16px] border border-border-weak-base bg-background-base px-4 py-4 text-text-weak whitespace-pre-wrap pointer-events-none"
                   style={{ "margin-top": `${-36 * controller.dockProgress()}px` }}
                 >
                   {controller.handoffPrompt() || language.t("prompt.loading")}

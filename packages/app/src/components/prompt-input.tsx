@@ -83,6 +83,7 @@ import { showToast } from "@/utils/toast"
 import { moo } from "@/utils/moo"
 import { ImagePreview } from "@opencode-ai/ui/image-preview"
 import type { ReferenceInfo } from "@opencode-ai/sdk/v2/client"
+import "./prompt-input/composer.css"
 
 export { createPromptInputHistory }
 export type { PromptInputControls, PromptInputHistory, PromptInputProps, PromptInputState, PromptInputSubmission }
@@ -1487,7 +1488,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     props.ref?.(el)
   }
   return (
-    <div class="relative size-full flex flex-col gap-0">
+    <div data-component="prompt-composer" class="relative size-full flex flex-col gap-0">
       {(promptReady(), null)}
       <PromptPopover
         popover={store.popover}
@@ -1691,7 +1692,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
       </DockShellForm>
       <Show when={store.mode === "normal" || store.mode === "shell"}>
         <DockTray attach="top">
-          <div class="px-1.75 pt-5.5 pb-2 flex items-center gap-2 min-w-0">
+          <div data-slot="prompt-toolbar" class="flex items-center gap-2 min-w-0">
             <div class="flex items-center gap-1.5 min-w-0 flex-1 relative">
               <div
                 class="h-7 flex items-center gap-1.5 min-w-0 absolute inset-0"
@@ -1713,7 +1714,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                   {language.t("common.cancel")}
                 </Button>
               </div>
-              <div class="flex items-center gap-1.5 min-w-0 flex-1 h-7">
+              <div data-slot="prompt-selectors" class="flex items-center gap-1.5 min-w-0 flex-1">
                 <Show when={!agentsLoading()}>
                   <div
                     data-component="prompt-agent-control"

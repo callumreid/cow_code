@@ -131,6 +131,8 @@ export async function setupTimelineBenchmark(
         JSON.stringify({
           general: {
             newLayoutDesigns: input.newLayoutDesigns,
+            sidebarNavigationInitialized: true,
+            shouldDisplayTabsToast: false,
             editToolPartsExpanded: true,
             shellToolPartsExpanded: true,
             showReasoningSummaries: true,

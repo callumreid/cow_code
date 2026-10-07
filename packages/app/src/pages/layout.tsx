@@ -12,6 +12,7 @@ import {
   type Accessor,
 } from "solid-js"
 import { makeEventListener } from "@solid-primitives/event-listener"
+import { createMediaQuery } from "@solid-primitives/media"
 import { useLocation, useNavigate, useParams } from "@solidjs/router"
 import { useLayout, LocalProject } from "@/context/layout"
 import { useServerSync } from "@/context/server-sync"
@@ -103,6 +104,7 @@ import { ToolPictureInPicture } from "@/components/tool-picture-in-picture"
 
 export default function LegacyLayout(props: ParentProps) {
   const serverSDK = useServerSDK()
+  const desktopSidebar = createMediaQuery("(min-width: 1280px)")
   const [store, setStore, , ready] = persisted(
     Persist.serverGlobal(serverSDK().scope, "layout.page", ["layout.page.v1"]),
     createStore({
@@ -127,6 +129,9 @@ export default function LegacyLayout(props: ParentProps) {
   const serverSync = useServerSync()
   const layout = useLayout()
   const layoutReady = createMemo(() => layout.ready())
+  createEffect(() => {
+    if (desktopSidebar() && layout.ready()) layout.mobileSidebar.hide()
+  })
   const platform = usePlatform()
   const pickDirectory = useDirectoryPicker()
   const settings = useSettings()
@@ -1016,7 +1021,7 @@ export default function LegacyLayout(props: ParentProps) {
         title: language.t("command.sidebar.toggle"),
         category: language.t("command.category.view"),
         keybind: "mod+b",
-        onSelect: () => layout.sidebar.toggle(),
+        onSelect: () => (desktopSidebar() ? layout.sidebar.toggle() : layout.mobileSidebar.toggle()),
       },
       {
         id: "project.open",
@@ -1858,12 +1863,13 @@ export default function LegacyLayout(props: ParentProps) {
   createEffect(() => {
     document.documentElement.style.setProperty(
       "--dialog-left-margin",
-      `${layout.sidebar.opened() ? layout.sidebar.width() : 48}px`,
+      `${desktopSidebar() ? (layout.sidebar.opened() ? layout.sidebar.width() : 64) : 0}px`,
     )
   })
 
-  const side = createMemo(() => Math.max(layout.sidebar.width(), 244))
-  const panel = createMemo(() => Math.max(side() - 64, 0))
+  const side = createMemo(() => (layout.sidebar.opened() ? Math.max(layout.sidebar.width(), 244) : 64))
+  const panel = createMemo(() => Math.max(layout.sidebar.width() - 64, 180))
+  const peekVisible = createMemo(() => desktopSidebar() && state.peeked && !layout.sidebar.opened())
 
   const loadedSessionDirs = new Set<string>()
 
@@ -2121,6 +2127,7 @@ export default function LegacyLayout(props: ParentProps) {
 
     return (
       <div
+        data-component="sidebar-panel"
         classList={{
           "flex flex-col min-h-0 min-w-0 box-border rounded-tl-[12px] px-3": true,
           "border border-b-0 border-border-weak-base": !merged(),
@@ -2138,7 +2145,7 @@ export default function LegacyLayout(props: ParentProps) {
           when={project()}
           fallback={
             <Show when={empty()}>
-              <div class="flex-1 min-h-0 -mt-4 flex items-center justify-center px-6 pb-64 text-center">
+              <div class="flex-1 min-h-0 flex items-center justify-center px-6 py-8 text-center">
                 <div class="mt-8 flex max-w-60 flex-col items-center gap-6 text-center">
                   <div class="flex flex-col gap-3">
                     <div class="text-14-medium text-text-strong">{language.t("sidebar.empty.title")}</div>
@@ -2158,7 +2165,10 @@ export default function LegacyLayout(props: ParentProps) {
           {(project) => (
             <>
               <div class="shrink-0 pl-1 py-1">
-                <div class="group/project flex items-start justify-between gap-2 py-2 pl-2 pr-0">
+                <div
+                  data-component="sidebar-project-header"
+                  class="group/project flex items-start justify-between gap-2 py-2 pl-2 pr-0"
+                >
                   <div class="flex flex-col min-w-0">
                     <InlineEditor
                       id={`project:${projectId()}`}
@@ -2181,7 +2191,10 @@ export default function LegacyLayout(props: ParentProps) {
                         transform: "translate3d(52px, 0, 0)",
                       }}
                     >
-                      <span class="text-12-regular text-text-base truncate select-text">
+                      <span
+                        data-slot="sidebar-project-path"
+                        class="text-12-regular text-text-base truncate select-text"
+                      >
                         {worktree().replace(homedir(), "~")}
                       </span>
                     </Tooltip>
@@ -2261,14 +2274,19 @@ export default function LegacyLayout(props: ParentProps) {
                 unread={office.unread().length}
                 onOpen={openOffice}
               />
-              <SidebarPasture store={pasture} open={pullRequests.data()?.openCount} active={state.pasture} onOpen={openPasture} />
+              <SidebarPasture
+                store={pasture}
+                open={pullRequests.data()?.openCount}
+                active={state.pasture}
+                onOpen={openPasture}
+              />
 
               <div class="flex-1 min-h-0 flex flex-col">
                 <Show
                   when={workspacesEnabled()}
                   fallback={
                     <>
-                      <div class="shrink-0 py-4">
+                      <div data-component="sidebar-primary-action" class="shrink-0 py-4">
                         <Button
                           size="large"
                           class="w-full"
@@ -2295,7 +2313,7 @@ export default function LegacyLayout(props: ParentProps) {
                   }
                 >
                   <>
-                    <div class="shrink-0 py-4">
+                    <div data-component="sidebar-primary-action" class="shrink-0 py-4">
                       <Button
                         size="large"
                         icon="plus-small"
@@ -2422,7 +2440,16 @@ export default function LegacyLayout(props: ParentProps) {
   )
 
   return (
-    <div class="relative bg-background-base flex-1 min-h-0 min-w-0 flex flex-col select-none [&_input]:select-text [&_textarea]:select-text [&_[contenteditable]]:select-text">
+    <div
+      class="relative bg-background-base flex-1 min-h-0 min-w-0 flex flex-col select-none [&_input]:select-text [&_textarea]:select-text [&_[contenteditable]]:select-text"
+      onKeyDown={(event) => {
+        if (event.key !== "Escape" || event.defaultPrevented || desktopSidebar() || !layout.mobileSidebar.opened())
+          return
+        event.preventDefault()
+        layout.mobileSidebar.hide()
+        document.querySelector<HTMLButtonElement>('[aria-controls="cowcode-mobile-sidebar"]')?.focus()
+      }}
+    >
       {autoselecting() ?? ""}
       <Titlebar
         update={titlebarUpdate}
@@ -2442,7 +2469,7 @@ export default function LegacyLayout(props: ParentProps) {
               aria-label={language.t("sidebar.nav.projectsAndSessions")}
               data-component="sidebar-nav-desktop"
               classList={{
-                "block": true,
+                "hidden xl:block": true,
                 "absolute inset-y-0 start-0": true,
                 "z-10": true,
               }}
@@ -2465,7 +2492,7 @@ export default function LegacyLayout(props: ParentProps) {
 
             <Show when={layout.sidebar.opened()}>
               <div
-                class="block absolute inset-y-0 z-30 w-0 overflow-visible"
+                class="hidden xl:block absolute inset-y-0 z-30 w-0 overflow-visible"
                 style={{ "inset-inline-start": `${side()}px` }}
                 onPointerDown={() => setState("sizing", true)}
               >
@@ -2484,15 +2511,12 @@ export default function LegacyLayout(props: ParentProps) {
               </div>
             </Show>
 
-            <div
-              class="hidden"
-              style={{ "inset-inline-start": "calc(4rem + 12px)" }}
-            />
+            <div class="hidden" style={{ "inset-inline-start": "calc(4rem + 12px)" }} />
 
             <div class="xl:hidden">
               <div
                 classList={{
-                  "fixed inset-x-0 top-10 bottom-0 z-40 transition-opacity duration-200": true,
+                  "fixed inset-x-0 top-10 bottom-0 z-40 bg-surface-base-active transition-opacity duration-200 motion-reduce:transition-none": true,
                   "opacity-100 pointer-events-auto": layout.mobileSidebar.opened(),
                   "opacity-0 pointer-events-none": !layout.mobileSidebar.opened(),
                 }}
@@ -2501,20 +2525,28 @@ export default function LegacyLayout(props: ParentProps) {
                 }}
               />
               <nav
+                id="cowcode-mobile-sidebar"
                 aria-label={language.t("sidebar.nav.projectsAndSessions")}
+                aria-hidden={!layout.mobileSidebar.opened()}
+                inert={!layout.mobileSidebar.opened()}
                 data-component="sidebar-nav-mobile"
                 classList={{
-                  "@container fixed top-10 bottom-0 start-0 z-50 w-full max-w-[400px] overflow-hidden border-e border-border-weaker-base bg-background-base transition-transform duration-200 ease-out": true,
+                  "@container fixed top-10 bottom-0 start-0 z-50 w-[calc(100%_-_40px)] max-w-[400px] overflow-hidden border-e border-border-weaker-base bg-background-base transition-transform duration-200 ease-out motion-reduce:transition-none": true,
                   "translate-x-0": layout.mobileSidebar.opened(),
                   "ltr:-translate-x-full rtl:translate-x-full": !layout.mobileSidebar.opened(),
                 }}
-                onClick={(e) => e.stopPropagation()}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  if (event.defaultPrevented || !(event.target instanceof Element)) return
+                  if (event.target.closest("a[href]")) layout.mobileSidebar.hide()
+                }}
               >
                 {sidebarContent(true)}
               </nav>
             </div>
 
             <div
+              inert={!desktopSidebar() && layout.mobileSidebar.opened()}
               classList={{
                 "absolute inset-0": true,
                 "inset-y-0 end-0 start-[var(--main-left)]": true,
@@ -2523,10 +2555,10 @@ export default function LegacyLayout(props: ParentProps) {
                   !state.sizing,
               }}
               style={{
-                "--main-left": layout.sidebar.opened() ? `${side()}px` : "4rem",
+                "--main-left": desktopSidebar() ? `${side()}px` : "0px",
               }}
             >
-                <main
+              <main
                 classList={{
                   "size-full overflow-x-hidden flex flex-col items-start contain-strict border-t border-border-weak-base bg-background-base border-s rounded-ss-[12px]": true,
                 }}
@@ -2551,11 +2583,15 @@ export default function LegacyLayout(props: ParentProps) {
               </Show>
               <Show when={state.pasture}>
                 <div class="absolute inset-0 z-10 overflow-hidden rounded-ss-[12px] border-t border-s border-border-weak-base bg-background-base">
-                  <PasturePanel store={pasture} pullRequests={pullRequests} onClose={() => setState("pasture", false)} />
+                  <PasturePanel
+                    store={pasture}
+                    pullRequests={pullRequests}
+                    onClose={() => setState("pasture", false)}
+                  />
                 </div>
               </Show>
               <Show when={office.opened()}>
-                {/* The sidebar is always open and at least 244px, so on a phone the office takes the whole viewport under the titlebar instead of the sliver beside it. */}
+                {/* Office remains a full-width overlay on phone-sized screens. */}
                 <div class="absolute inset-0 z-10 overflow-hidden rounded-ss-[12px] border-t border-s border-border-weak-base bg-background-base max-md:fixed max-md:inset-x-0 max-md:top-10 max-md:bottom-0 max-md:z-50 max-md:rounded-none max-md:border-s-0">
                   <OfficePanel onClose={() => office.close()} onNavigate={navigateWithSidebarReset} />
                 </div>
@@ -2568,14 +2604,42 @@ export default function LegacyLayout(props: ParentProps) {
             </div>
 
             <div
+              data-component="sidebar-project-peek"
+              aria-hidden={!peekVisible()}
+              inert={!peekVisible()}
               classList={{
-                "hidden": true,
-                "opacity-100 translate-x-0 pointer-events-auto": state.peeked && !layout.sidebar.opened(),
-                "opacity-0 ltr:-translate-x-2 rtl:translate-x-2 pointer-events-none":
-                  !state.peeked || layout.sidebar.opened(),
+                "hidden xl:flex absolute inset-y-0 start-16 z-30": true,
+                "opacity-100 translate-x-0 pointer-events-auto": peekVisible(),
+                "opacity-0 ltr:-translate-x-2 rtl:translate-x-2 pointer-events-none": !peekVisible(),
                 "transition-[opacity,transform] motion-reduce:transition-none": true,
-                "duration-180 ease-out": state.peeked && !layout.sidebar.opened(),
-                "duration-120 ease-in": !state.peeked || layout.sidebar.opened(),
+                "duration-180 ease-out": peekVisible(),
+                "duration-120 ease-in": !peekVisible(),
+              }}
+              style={{ width: `${panel()}px` }}
+              onFocus={disarm}
+              onBlur={(event) => {
+                if (event.relatedTarget instanceof Node && event.currentTarget.contains(event.relatedTarget)) return
+                if (
+                  event.relatedTarget instanceof Element &&
+                  event.relatedTarget.closest(
+                    '[data-action="project-switch"], [data-component="dropdown-menu-content"], [data-component="context-menu-content"], [role="dialog"]',
+                  )
+                )
+                  return
+                reset()
+              }}
+              onKeyDown={(event) => {
+                if (event.key !== "Escape" || event.defaultPrevented) return
+                event.preventDefault()
+                const directory = peekProject()?.worktree
+                if (directory) {
+                  state.nav
+                    ?.querySelector<HTMLButtonElement>(
+                      `[data-action="project-switch"][data-project="${base64Encode(directory)}"]`,
+                    )
+                    ?.focus()
+                }
+                reset()
               }}
               onMouseMove={disarm}
               onMouseEnter={() => {
@@ -2583,7 +2647,12 @@ export default function LegacyLayout(props: ParentProps) {
                 aim.reset()
               }}
               onPointerDown={disarm}
-              onMouseLeave={() => {
+              onMouseLeave={(event) => {
+                if (
+                  event.currentTarget.contains(document.activeElement) ||
+                  event.currentTarget.querySelector("[data-expanded]")
+                )
+                  return
                 arm()
               }}
             >
@@ -2593,13 +2662,14 @@ export default function LegacyLayout(props: ParentProps) {
             </div>
 
             <div
+              aria-hidden="true"
               classList={{
-                "hidden": true,
-                "opacity-100 translate-x-0": state.peeked && !layout.sidebar.opened(),
-                "opacity-0 ltr:-translate-x-2 rtl:translate-x-2": !state.peeked || layout.sidebar.opened(),
+                "hidden xl:block absolute inset-y-0 z-30 pointer-events-none": true,
+                "opacity-100 translate-x-0": peekVisible(),
+                "opacity-0 ltr:-translate-x-2 rtl:translate-x-2": !peekVisible(),
                 "transition-[opacity,transform] motion-reduce:transition-none": true,
-                "duration-180 ease-out": state.peeked && !layout.sidebar.opened(),
-                "duration-120 ease-in": !state.peeked || layout.sidebar.opened(),
+                "duration-180 ease-out": peekVisible(),
+                "duration-120 ease-in": !peekVisible(),
               }}
               style={{ "inset-inline-start": `calc(4rem + ${panel()}px)` }}
             >

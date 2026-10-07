@@ -176,7 +176,7 @@ export function Titlebar(props: {
 
   return (
     <header
-      data-slot={useV2Titlebar() ? "titlebar-v2" : undefined}
+      data-slot={useV2Titlebar() ? "titlebar-v2" : "titlebar-legacy"}
       classList={{
         "shrink-0 relative flex flex-row": true,
         "h-9 bg-v2-background-bg-deep overflow-visible": useV2Titlebar(),
@@ -487,6 +487,7 @@ export function Titlebar(props: {
         </Match>
         <Match when>
           <div
+            data-slot="titlebar-layout"
             class="grid h-full min-h-full w-full grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center"
             style={{ zoom: counterZoom() }}
           >
@@ -507,6 +508,7 @@ export function Titlebar(props: {
                     class="titlebar-icon rounded-md"
                     onClick={layout.mobileSidebar.toggle}
                     aria-label={language.t("sidebar.menu.toggle")}
+                    aria-controls="cowcode-mobile-sidebar"
                     aria-expanded={layout.mobileSidebar.opened()}
                   />
                 </div>
@@ -519,6 +521,7 @@ export function Titlebar(props: {
                     class="titlebar-icon rounded-md"
                     onClick={layout.mobileSidebar.toggle}
                     aria-label={language.t("sidebar.menu.toggle")}
+                    aria-controls="cowcode-mobile-sidebar"
                     aria-expanded={layout.mobileSidebar.opened()}
                   />
                 </div>
@@ -711,9 +714,5 @@ function ChannelIndicator(props: { debugTools?: { visible: boolean; toggle: () =
     )
   }
 
-  return (
-    <>
-      {["beta", "dev"].includes(channel) && <div class="px-1 text-[14px] leading-none">🐄</div>}
-    </>
-  )
+  return <>{["beta", "dev"].includes(channel) && <div class="px-1 text-[14px] leading-none">🐄</div>}</>
 }

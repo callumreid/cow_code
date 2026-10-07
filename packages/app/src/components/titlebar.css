@@ -1,3 +1,55 @@
+[data-slot="titlebar-legacy"] {
+  border-bottom: 1px solid var(--border-weaker-base);
+}
+
+[data-slot="titlebar-legacy"] [data-slot="titlebar-layout"] {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 280px) minmax(0, 1fr);
+  column-gap: 8px;
+}
+
+[data-slot="titlebar-legacy"] #opencode-titlebar-center {
+  width: 100%;
+}
+
+[data-slot="titlebar-legacy"] #opencode-titlebar-center > [data-component="button"] {
+  width: 100%;
+  height: 28px;
+  border-color: var(--border-weaker-base);
+  background: var(--surface-base);
+  border-radius: 8px;
+}
+
+[data-slot="titlebar-legacy"] .titlebar-icon {
+  border-radius: 6px;
+  transition:
+    background-color 120ms ease,
+    color 120ms ease;
+}
+
+[data-slot="titlebar-legacy"] :is(button, a):focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: -2px;
+}
+
+/* Let search yield space before native window and panel controls collide. */
+@media (min-width: 768px) and (max-width: 1279px) {
+  [data-slot="titlebar-legacy"] [data-slot="titlebar-layout"] {
+    grid-template-columns: minmax(0, 1fr) minmax(120px, 220px) minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 767px) {
+  [data-slot="titlebar-legacy"] [data-slot="titlebar-layout"] {
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-slot="titlebar-legacy"] .titlebar-icon {
+    transition: none;
+  }
+}
+
 [data-slot="titlebar-tab-item"] {
   user-select: none;
 }

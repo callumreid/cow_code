@@ -7,6 +7,11 @@ what each feature is, and the films, live in the [feature reel](docs/features/RE
 
 ### Changed
 
+- the sidebar toggle works again and remembers your choice; narrow windows use the existing slide-out navigation so the conversation keeps its width
+- the harness gets a quieter coat: cow spots live behind the welcome mark, leaving conversations, diffs, menus and the pasture clear; all cow themes, moos and features stay put
+- the sidebar gets aligned session titles that stay still as cows start working, consistent feature rows and counts, visible keyboard focus, and a right-click menu with F2 rename
+- the prompt is one rounded surface with a clear send button, a focus ring and model controls that wrap in narrow panes; the welcome and new-session screens fit shorter windows
+- conversations get clearer heading sizes, easier line spacing and quieter tool details, with every tool disclosure and action still available
 - the cow catches up with the stable OpenCode 1.18.35 release (upstream `53d1eabb6`): current provider fixes, safer configuration handling, and session rename improvements, with the pasture, farmer's office, phone companion, scheduled runs, cow themes and moos kept intact
 
 ## 2026-09-18 🔄

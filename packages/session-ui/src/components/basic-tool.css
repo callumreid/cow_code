@@ -328,6 +328,16 @@ body[data-new-layout] {
 
 body:not([data-new-layout]) {
   [data-component="tool-trigger"] {
+    min-height: 24px;
+
+    [data-slot="basic-tool-tool-info"],
+    [data-slot="basic-tool-tool-title"],
+    [data-slot="basic-tool-tool-subtitle"],
+    [data-slot="basic-tool-tool-arg"] {
+      font-size: var(--font-size-small);
+      line-height: 1.5;
+    }
+
     [data-slot="basic-tool-tool-spinner"] {
       color: var(--text-weak);
     }

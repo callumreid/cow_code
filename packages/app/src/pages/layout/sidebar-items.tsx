@@ -1,4 +1,6 @@
 import type { Session } from "@opencode-ai/sdk/v2/client"
+import { ContextMenu } from "@opencode-ai/ui/context-menu"
+import { createStore } from "solid-js/store"
 import { Avatar } from "@opencode-ai/ui/avatar"
 import { Icon } from "@opencode-ai/ui/icon"
 import { Icon as IconV2 } from "@opencode-ai/ui/v2/icon"
@@ -110,7 +112,21 @@ const SessionRow = (props: {
   editor: ReturnType<typeof createInlineEditorController>
   onRename: (next: string) => void
 }): JSX.Element => {
+  const language = useLanguage()
   const title = () => sessionTitle(props.session.title) ?? ""
+  const status = () => {
+    if (props.isWorking()) {
+      const routine = props.routine()
+      return routine
+        ? language.t("sidebar.session.scheduledRunning", { name: routine })
+        : language.t("sidebar.session.working")
+    }
+    if (props.hasPermissions()) return language.t("notification.permission.title")
+    if (props.hasError()) return language.t("notification.session.error.title")
+    if (props.unseenCount() > 0) return language.t("sidebar.session.ready")
+    const routine = props.routine()
+    return routine ? language.t("sidebar.session.scheduled", { name: routine }) : undefined
+  }
 
   return (
     <A
@@ -118,55 +134,45 @@ const SessionRow = (props: {
       class={`flex items-center gap-2 min-w-0 w-full text-left focus:outline-none ${props.dense ? "py-0.5" : "py-1"}`}
       onPointerDown={props.warmPress}
       onFocus={props.warmFocus}
-      onClick={() => {
+      data-slot="sidebar-session-link"
+      aria-keyshortcuts="F2"
+      onKeyDown={(event) => {
+        if (event.key !== "F2" || props.editor.editorOpen(props.session.id)) return
+        event.preventDefault()
+        props.editor.openEditor(props.session.id, title())
+      }}
+      onClick={(event) => {
+        if (props.editor.editorOpen(props.session.id)) event.preventDefault()
         if (props.sidebarOpened()) return
         props.clearHoverProjectSoon()
       }}
     >
-      <Show
-        when={
-          props.isWorking() ||
-          props.hasPermissions() ||
-          props.hasError() ||
-          props.unseenCount() > 0 ||
-          !!props.routine()
-        }
+      <div
+        data-slot="sidebar-session-status"
+        class="shrink-0 size-6 flex items-center justify-center"
+        style={{ color: props.tint() ?? "var(--icon-interactive-base)" }}
+        role={status() ? "img" : undefined}
+        aria-label={status()}
+        title={status()}
       >
-        <div
-          class="shrink-0 size-6 flex items-center justify-center"
-          style={{ color: props.tint() ?? "var(--icon-interactive-base)" }}
-        >
-          <Switch>
-            <Match when={props.isWorking()}>
-              <CowWorking
-                seed={props.session.id}
-                class="size-[19px]"
-                title={props.routine() ? `Scheduled job running: ${props.routine()}` : "Working"}
-              />
-            </Match>
-            <Match when={props.hasPermissions()}>
-              <div class="size-1.5 rounded-full bg-surface-warning-strong" />
-            </Match>
-            <Match when={props.hasError()}>
-              <div class="size-1.5 rounded-full bg-text-diff-delete-base" />
-            </Match>
-            <Match when={props.unseenCount() > 0}>
-              <CowReady class="size-[19px]" title="Ready for you" />
-            </Match>
-            {/* Idle routine run: mark it as scheduled rather than something started by hand. The
-                checklist icon is the one the Scheduled sidebar row already uses. The title sits on
-                a wrapping span, not on the Icon - Icon spreads it onto its <svg>, and a title
-                ATTRIBUTE on an svg shows no tooltip (svg wants a <title> child). */}
-            <Match when={props.routine()}>
-              {(name) => (
-                <span class="flex items-center justify-center" title={`Scheduled job: ${name()}`}>
-                  <Icon name="checklist" size="small" class="text-text-base" />
-                </span>
-              )}
-            </Match>
-          </Switch>
-        </div>
-      </Show>
+        <Switch>
+          <Match when={props.isWorking()}>
+            <CowWorking seed={props.session.id} class="size-[19px]" />
+          </Match>
+          <Match when={props.hasPermissions()}>
+            <div class="size-1.5 rounded-full bg-surface-warning-strong" />
+          </Match>
+          <Match when={props.hasError()}>
+            <div class="size-1.5 rounded-full bg-text-diff-delete-base" />
+          </Match>
+          <Match when={props.unseenCount() > 0}>
+            <CowReady class="size-[19px]" />
+          </Match>
+          <Match when={props.routine()}>
+            <Icon name="checklist" size="small" class="text-icon-weak" />
+          </Match>
+        </Switch>
+      </div>
       <props.editor.InlineEditor
         id={props.session.id}
         value={title}
@@ -210,6 +216,7 @@ export const SessionItem = (props: SessionItemProps): JSX.Element => {
   const serverSDK = useServerSDK()
   const pinned = createMemo(() => layout.pins.isPinned(props.session.id))
   const editor = createInlineEditorController()
+  const [menu, setMenu] = createStore({ pendingRename: false })
   const renameSession = (next: string) => {
     if (next === sessionTitle(props.session.title)) return
     void serverSDK()
@@ -265,78 +272,110 @@ export const SessionItem = (props: SessionItemProps): JSX.Element => {
 
   return (
     <>
-      <div
-        data-session-id={props.session.id}
-        class="group/session relative w-full min-w-0 rounded-md cursor-default pr-3 transition-colors hover:bg-surface-raised-base-hover [&:has(:focus-visible)]:bg-surface-raised-base-hover has-[[data-expanded]]:bg-surface-raised-base-hover"
-        classList={{ "has-[.active]:bg-surface-base-active": !officeOpen() }}
-        style={{ "padding-left": `${8 + (props.level ?? 0) * 16}px` }}
-      >
-        <div class="flex min-w-0 items-center gap-1">
-          <div class="min-w-0 flex-1">
-            <Show
-              when={!tooltip()}
-              fallback={
+      <ContextMenu>
+        <ContextMenu.Trigger
+          as="div"
+          tabIndex={-1}
+          data-component="sidebar-session-item"
+          data-session-id={props.session.id}
+          class="group/session relative w-full min-w-0 rounded-md cursor-default pr-3 transition-colors hover:bg-surface-raised-base-hover [&:has(:focus-visible)]:bg-surface-raised-base-hover has-[[data-expanded]]:bg-surface-raised-base-hover"
+          classList={{ "has-[.active]:bg-surface-base-active": !officeOpen() }}
+          style={{ "padding-left": `${8 + (props.level ?? 0) * 16}px` }}
+        >
+          <div class="flex min-w-0 items-center gap-1">
+            <div class="min-w-0 flex-1">
+              <Show
+                when={!tooltip()}
+                fallback={
+                  <Tooltip
+                    placement={props.mobile ? "bottom" : "right"}
+                    value={sessionTitle(props.session.title)}
+                    gutter={10}
+                    class="min-w-0 w-full"
+                  >
+                    {item}
+                  </Tooltip>
+                }
+              >
+                {item}
+              </Show>
+            </div>
+
+            <Show when={!props.level || pinned()}>
+              <div
+                data-slot="sidebar-session-actions"
+                class="w-12 shrink-0 flex items-center transition-opacity"
+                classList={{
+                  "opacity-100 pointer-events-auto": !!props.mobile || pinned(),
+                  "opacity-0 pointer-events-none": !props.mobile && !pinned(),
+                  "group-hover/session:opacity-100 group-hover/session:pointer-events-auto": true,
+                  "group-focus-within/session:opacity-100 group-focus-within/session:pointer-events-auto": true,
+                }}
+              >
                 <Tooltip
-                  placement={props.mobile ? "bottom" : "right"}
-                  value={sessionTitle(props.session.title)}
-                  gutter={10}
-                  class="min-w-0 w-full"
+                  value={pinned() ? language.t("sidebar.session.bell.off") : language.t("sidebar.session.bell.on")}
+                  placement="top"
                 >
-                  {item}
+                  <button
+                    type="button"
+                    class="size-6 shrink-0 rounded-md flex items-center justify-center text-[13px] leading-none cursor-pointer hover:bg-surface-raised-base-hover"
+                    classList={{ "opacity-100": pinned(), "opacity-45": !pinned() }}
+                    aria-label={
+                      pinned() ? language.t("sidebar.session.bell.off") : language.t("sidebar.session.bell.on")
+                    }
+                    aria-pressed={pinned()}
+                    onClick={(event) => {
+                      event.preventDefault()
+                      event.stopPropagation()
+                      layout.pins.toggle(props.session.id)
+                    }}
+                  >
+                    🔔
+                  </button>
                 </Tooltip>
-              }
-            >
-              {item}
+                <Tooltip value={language.t("sidebar.session.pasture")} placement="top">
+                  <button
+                    type="button"
+                    class="size-6 shrink-0 rounded-md flex items-center justify-center text-[13px] leading-none cursor-pointer opacity-45 hover:opacity-100 hover:bg-surface-raised-base-hover"
+                    aria-label={language.t("sidebar.session.pasture")}
+                    onClick={(event) => {
+                      event.preventDefault()
+                      event.stopPropagation()
+                      void props.archiveSession(props.session)
+                    }}
+                  >
+                    🌾
+                  </button>
+                </Tooltip>
+              </div>
             </Show>
           </div>
-
-          <Show when={!props.level || pinned()}>
-            <div
-              class="shrink-0 flex items-center overflow-hidden transition-[width,opacity]"
-              classList={{
-                "w-12 opacity-100 pointer-events-auto": !!props.mobile,
-                "w-6 opacity-100 pointer-events-auto": !props.mobile && pinned(),
-                "w-0 opacity-0 pointer-events-none": !props.mobile && !pinned(),
-                "group-hover/session:w-12 group-hover/session:opacity-100 group-hover/session:pointer-events-auto": true,
-                "group-focus-within/session:w-12 group-focus-within/session:opacity-100 group-focus-within/session:pointer-events-auto": true,
-              }}
-            >
-              <Tooltip
-                value={pinned() ? language.t("sidebar.session.bell.off") : language.t("sidebar.session.bell.on")}
-                placement="top"
-              >
-                <button
-                  type="button"
-                  class="size-6 shrink-0 rounded-md flex items-center justify-center text-[13px] leading-none cursor-pointer hover:bg-surface-raised-base-hover"
-                  classList={{ "opacity-100": pinned(), "opacity-45": !pinned() }}
-                  aria-label={pinned() ? language.t("sidebar.session.bell.off") : language.t("sidebar.session.bell.on")}
-                  onClick={(event) => {
-                    event.preventDefault()
-                    event.stopPropagation()
-                    layout.pins.toggle(props.session.id)
-                  }}
-                >
-                  🔔
-                </button>
-              </Tooltip>
-              <Tooltip value={language.t("sidebar.session.pasture")} placement="top">
-                <button
-                  type="button"
-                  class="size-6 shrink-0 rounded-md flex items-center justify-center text-[13px] leading-none cursor-pointer opacity-45 hover:opacity-100 hover:bg-surface-raised-base-hover"
-                  aria-label={language.t("sidebar.session.pasture")}
-                  onClick={(event) => {
-                    event.preventDefault()
-                    event.stopPropagation()
-                    void props.archiveSession(props.session)
-                  }}
-                >
-                  🌾
-                </button>
-              </Tooltip>
-            </div>
-          </Show>
-        </div>
-      </div>
+        </ContextMenu.Trigger>
+        <ContextMenu.Portal>
+          <ContextMenu.Content
+            onCloseAutoFocus={(event) => {
+              if (!menu.pendingRename) return
+              event.preventDefault()
+              setMenu("pendingRename", false)
+              editor.openEditor(props.session.id, sessionTitle(props.session.title) ?? "")
+            }}
+          >
+            <ContextMenu.Item onSelect={() => setMenu("pendingRename", true)}>
+              <ContextMenu.ItemLabel>{language.t("common.rename")}</ContextMenu.ItemLabel>
+              <span class="ml-auto pl-4 text-12-regular text-text-weak">F2</span>
+            </ContextMenu.Item>
+            <ContextMenu.Item onSelect={() => layout.pins.toggle(props.session.id)}>
+              <ContextMenu.ItemLabel>
+                {pinned() ? language.t("sidebar.session.bell.off") : language.t("sidebar.session.bell.on")}
+              </ContextMenu.ItemLabel>
+            </ContextMenu.Item>
+            <ContextMenu.Separator />
+            <ContextMenu.Item onSelect={() => void props.archiveSession(props.session)}>
+              <ContextMenu.ItemLabel>{language.t("sidebar.session.pasture")}</ContextMenu.ItemLabel>
+            </ContextMenu.Item>
+          </ContextMenu.Content>
+        </ContextMenu.Portal>
+      </ContextMenu>
       <Show when={currentChild()} keyed>
         {(child) => (
           <div class="w-full">
@@ -378,6 +417,7 @@ export const NewSessionItem = (props: {
 
   return (
     <div
+      data-component="sidebar-new-session"
       class="group/session relative w-full min-w-0 rounded-md cursor-default transition-colors pl-2 pr-3 hover:bg-surface-raised-base-hover [&:has(:focus-visible)]:bg-surface-raised-base-hover"
       classList={{ "has-[.active]:bg-surface-base-active": !officeOpen() }}
     >

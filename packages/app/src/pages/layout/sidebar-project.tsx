@@ -100,11 +100,13 @@ const ProjectTile = (props: {
         as="button"
         type="button"
         aria-label={displayName(props.project)}
+        aria-current={props.selected() ? "page" : undefined}
+        title={displayName(props.project)}
         data-action="project-switch"
         data-project={base64Encode(props.project.worktree)}
         classList={{
           "flex items-center justify-center size-10 p-1 rounded-lg overflow-hidden transition-colors cursor-default": true,
-          "bg-transparent border-2 border-icon-strong-base hover:bg-surface-base-hover": props.selected(),
+          "bg-surface-base-active border border-border-strong-base hover:bg-surface-base-hover": props.selected(),
           "bg-transparent border border-transparent hover:bg-surface-base-hover hover:border-border-weak-base":
             !props.selected() && !props.active(),
           "bg-surface-base-hover border border-border-weak-base": !props.selected() && props.active(),
@@ -139,12 +141,32 @@ const ProjectTile = (props: {
         onClick={() => {
           props.setOpen(false)
           if (props.selected()) {
+            if (props.mobile) {
+              layout.mobileSidebar.hide()
+              return
+            }
             layout.sidebar.toggle()
             return
           }
           props.navigateToProject(props.project.worktree)
         }}
-        onBlur={() => props.setOpen(false)}
+        onKeyDown={(event: KeyboardEvent) => {
+          if (event.key !== "ArrowRight" || !props.overlay()) return
+          const target = document.querySelector<HTMLElement>(
+            '[data-component="sidebar-project-peek"][aria-hidden="false"] :is(a[href], button):not([disabled])',
+          )
+          if (!target) return
+          event.preventDefault()
+          target.focus()
+        }}
+        onBlur={(event: FocusEvent) => {
+          if (
+            event.relatedTarget instanceof Element &&
+            event.relatedTarget.closest('[data-component="sidebar-project-peek"]')
+          )
+            return
+          props.setOpen(false)
+        }}
       >
         <ProjectIcon project={props.project} notify working={props.isWorking()} />
       </ContextMenu.Trigger>
@@ -199,7 +221,7 @@ const ProjectPreviewPanel = (props: {
   ctx: ProjectSidebarContext
   language: ReturnType<typeof useLanguage>
 }): JSX.Element => (
-  <div class="-m-3 p-2 flex flex-col w-72">
+  <div data-component="sidebar-project-preview" class="-m-3 p-2 flex flex-col w-72">
     <div class="px-4 pt-2 pb-1 flex items-center gap-2">
       <div class="text-14-medium text-text-strong truncate grow">{displayName(props.project)}</div>
     </div>
@@ -312,7 +334,9 @@ export const SortableProject = (props: {
       })
     }),
   )
-  const projectSessions = createMemo(() => sortedRootSessions(projectStore(), props.sortNow(), props.ctx.isHiddenSession))
+  const projectSessions = createMemo(() =>
+    sortedRootSessions(projectStore(), props.sortNow(), props.ctx.isHiddenSession),
+  )
   const workspaceSessions = (directory: string) => {
     const [data] = serverSync().child(directory, { bootstrap: false })
     return sortedRootSessions(data, props.sortNow(), props.ctx.isHiddenSession)

@@ -11,6 +11,7 @@ import { ConstrainDragXAxis } from "@/utils/solid-dnd"
 import { IconButton } from "@opencode-ai/ui/icon-button"
 import { Tooltip } from "@opencode-ai/ui/tooltip"
 import { type LocalProject } from "@/context/layout"
+import "./sidebar.css"
 
 export const SidebarContent = (props: {
   mobile?: boolean
@@ -42,7 +43,7 @@ export const SidebarContent = (props: {
   })
 
   return (
-    <div class="flex h-full w-full min-w-0 overflow-hidden">
+    <div data-component="sidebar-content" class="flex h-full w-full min-w-0 overflow-hidden">
       <div
         data-component="sidebar-rail"
         class="w-16 shrink-0 bg-background-base flex flex-col items-center overflow-hidden"
@@ -57,7 +58,7 @@ export const SidebarContent = (props: {
           >
             <DragDropSensors />
             <ConstrainDragXAxis />
-            <div class="h-full w-full flex flex-col items-center gap-3 px-3 py-3 overflow-y-auto no-scrollbar">
+            <div class="h-full w-full flex flex-col items-center gap-2 px-3 py-3 overflow-y-auto no-scrollbar">
               <SortableProvider ids={props.projects().map((p) => p.worktree)}>
                 <For each={props.projects()}>{(project) => props.renderProject(project)}</For>
               </SortableProvider>
@@ -73,6 +74,7 @@ export const SidebarContent = (props: {
                 }
               >
                 <IconButton
+                  data-action="project-open"
                   icon="plus"
                   variant="ghost"
                   size="large"

@@ -1,5 +1,6 @@
 import { Show, type JSX } from "solid-js"
 import { Icon } from "@opencode-ai/ui/icon"
+import { useLanguage } from "@/context/language"
 
 /**
  * Sidebar launcher for the Farmer's Office.
@@ -14,38 +15,41 @@ export const SidebarOffice = (props: {
   needsYou: number
   unread: number
   onOpen: () => void
-}): JSX.Element => (
-  <div class="shrink-0 border-t border-border-weaker-base py-1">
-    <button
-      type="button"
-      onClick={() => props.onOpen()}
-      aria-current={props.active ? "page" : undefined}
-      class="w-full flex items-center gap-2 rounded px-2 py-1.5 text-left hover:bg-background-stronger"
-      classList={{ "bg-surface-base-active": props.active }}
-    >
-      <Icon name="eye" size="small" class="text-text-base" />
-      <span class="text-14-regular text-text-strong flex-1 truncate">Farmer's Office</span>
-      <Show
-        when={props.needsYou > 0}
-        fallback={
-          <Show when={props.unread > 0}>
-            <span
-              class="rounded-full bg-surface-inset-base px-1.5 text-12-medium text-text-base"
-              title={`${props.unread} new since you last looked`}
-            >
-              {props.unread}
-            </span>
-          </Show>
-        }
+}): JSX.Element => {
+  const language = useLanguage()
+  return (
+    <div data-component="sidebar-launcher" class="shrink-0 py-0.5">
+      <button
+        type="button"
+        onClick={() => props.onOpen()}
+        aria-current={props.active ? "page" : undefined}
+        class="sidebar-nav-row w-full flex items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-surface-raised-base-hover"
+        classList={{ "bg-surface-base-active": props.active }}
       >
-        <span
-          class="rounded-full bg-surface-warning-strong px-1.5 text-12-medium text-text-on-warning-strong"
-          title={`${props.needsYou} need you`}
+        <Icon name="eye" size="small" class="text-text-base" />
+        <span class="text-14-regular text-text-strong flex-1 truncate">{language.t("sidebar.nav.office")}</span>
+        <Show
+          when={props.needsYou > 0}
+          fallback={
+            <Show when={props.unread > 0}>
+              <span
+                class="sidebar-count rounded-full bg-surface-inset-base px-1.5 text-12-medium text-text-base"
+                title={language.plural("sidebar.nav.officeUnread", props.unread)}
+              >
+                {props.unread}
+              </span>
+            </Show>
+          }
         >
-          {props.needsYou}
-        </span>
-      </Show>
-      <Icon name="chevron-right" size="small" class="text-text-base" />
-    </button>
-  </div>
-)
+          <span
+            class="sidebar-count rounded-full bg-surface-warning-strong px-1.5 text-12-medium text-text-on-warning-strong"
+            title={language.plural("sidebar.nav.officeNeedsYou", props.needsYou)}
+          >
+            {props.needsYou}
+          </span>
+        </Show>
+        <Icon name="chevron-right" size="small" class="sidebar-nav-chevron text-icon-weak" />
+      </button>
+    </div>
+  )
+}
