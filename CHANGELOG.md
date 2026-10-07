@@ -5,6 +5,10 @@ what each feature is, and the films, live in the [feature reel](docs/features/RE
 
 ## 2026-10-07
 
+### Fixed
+
+- Scheduled routine threads keep the regular project sidebar when opened, including after a reload, without adding another project.
+
 ### Changed
 
 - the sidebar toggle works again and remembers your choice; narrow windows use the existing slide-out navigation so the conversation keeps its width

@@ -69,6 +69,8 @@ import {
   latestRootSession,
   sortedRootSessions,
   compareSessionTime,
+  routineSessionName,
+  childSessionOnPath,
 } from "./layout/helpers"
 import {
   collectNewSessionDeepLinks,
@@ -615,6 +617,32 @@ export default function LegacyLayout(props: ParentProps) {
     const direct = projects.find((p) => pathKey(p.worktree) === key)
     if (direct) return direct
 
+    const [child] = serverSync().child(directory, { bootstrap: false })
+    const routine =
+      routines
+        .data()
+        ?.routines.some(
+          (job) =>
+            job.kind === "llm" &&
+            [job.running, ...job.runs].some((run) => run?.sessionID && pathKey(run.directory ?? "") === key),
+        ) ||
+      child.session.some(
+        (session) =>
+          routineSessionName(session) &&
+          (session.id === params.id || childSessionOnPath(child.session, session.id, params.id)),
+      )
+
+    // Scheduled threads live outside the open projects. Keep their navigation
+    // context instead of losing the whole sidebar or opening another project.
+    if (routine) {
+      return (
+        projects.find((project) => project.worktree === lastProject?.worktree) ??
+        projects.find((project) => pathKey(project.worktree) === pathKey(office.overseer()?.directory ?? "")) ??
+        projects.find((project) => project.worktree === server.projects.last()) ??
+        projects[0]
+      )
+    }
+
     // A farmer worker runs in a worktree that is nobody's project; keep the
     // sidebar on the project whose list the user opened it from (the office's
     // own project lists every worker, a repo project lists its worktrees'),
@@ -627,7 +655,6 @@ export default function LegacyLayout(props: ParentProps) {
       if (home) return home
     }
 
-    const [child] = serverSync().child(directory, { bootstrap: false })
     const id = child.project
     if (!id) return
 
