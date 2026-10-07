@@ -7,6 +7,7 @@ what each feature is, and the films, live in the [feature reel](docs/features/RE
 
 ### Fixed
 
+- The cow waits for a healthy server after reload instead of guessing the wrong API and losing thread history and model choices.
 - Scheduled routine threads keep the regular project sidebar when opened, including after a reload, without adding another project.
 
 ### Changed
