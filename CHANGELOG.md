@@ -3,6 +3,12 @@
 every change to the cow lands here, newest first, one line per thing you would notice.
 what each feature is, and the films, live in the [feature reel](docs/features/README.md).
 
+## 2026-10-07
+
+### Changed
+
+- the cow catches up with the stable OpenCode 1.18.35 release (upstream `53d1eabb6`): current provider fixes, safer configuration handling, and session rename improvements, with the pasture, farmer's office, phone companion, scheduled runs, cow themes and moos kept intact
+
 ## 2026-09-18 🔄
 
 ### Fixed
