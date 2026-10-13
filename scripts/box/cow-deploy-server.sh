@@ -8,7 +8,7 @@ export PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/bin:/bin"
 LOG="$HOME/.coval/logs/cow-deploy-server.log"
 PW=$(head -1 "$HOME/.config/opencode/server-password")
 D="x-opencode-directory: /Users/bronson/coval"
-JOBS="dev.coval.pr-review-sweep dev.coval.pr-review-queue dev.coval.pr-review-fixer dev.coval.pr-keep-updated dev.coval.daily-workers-health-audit dev.coval.daily-prod-validation dev.bronson.cow-health"
+JOBS="dev.coval.pr-review-sweep dev.coval.pr-review-fixer dev.coval.pr-keep-updated dev.coval.daily-workers-health-audit dev.coval.daily-prod-validation dev.bronson.cow-health"
 say() { echo "$(date -Iseconds): $*" >> "$LOG"; }
 running_jobs() { for j in $JOBS; do launchctl print "gui/501/$j" 2>/dev/null | grep -q "state = running" && printf '%s ' "$j"; done; }
 say "deploy start; staged $(ls -la "$HOME/.local/bin/opencode.new" | awk '{print $5}') bytes"

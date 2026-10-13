@@ -15,24 +15,6 @@
         "weekdays": true
       }
     },
-    "dev.coval.pr-review-queue": {
-      "title": "PR review queue",
-      "description": "Hourly pass over the review queue: anything the sweep left, plus the queue state file.",
-      "kind": "llm",
-      "model": "cloudflare-workers-ai/@cf/zai-org/glm-5.3",
-      "log": "~/.coval/logs/pr-review-queue.log",
-      "window": {
-        "hours": [
-          8,
-          18
-        ],
-        "until": [
-          18,
-          0
-        ],
-        "weekdays": true
-      }
-    },
     "dev.coval.pr-review-fixer": {
       "title": "PR review auto-fixer",
       "description": "Fixes review comments from bots and coworkers on Callum's open PRs, one parallel thread per PR (GLM 5.3, medium reasoning): pushes the fix, replies with evidence, resolves the fixed threads and re-requests review from whoever requested changes. Skips PRs labeled cow:no-autofix (the brain toggle in Pull requests).",
