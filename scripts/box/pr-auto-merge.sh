@@ -18,7 +18,8 @@ LOG_DIR="$HOME/.coval/logs"; mkdir -p "$LOG_DIR"; LOG="$LOG_DIR/pr-auto-merge.lo
 STATE="$LOG_DIR/pr-auto-merge.state.json"
 LOCK="$LOG_DIR/pr-auto-merge.lock"
 MAX_BOUNCES=3
-AGENT_MODEL="chatgpt/gpt-5.5"
+AGENT_MODEL="cloudflare-workers-ai/@cf/zai-org/glm-5.3"
+AGENT_VARIANT=medium
 AGENT_LIMIT_SECONDS=2400
 DRY=0; ONLY=""
 if [ "${1:-}" = "--dry-run" ]; then DRY=1; [ $# -ge 3 ] && ONLY="$2 $3"; fi
@@ -131,7 +132,7 @@ Do this:
 Rules: never merge, never enable auto-merge yourself, never touch other PRs, never resolve review threads, keep the PR's scope. Follow /Users/bronson/.config/opencode/AGENTS.md.
 Finish with exactly one line in this format, using one of the three words: AUTO_MERGE_RESULT fixed|flake|needs-human <one-sentence reason>"
   [ "$DRY" = 1 ] && { log "would run the fix agent for $url ($reason)"; return 0; }
-  NO_COLOR=1 "$HOME/.opencode/bin/opencode" run --auto --attach http://127.0.0.1:4096 --dir "$HOME/coval/$repo" -m "$AGENT_MODEL" \
+  NO_COLOR=1 "$HOME/.opencode/bin/opencode" run --auto --attach http://127.0.0.1:4096 --dir "$HOME/coval/$repo" -m "$AGENT_MODEL" --variant "$AGENT_VARIANT" \
     --title "routine: pr-auto-merge $repo#$number $(date +%Y-%m-%dT%H:%M)" "$prompt" > "$report" 2>&1 &
   local pid=$! started=$SECONDS
   while kill -0 "$pid" 2>/dev/null; do

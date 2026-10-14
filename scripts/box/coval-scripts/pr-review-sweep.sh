@@ -9,14 +9,14 @@ set -euo pipefail
 # dev.coval.pr-review-sweep — launchd-driven full PR review sweep.
 # Runs the authoritative pr-review-sweep procedure via headless opencode,
 # pinned to GLM 5.2 on the plain Alibaba provider. Fires at :09 and :39,
-# 08:00-17:59 PT, weekdays (see the plist's StartCalendarInterval; the
+# 06:00-19:59 PT, weekdays (see the plist's StartCalendarInterval; the
 # guards below are defense in depth, including launchd wake catch-up).
 
 dow=$(date +%u)
 hour=$(( 10#$(date +%H) ))
 minute=$(( 10#$(date +%M) ))
 [[ $dow -ge 6 ]] && { routine_skip "weekend: outside the sweep window"; exit 0; }
-(( hour < 8 || hour > 17 )) && { routine_skip "outside the sweep window (08:00-17:59 PT)"; exit 0; }
+(( hour < 6 || hour > 19 )) && { routine_skip "outside the sweep window (06:00-19:59 PT)"; exit 0; }
 
 LOG_DIR="${HOME}/.coval/logs"
 STATE_DIR="${HOME}/.coval/pr-review-sweep"

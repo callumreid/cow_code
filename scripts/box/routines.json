@@ -9,8 +9,8 @@
       "log": "~/.coval/logs/pr-review-sweep.log",
       "window": {
         "hours": [
-          8,
-          17
+          6,
+          19
         ],
         "weekdays": true
       }
@@ -53,7 +53,8 @@
       "title": "End-of-day review",
       "description": "Nightly at 22:00: cross-references Slack, GitHub, Claude conversations, git commits and Obsidian to fill gaps in the day's daily note.",
       "kind": "llm",
-      "log": "~/.coval/logs/eod-review.log"
+      "log": "~/.coval/logs/eod-review.log",
+      "model": "cloudflare-workers-ai/@cf/zai-org/glm-5.3"
     },
     "dev.bronson.cow-health": {
       "title": "Box health check",
@@ -64,7 +65,7 @@
       "title": "Merge when ready",
       "description": "Every 10 minutes: for each of Callum's open PRs carrying the cow:merge label (the merge toggle in Pull requests), enable GitHub auto-merge (squash) once it is green, approved, conflict-free and has no unresolved comments; when the merge queue bounces it, an agent works out why, fixes the PR if the PR caused it, and re-queues, up to 3 times, then DMs.",
       "kind": "shell",
-      "model": "chatgpt/gpt-5.5",
+      "model": "cloudflare-workers-ai/@cf/zai-org/glm-5.3",
       "log": "~/.coval/logs/pr-auto-merge.log"
     }
   },
