@@ -91,7 +91,7 @@ def review(pr, dry_run):
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
             log("busy", pr=f"{repo}#{number}")
-            return True
+            return None
         # Discovery keeps firing while reviews run. Bound provider work across ticks.
         slot = None
         for index in range(4):
@@ -104,7 +104,7 @@ def review(pr, dry_run):
                 candidate.close()
         if slot is None:
             log("deferred-capacity", pr=f"{repo}#{number}")
-            return True
+            return None
         try:
             return execute(pr, token)
         finally:
@@ -181,7 +181,22 @@ def main():
         repo, number = args.worker
         pr = json.loads(subprocess.run(["gh", "api", f"repos/{ORG}/{repo}/pulls/{int(number)}"],
                         check=True, capture_output=True, text=True, timeout=60).stdout)
-        return 0 if not eligible(pr) or review(pr, False) else 1
+        if not eligible(pr):
+            return 0
+        STATE.mkdir(parents=True, exist_ok=True)
+        receipt = STATE / f"{repo}-{number}-result.json"
+        result = None
+        try:
+            result = review(pr, False)
+        except Exception:
+            result = False
+            raise
+        finally:
+            if result is not None:
+                temporary = receipt.with_suffix(f".{os.getpid()}.tmp")
+                temporary.write_text(json.dumps({"head": pr["head"]["sha"], "ok": result}))
+                temporary.replace(receipt)
+        return 1 if result is False else 0
     candidates = discover()
     log("discovered", count=len(candidates))
     if args.dry_run:
@@ -189,15 +204,23 @@ def main():
             print(json.dumps(list(pool.map(lambda pr: review(pr, True), candidates)), indent=2))
         return 0
     STATE.mkdir(parents=True, exist_ok=True)
+    retrying_failure = False
     # Detached, bounded workers let the next discovery tick see newly arrived requests
     # even while a large review is running. Process locks prevent duplicate dispatch.
     for pr in candidates:
         repo = pr["base"]["repo"]["name"]
+        receipt = STATE / f"{repo}-{pr['number']}-result.json"
+        if receipt.exists():
+            previous = json.loads(receipt.read_text())
+            if previous["head"] == pr["head"]["sha"] and previous["ok"] is False:
+                log("retrying-failed-review", pr=f"{repo}#{pr['number']}")
+                retrying_failure = True
         with (STATE / f"{repo}-{pr['number']}-worker.log").open("a") as output:
             subprocess.Popen([sys.executable, __file__, "--worker", repo, str(pr["number"])],
                              stdout=output, stderr=subprocess.STDOUT, start_new_session=True)
         log("dispatched", pr=f"{repo}#{pr['number']}")
-    return 0
+    # Surface worker failures in the Scheduled view on the next tick, while retrying.
+    return 1 if retrying_failure else 0
 
 
 if __name__ == "__main__":

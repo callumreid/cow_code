@@ -91,7 +91,7 @@ class ReviewRequestsTest(unittest.TestCase):
                 patch.object(lane, "execute") as execute:
             with (Path(directory) / "clustering-workbench-51.lock").open("w") as lock:
                 lane.fcntl.flock(lock, lane.fcntl.LOCK_EX)
-                self.assertTrue(lane.review(pull(), False))
+                self.assertIsNone(lane.review(pull(), False))
             execute.assert_not_called()
 
     def test_provider_capacity_leaves_requests_pending(self):
@@ -102,7 +102,7 @@ class ReviewRequestsTest(unittest.TestCase):
             try:
                 for lock in locks:
                     lane.fcntl.flock(lock, lane.fcntl.LOCK_EX)
-                self.assertTrue(lane.review(pull(), False))
+                self.assertIsNone(lane.review(pull(), False))
                 execute.assert_not_called()
             finally:
                 for lock in locks:
