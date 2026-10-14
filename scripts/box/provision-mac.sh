@@ -151,7 +151,7 @@ PY
 
 log "coval scheduled-job scripts (box versions: attached to the server, routine titles, guard, archived filter)"
 mkdir -p "$HOME/coval/scripts"
-for f in "$HERE"/coval-scripts/*.sh; do
+for f in "$HERE"/coval-scripts/*.sh "$HERE"/coval-scripts/*.py; do
   b=$(basename "$f")
   if ! cmp -s "$f" "$HOME/coval/scripts/$b"; then install -m 755 "$f" "$HOME/coval/scripts/$b"; log "  installed coval/scripts/$b"; fi
 done
@@ -162,7 +162,7 @@ done
 mkdir -p "$HOME/.config/opencode"
 if ! cmp -s "$HERE/routines.json" "$HOME/.config/opencode/routines.json"; then install -m 644 "$HERE/routines.json" "$HOME/.config/opencode/routines.json"; log "  installed routines.json"; fi
 mkdir -p "$HOME/.coval/logs/routines"
-for j in dev.coval.pr-review-sweep dev.coval.pr-review-fixer dev.coval.pr-keep-updated dev.coval.pr-auto-merge dev.coval.daily-workers-health-audit dev.coval.daily-prod-validation dev.bronson.cow-health; do
+for j in dev.coval.pr-review-requests dev.coval.pr-review-sweep dev.coval.pr-review-fixer dev.coval.pr-keep-updated dev.coval.pr-auto-merge dev.coval.daily-workers-health-audit dev.coval.daily-prod-validation dev.bronson.cow-health; do
   # A job someone parked as <label>.plist.disabled stays parked: re-provisioning must not quietly re-arm it
   # (the two daily coval jobs have been parked that way since their 2026-09-10 failures).
   if [ -e "$HOME/Library/LaunchAgents/$j.plist.disabled" ] && [ ! -f "$HOME/Library/LaunchAgents/$j.plist" ]; then log "  $j stays disabled ($j.plist.disabled)"; continue; fi

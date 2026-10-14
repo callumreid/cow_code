@@ -67,6 +67,13 @@
       "kind": "shell",
       "model": "cloudflare-workers-ai/@cf/zai-org/glm-5.3",
       "log": "~/.coval/logs/pr-auto-merge.log"
+    },
+    "dev.coval.pr-review-requests": {
+      "title": "Direct PR review requests",
+      "description": "Every five minutes, around the clock: reviews direct requests across Coval repos, including same-commit re-requests; independent of the bulk sweep.",
+      "kind": "llm",
+      "model": "cloudflare-workers-ai/@cf/zai-org/glm-5.3",
+      "log": "~/.coval/logs/pr-review-requests.log"
     }
   },
   "services": {

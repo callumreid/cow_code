@@ -3,6 +3,12 @@
 every change to the cow lands here, newest first, one line per thing you would notice.
 what each feature is, and the films, live in the [feature reel](docs/features/README.md).
 
+## 2026-10-14
+
+### Fixed
+
+- direct Coval review requests get their own five-minute, around-the-clock lane; same-commit re-requests get a fresh review without waiting behind the bulk sweep
+
 ## 2026-10-07
 
 ### Fixed
