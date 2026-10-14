@@ -7,6 +7,10 @@
 # review re-requested. One opencode session per PR, run in parallel (COW_FIXER_MAX_PARALLEL, default 4),
 # pinned to GLM 5.3 at medium reasoning effort. Fires every :00/:30, 08:00-18:00 PT, weekdays.
 #
+# Each round is batched: the fixer waits until a PR's review comments stop arriving, triages the whole
+# round, and makes at most one commit and one push for it (nits get a reply and are resolved, not fixed).
+# After two fixing rounds on a PR in a day, later rounds reply without pushing, so the bot loop ends.
+#
 # The fixer holds its own lock instead of the shared LLM-routine lock: the 90-minute review sweep used
 # to starve it (5 of 6 slots skipped on 2026-09-16), and the two never touch the same PRs — the sweep
 # never reviews Callum's PRs, the fixer only works on them.
@@ -29,6 +33,10 @@ MAX_PARALLEL=${COW_FIXER_MAX_PARALLEL:-4}
 PER_PR_TIMEOUT=${COW_FIXER_PR_TIMEOUT:-2700}   # seconds; one PR's session is killed past this
 MAX_ATTEMPTS=${COW_FIXER_MAX_ATTEMPTS:-3}      # a session that dies on the provider's rate limit is relaunched up to this many times
 RATE_LIMIT_BACKOFF=${COW_FIXER_RATE_LIMIT_BACKOFF:-90}   # seconds to hold new launches after a rate-limit death
+# Every push draws a fresh bot review, so a fixer that pushes each round chases its own tail
+# (sofia-agent#1116 took 18 rounds in a week, most for a single comment). Two guards:
+QUIET_MINUTES=${COW_FIXER_QUIET_MINUTES:-10}            # wait until no new review comment has landed for this long
+MAX_FIX_ROUNDS=${COW_FIXER_MAX_FIX_ROUNDS_PER_DAY:-2}   # fixing rounds per PR per day; later rounds only reply
 OPENCODE=/Users/bronson/.opencode/bin/opencode
 SKILL=/Users/bronson/.claude/skills/fix-review-comments/SKILL.md
 
@@ -37,7 +45,9 @@ STATE_DIR="${HOME}/.coval/pr-review-fixer"
 REPORT_DIR="${STATE_DIR}/reports"
 LOG_FILE="${LOG_DIR}/pr-review-fixer.log"
 LOCK="${LOG_DIR}/pr-review-fixer.lock"
+ROUNDS_FILE="${STATE_DIR}/rounds.tsv"   # <date>\t<repo#number>\t<fix|reply-only>, one line per session
 mkdir -p "${LOG_DIR}" "${REPORT_DIR}"
+touch "${ROUNDS_FILE}"
 
 if ! mkdir "${LOCK}" 2>/dev/null; then
   previous_pid=""
@@ -53,7 +63,7 @@ if ! mkdir "${LOCK}" 2>/dev/null; then
 fi
 printf '%s\n' "$$" > "${LOCK}/pid"
 
-typeset -A running_pid running_start running_report running_item attempts
+typeset -A running_pid running_start running_report running_item attempts modes
 cleanup() {
   local key pid
   for key in ${(k)running_pid}; do
@@ -88,20 +98,22 @@ prs=$(gh search prs --author="${ME}" --state=open --owner="${ORG}" --archived=fa
 # A thread needs the fixer when it is unresolved, somebody other than Callum opened it (review bot or
 # coworker alike), and Callum has not answered it yet (last comment is not his).
 flagged=()
+deferred=()
 while IFS= read -r line; do
   [[ -z "${line}" ]] && continue
   repo=${line%% *}
   number=${line##* }
   repo_is_archived "${repo}" && continue
   if gh pr view "${number}" -R "${ORG}/${repo}" --json labels --jq '.labels[].name' 2>/dev/null | grep -q '^cow:no-autofix$'; then continue; fi
-  count=$(gh api graphql -f query='
+  # "<unanswered thread count> <minutes since the newest of their last comments>"
+  found=$(gh api graphql -f query='
   query($owner:String!, $repo:String!, $number:Int!) {
     repository(owner:$owner, name:$repo) {
       pullRequest(number:$number) {
         reviewThreads(first:100) {
           nodes {
             isResolved
-            comments(first:50) { nodes { author { login } } }
+            comments(first:50) { nodes { author { login } createdAt } }
           }
         }
       }
@@ -112,15 +124,30 @@ while IFS= read -r line; do
            | select((.comments.nodes | length) > 0)
            | select((.comments.nodes[0].author.login // \"\") != \"${ME}\")
            | select((.comments.nodes[-1].author.login // \"\") != \"${ME}\")]
-          | length" 2>/dev/null || echo 0)
+          | if length == 0 then \"0 0\"
+            else \"\(length) \(((now - ([.[].comments.nodes[-1].createdAt | fromdateiso8601] | max)) / 60) | floor)\" end" \
+    2>/dev/null || echo "0 0")
+  count=${found%% *}
+  quiet=${found##* }
   if [[ "${count}" -gt 0 ]]; then
-    flagged+=("${repo} ${number} ${count}")
+    # A bot posts a round's findings over several minutes. Acting mid-round fixes part of it, and that
+    # push draws the next round, so wait until the PR has gone quiet and take the whole round at once.
+    if (( quiet < QUIET_MINUTES )); then
+      deferred+=("${repo}#${number}")
+    else
+      flagged+=("${repo} ${number} ${count}")
+    fi
   fi
 done <<< "${prs}"
 
 echo "=== $(date -Iseconds) ===" >> "${LOG_FILE}"
+(( ${#deferred[@]} > 0 )) && echo "Deferred until the review round settles (<${QUIET_MINUTES} min since the last comment): ${(j:, :)deferred}" >> "${LOG_FILE}"
 if (( ${#flagged[@]} == 0 )); then
-  echo "No unanswered review comments on open PRs. Nothing to do." | tee -a "${LOG_FILE}"
+  if (( ${#deferred[@]} > 0 )); then
+    echo "${#deferred[@]} PR(s) still receiving review comments; waiting for the round to settle." | tee -a "${LOG_FILE}"
+  else
+    echo "No unanswered review comments on open PRs. Nothing to do." | tee -a "${LOG_FILE}"
+  fi
   exit 0
 fi
 echo "Flagged PRs (${#flagged[@]}), up to ${MAX_PARALLEL} in parallel: ${(j:, :)flagged}" >> "${LOG_FILE}"
@@ -133,6 +160,20 @@ launch_one() {  # usage: launch_one <repo> <number> <count>  -> starts one openc
   local attempt=$(( ${attempts[$key]:-0} + 1 ))
   local report="${REPORT_DIR}/${stamp}-${repo}-${number}.log"
   (( attempt > 1 )) && report="${REPORT_DIR}/${stamp}-${repo}-${number}-attempt${attempt}.log"
+  # The mode is decided once per run; a rate-limit relaunch keeps it.
+  if [[ -z "${modes[$key]:-}" ]]; then
+    local today rounds
+    today=$(date +%F)
+    rounds=$(awk -F'\t' -v d="${today}" -v k="${key}" '$1 == d && $2 == k && $3 == "fix"' "${ROUNDS_FILE}" | wc -l | tr -d ' ')
+    if (( rounds >= MAX_FIX_ROUNDS )); then modes[$key]=reply-only; else modes[$key]=fix; fi
+    printf '%s\t%s\t%s\n' "${today}" "${key}" "${modes[$key]}" >> "${ROUNDS_FILE}"
+  fi
+  local mode_rule
+  if [[ "${modes[$key]}" == reply-only ]]; then
+    mode_rule="This PR has already had ${MAX_FIX_ROUNDS} fixing rounds today, so this round is REPLY-ONLY: make no commit and no push unless the round contains (a) a coworker's comment asking for a change or (b) a confirmed P0/P1 bug you can show in the code with a concrete failure — and then still exactly one commit and one push covering all of them. Everything else gets its reply and is resolved (bots) or left open and flagged (a coworker you disagree with)."
+  else
+    mode_rule="This is a fixing round (at most ${MAX_FIX_ROUNDS} per PR per day)."
+  fi
   (
     cd /Users/bronson/coval
     NO_COLOR=1 "${OPENCODE}" run --auto --attach http://127.0.0.1:4096 \
@@ -140,15 +181,23 @@ launch_one() {  # usage: launch_one <repo> <number> <count>  -> starts one openc
       --title "routine: pr-review-fixer ${key} $(date +%Y-%m-%dT%H:%M)" "
 Apply my fix-review-comments skill at ${SKILL} to exactly ONE pull request: ${ORG}/${repo} #${number} (https://github.com/${ORG}/${repo}/pull/${number}). It currently has ${count} unresolved review thread(s) that nobody has answered. Other PRs are being handled by sibling sessions — do not touch any other PR.
 
-Follow the skill end to end for this PR. The non-negotiable parts:
+Follow the skill end to end for this PR. ${mode_rule}
+
+BATCH THE ROUND. Every push makes the review bots review the PR again, so pushes are what generate new comments:
+- Read and triage ALL the threads before changing anything, then make at most ONE commit and ONE push for the whole round. Never commit or push per comment.
+- Fix only what is worth fixing: real bugs, the repo's conventions, and clean-code problems in this PR's own changes. Nits, style preferences, speculative concerns and suggestions outside the PR's diff are not worth a push: reply once, briefly, saying why not, and resolve the thread.
+- If nothing in the round is worth fixing, make no commit and no push at all; just reply and resolve.
+- Never @-mention a review bot, ask a bot to re-review, or otherwise trigger another bot pass.
+
+The non-negotiable parts:
 1. FIRST record the re-request list: every human reviewer whose latest review on the PR is CHANGES_REQUESTED (dedupe by login, skip bots). Capture it before any fix lands.
-2. Gather every UNRESOLVED review thread whose first comment is not by ${ME} and whose last comment is not by ${ME}. Review-bot threads AND coworker threads alike — a coworker's comment gets exactly the same triage and fix as a bot's.
-3. Set up a fresh git worktree from the PR head branch (repo checkouts live in /Users/bronson/coval/<repo>; their working trees may be dirty — never commit there; if a worktree or temp branch from an earlier attempt on this PR is still around, remove it first). Triage every comment against the actual current code, apply minimal fixes for the valid ones, run only the affected tests plus the repo's linter, commit with the PR's [COVAL-XXXX] prefix, push to the PR branch, and verify the remote branch head is your fix commit before replying.
-4. Reply to every thread through the REST replies API with evidence (the commit hash for fixes). Then RESOLVE the thread (resolveReviewThread with the thread's GraphQL node id) for every comment you fixed, showed already fixed, or rejected as a bot false positive, and read isResolved back to confirm. The only threads left open are a coworker's you disagree with and comments you skipped as too large or risky — reply explaining, and flag them in your report.
-5. After the fixes are pushed and every reply is posted, re-request review from every login on the re-request list (POST pulls/${number}/requested_reviewers), then read requested_reviewers back and report the exact logins. Never request anyone who is not on that list; if the list is empty say so.
+2. Gather every UNRESOLVED review thread whose first comment is not by ${ME} and whose last comment is not by ${ME}. Review-bot threads AND coworker threads alike — a coworker's comment gets exactly the same triage as a bot's.
+3. Set up a fresh git worktree from the PR head branch (repo checkouts live in /Users/bronson/coval/<repo>; their working trees may be dirty — never commit there; if a worktree or temp branch from an earlier attempt on this PR is still around, remove it first). Triage every comment against the actual current code and apply minimal fixes for the ones worth fixing. If there is at least one, run only the affected tests plus the repo's linter, make ONE commit with the PR's [COVAL-XXXX] prefix, push once, and verify the remote branch head is your fix commit before replying.
+4. Reply to every thread through the REST replies API with evidence (the commit hash for a fix, a one-line reason for anything declined). Then RESOLVE the thread (resolveReviewThread with the thread's GraphQL node id) for every comment you fixed, showed already fixed, rejected as a bot false positive, or declined as a bot nit not worth fixing, and read isResolved back to confirm. The only threads left open are a coworker's you disagree with and comments you skipped as too large or risky — reply explaining, and flag them in your report.
+5. Only if you pushed a fix: after every reply is posted, re-request review from every login on the re-request list (POST pulls/${number}/requested_reviewers), then read requested_reviewers back and report the exact logins. Never request anyone who is not on that list; if the list is empty, or you pushed nothing, say so.
 6. Remove the worktree and any temporary branch.
 
-Do not merge, do not enable auto-merge, do not promote the draft state, do not debug the environment — if a tool misbehaves, state it plainly and stop. End with a summary table (comment, author, file, triage, action, commit hash, resolved yes/no) plus the re-requested reviewer logins."
+Do not merge, do not enable auto-merge, do not promote the draft state, do not debug the environment — if a tool misbehaves, state it plainly and stop. End with a summary table (comment, author, file, triage, action, commit hash, resolved yes/no), whether you pushed (and the one commit hash), plus the re-requested reviewer logins."
   ) > "${report}" 2>&1 &
   # zsh 5.9 leaves `assoc[$key]=$!` as the literal text "$!"; capture the pid into a plain variable first.
   pid=$!
@@ -157,7 +206,7 @@ Do not merge, do not enable auto-merge, do not promote the draft state, do not d
   running_report[$key]="${report}"
   running_item[$key]="${repo} ${number} ${count}"
   attempts[$key]=${attempt}
-  echo "$(date -Iseconds): started ${key} (${count} threads, attempt ${attempts[$key]}) pid ${running_pid[$key]} -> ${report}" >> "${LOG_FILE}"
+  echo "$(date -Iseconds): started ${key} (${count} threads, ${modes[$key]}, attempt ${attempts[$key]}) pid ${running_pid[$key]} -> ${report}" >> "${LOG_FILE}"
 }
 
 # opencode run exits 0 even when the session died on a provider error; the report's last line says so.
@@ -208,7 +257,7 @@ routine_finish "routine: pr-review-fixer"
 
 rc=0
 (( failed > 0 || timed_out > 0 )) && rc=1
-summary="PR_REVIEW_FIXER_COMPLETE $(date +%Y-%m-%dT%H:%M:%S%z) prs=${#flagged[@]} ok=${ok} failed=${failed} timed_out=${timed_out} relaunched=${relaunched}"
+summary="PR_REVIEW_FIXER_COMPLETE $(date +%Y-%m-%dT%H:%M:%S%z) prs=${#flagged[@]} deferred=${#deferred[@]} ok=${ok} failed=${failed} timed_out=${timed_out} relaunched=${relaunched}"
 echo "${summary}" >> "${LOG_FILE}"
 echo "${summary}"
 exit "${rc}"

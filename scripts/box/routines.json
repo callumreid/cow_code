@@ -17,7 +17,7 @@
     },
     "dev.coval.pr-review-fixer": {
       "title": "PR review auto-fixer",
-      "description": "Fixes review comments from bots and coworkers on Callum's open PRs, one parallel thread per PR (GLM 5.3, medium reasoning): pushes the fix, replies with evidence, resolves the fixed threads and re-requests review from whoever requested changes. Skips PRs labeled cow:no-autofix (the brain toggle in Pull requests).",
+      "description": "Fixes review comments from bots and coworkers on Callum's open PRs, one parallel thread per PR (GLM 5.3, medium reasoning). Waits until a PR's review round has settled, then fixes what is worth fixing in one commit and one push, replies to the rest and resolves the threads, and re-requests review from whoever requested changes. At most two fixing rounds per PR a day; later rounds only reply. Skips PRs labeled cow:no-autofix (the brain toggle in Pull requests).",
       "kind": "llm",
       "model": "cloudflare-workers-ai/@cf/zai-org/glm-5.3",
       "log": "~/.coval/logs/pr-review-fixer.log",
