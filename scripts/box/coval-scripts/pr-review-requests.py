@@ -135,6 +135,9 @@ Do a careful read-only review using the actual baseRefName and three-dot diff; c
 against GitHub. Lead a re-review with whether prior findings are addressed. Lean APPROVE;
 REQUEST_CHANGES only for a confirmed P0/P1 with a concrete failure scenario. Post findings inline
 using /Users/bronson/.agents/skills/review-pr/scripts/post-inline-review.py --dry-run first.
+For robyoungsf in frontend, preserve Callum's designer bar: report ONLY confirmed serious bugs
+that must not merge. No style, performance, architecture, DRY, coverage, TypeScript or color-token
+nits. Otherwise approve with an empty findings list and a two-sentence body.
 Before POST, read current PR and paginated reviews and request timeline again: require exact head,
 open non-draft, direct callumreid request, and unchanged latest request event. If Callum already
 submitted a review on this head AFTER this request, stop without posting. An approval BEFORE this
