@@ -9,7 +9,6 @@
 #
 # Each round is batched: the fixer waits until a PR's review comments stop arriving, triages the whole
 # round, and makes at most one commit and one push for it (nits get a reply and are resolved, not fixed).
-# After two fixing rounds on a PR in a day, later rounds reply without pushing, so the bot loop ends.
 #
 # The fixer holds its own lock instead of the shared LLM-routine lock: the 90-minute review sweep used
 # to starve it (5 of 6 slots skipped on 2026-09-16), and the two never touch the same PRs — the sweep
@@ -34,9 +33,9 @@ PER_PR_TIMEOUT=${COW_FIXER_PR_TIMEOUT:-2700}   # seconds; one PR's session is ki
 MAX_ATTEMPTS=${COW_FIXER_MAX_ATTEMPTS:-3}      # a session that dies on the provider's rate limit is relaunched up to this many times
 RATE_LIMIT_BACKOFF=${COW_FIXER_RATE_LIMIT_BACKOFF:-90}   # seconds to hold new launches after a rate-limit death
 # Every push draws a fresh bot review, so a fixer that pushes each round chases its own tail
-# (sofia-agent#1116 took 18 rounds in a week, most for a single comment). Two guards:
-QUIET_MINUTES=${COW_FIXER_QUIET_MINUTES:-10}            # wait until no new review comment has landed for this long
-MAX_FIX_ROUNDS=${COW_FIXER_MAX_FIX_ROUNDS_PER_DAY:-2}   # fixing rounds per PR per day; later rounds only reply
+# (sofia-agent#1116 took 18 rounds in a week, most for a single comment). So each round is batched
+# (see the prompt), and discovery waits until no new review comment has landed for this long:
+QUIET_MINUTES=${COW_FIXER_QUIET_MINUTES:-10}
 OPENCODE=/Users/bronson/.opencode/bin/opencode
 SKILL=/Users/bronson/.claude/skills/fix-review-comments/SKILL.md
 
@@ -45,9 +44,7 @@ STATE_DIR="${HOME}/.coval/pr-review-fixer"
 REPORT_DIR="${STATE_DIR}/reports"
 LOG_FILE="${LOG_DIR}/pr-review-fixer.log"
 LOCK="${LOG_DIR}/pr-review-fixer.lock"
-ROUNDS_FILE="${STATE_DIR}/rounds.tsv"   # <date>\t<repo#number>\t<fix|reply-only>, one line per session
 mkdir -p "${LOG_DIR}" "${REPORT_DIR}"
-touch "${ROUNDS_FILE}"
 
 if ! mkdir "${LOCK}" 2>/dev/null; then
   previous_pid=""
@@ -63,7 +60,7 @@ if ! mkdir "${LOCK}" 2>/dev/null; then
 fi
 printf '%s\n' "$$" > "${LOCK}/pid"
 
-typeset -A running_pid running_start running_report running_item attempts modes
+typeset -A running_pid running_start running_report running_item attempts
 cleanup() {
   local key pid
   for key in ${(k)running_pid}; do
@@ -160,20 +157,6 @@ launch_one() {  # usage: launch_one <repo> <number> <count>  -> starts one openc
   local attempt=$(( ${attempts[$key]:-0} + 1 ))
   local report="${REPORT_DIR}/${stamp}-${repo}-${number}.log"
   (( attempt > 1 )) && report="${REPORT_DIR}/${stamp}-${repo}-${number}-attempt${attempt}.log"
-  # The mode is decided once per run; a rate-limit relaunch keeps it.
-  if [[ -z "${modes[$key]:-}" ]]; then
-    local today rounds
-    today=$(date +%F)
-    rounds=$(awk -F'\t' -v d="${today}" -v k="${key}" '$1 == d && $2 == k && $3 == "fix"' "${ROUNDS_FILE}" | wc -l | tr -d ' ')
-    if (( rounds >= MAX_FIX_ROUNDS )); then modes[$key]=reply-only; else modes[$key]=fix; fi
-    printf '%s\t%s\t%s\n' "${today}" "${key}" "${modes[$key]}" >> "${ROUNDS_FILE}"
-  fi
-  local mode_rule
-  if [[ "${modes[$key]}" == reply-only ]]; then
-    mode_rule="This PR has already had ${MAX_FIX_ROUNDS} fixing rounds today, so this round is REPLY-ONLY: make no commit and no push unless the round contains (a) a coworker's comment asking for a change or (b) a confirmed P0/P1 bug you can show in the code with a concrete failure — and then still exactly one commit and one push covering all of them. Everything else gets its reply and is resolved (bots) or left open and flagged (a coworker you disagree with)."
-  else
-    mode_rule="This is a fixing round (at most ${MAX_FIX_ROUNDS} per PR per day)."
-  fi
   (
     cd /Users/bronson/coval
     NO_COLOR=1 "${OPENCODE}" run --auto --attach http://127.0.0.1:4096 \
@@ -181,7 +164,7 @@ launch_one() {  # usage: launch_one <repo> <number> <count>  -> starts one openc
       --title "routine: pr-review-fixer ${key} $(date +%Y-%m-%dT%H:%M)" "
 Apply my fix-review-comments skill at ${SKILL} to exactly ONE pull request: ${ORG}/${repo} #${number} (https://github.com/${ORG}/${repo}/pull/${number}). It currently has ${count} unresolved review thread(s) that nobody has answered. Other PRs are being handled by sibling sessions — do not touch any other PR.
 
-Follow the skill end to end for this PR. ${mode_rule}
+Follow the skill end to end for this PR.
 
 BATCH THE ROUND. Every push makes the review bots review the PR again, so pushes are what generate new comments:
 - Read and triage ALL the threads before changing anything, then make at most ONE commit and ONE push for the whole round. Never commit or push per comment.
@@ -206,7 +189,7 @@ Do not merge, do not enable auto-merge, do not promote the draft state, do not d
   running_report[$key]="${report}"
   running_item[$key]="${repo} ${number} ${count}"
   attempts[$key]=${attempt}
-  echo "$(date -Iseconds): started ${key} (${count} threads, ${modes[$key]}, attempt ${attempts[$key]}) pid ${running_pid[$key]} -> ${report}" >> "${LOG_FILE}"
+  echo "$(date -Iseconds): started ${key} (${count} threads, attempt ${attempts[$key]}) pid ${running_pid[$key]} -> ${report}" >> "${LOG_FILE}"
 }
 
 # opencode run exits 0 even when the session died on a provider error; the report's last line says so.
