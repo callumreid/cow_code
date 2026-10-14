@@ -22,7 +22,7 @@ import { UI } from "../ui"
 import { effectCmd } from "../effect-cmd"
 import { EOL } from "os"
 import { Filesystem } from "@/util/filesystem"
-import { createOpencodeClient, type OpencodeClient, type ToolPart } from "@opencode-ai/sdk/v2"
+import { createOpencodeClient, type OpencodeClient, type TextPart, type ToolPart } from "@opencode-ai/sdk/v2"
 import { FormatError, FormatUnknownError } from "../error"
 import { INTERACTIVE_INPUT_ERROR, resolveInteractiveStdin } from "./run/runtime.stdin"
 
@@ -722,6 +722,36 @@ export const RunCommand = effectCmd({
           return false
         }
 
+        // Text parts already written, so the final read-back below never repeats one.
+        const printed = new Set<string>()
+        function printText(part: TextPart) {
+          if (printed.has(part.id)) return
+          printed.add(part.id)
+          if (emit("text", { part })) return
+          const text = part.text.trim()
+          if (!text) return
+          if (!process.stdout.isTTY) {
+            process.stdout.write(text + EOL)
+            return
+          }
+          UI.empty()
+          UI.println(text)
+          UI.empty()
+        }
+
+        // Print any text of this turn's replies that the event stream has not delivered yet.
+        async function printFinalReply(client: OpencodeClient) {
+          const response = await client.session.messages({ sessionID }).catch(() => undefined)
+          const messages = response?.data ?? []
+          const prompt = messages.findLastIndex((message) => message.info.role === "user")
+          for (const message of messages.slice(prompt + 1)) {
+            if (message.info.role !== "assistant") continue
+            for (const part of message.parts) {
+              if (part.type === "text") printText(part)
+            }
+          }
+        }
+
         // Consume one subscribed event stream for the active session and mirror it
         // to stdout/UI. `client` is passed explicitly because attach mode may
         // rebind the SDK to the session's directory after the subscription is
@@ -783,16 +813,8 @@ export const RunCommand = effectCmd({
               }
 
               if (part.type === "text" && part.time?.end) {
-                if (emit("text", { part })) continue
-                const text = part.text.trim()
-                if (!text) continue
-                if (!process.stdout.isTTY) {
-                  process.stdout.write(text + EOL)
-                  continue
-                }
-                UI.empty()
-                UI.println(text)
-                UI.empty()
+                printText(part)
+                continue
               }
 
               if (part.type === "reasoning" && part.time?.end && thinking) {
@@ -869,7 +891,14 @@ export const RunCommand = effectCmd({
             process.exitCode = 1
           })
           async function finish() {
-            if (args.attach) return
+            if (args.attach) {
+              // Attached to a remote server, the prompt can return before the event stream delivers the
+              // closing message, and the process exits as soon as this handler returns. Give the stream a
+              // moment, then read the reply back so its last text is never dropped.
+              await Promise.race([completed, Bun.sleep(5_000)])
+              await printFinalReply(client)
+              return
+            }
             const error = await completed
             if (error) process.exitCode = 1
           }

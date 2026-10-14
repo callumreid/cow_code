@@ -307,6 +307,26 @@ describe("opencode run (non-interactive subprocess)", () => {
     60_000,
   )
 
+  // The prompt can return before the event stream delivers the closing message; attach mode used to
+  // exit right then, so scripted callers never saw the reply's last line.
+  cliIt.live(
+    "attach mode writes the final reply to stdout",
+    ({ llm, opencode }) =>
+      Effect.gen(function* () {
+        yield* llm.text("FINAL_MARKER from the attached server")
+        const server = yield* opencode.serve()
+
+        const result = yield* opencode.run("reply with the marker", {
+          extraArgs: ["--attach", server.url, "--"],
+        })
+
+        opencode.expectExit(result, 0)
+        expect(result.stdout).toContain("FINAL_MARKER from the attached server")
+        expect(result.stdout.split("FINAL_MARKER").length - 1).toBe(1)
+      }),
+    60_000,
+  )
+
   cliIt.concurrent(
     "attach mode rejects local directories before prompt admission",
     ({ home, opencode }) =>
