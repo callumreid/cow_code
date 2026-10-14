@@ -55,12 +55,13 @@ fi
 
 stamp=$(date +%Y%m%dT%H%M%S)
 report="${REPORT_DIR}/${stamp}.log"
+title="routine: eod-review $(date +%Y-%m-%dT%H:%M)"
 
 rc=0
 runner_pid=""
 cd /Users/bronson/coval
 NO_COLOR=1 /Users/bronson/.opencode/bin/opencode run --auto --attach http://127.0.0.1:4096 \
-  --title "routine: eod-review $(date +%Y-%m-%dT%H:%M)" \
+  --title "${title}" \
   -m cloudflare-workers-ai/@cf/zai-org/glm-5.3 --variant medium \
   "You are the eod-review scheduled runner (a launchd-driven headless opencode session) on Callum's box, firing at 22:00 PT on weeknights. Working directory /Users/bronson/coval — a multi-repo container, NOT a git repo; the review spans the whole home directory. Target date: ${TARGET_DATE} (resolved at fire time, so a sleep catch-up still reviews the intended day). Display all times in PST/PDT, never UTC.
 
@@ -95,6 +96,7 @@ if (( rc == 0 )); then
   wait "${runner_pid}" || rc=$?
 fi
 runner_pid=""
+routine_append_final "${title}" "${report}"   # the client can drop the closing message
 
 # No completion line means the review is INCOMPLETE, whatever the runner's own
 # exit code was — surface that to launchd instead of a false rc 0.

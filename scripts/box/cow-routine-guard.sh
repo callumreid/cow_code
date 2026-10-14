@@ -35,3 +35,29 @@ for s in json.load(sys.stdin):
     curl -s -o /dev/null -u "cow:$PW" -H "$D" -X POST "http://127.0.0.1:4096/session/$sid/abort" 2>/dev/null
   done
 }
+# The `opencode run --attach` client stops reading when its session goes idle, and in builds since
+# 2026-10-13 the final message's last update can arrive after that, so the model's closing text (the
+# completion or result line a wrapper greps for) never reaches the report. Read the session's final
+# assistant message back from the server and append it to the report.
+# usage: routine_append_final <exact session title> <report> [session directory, default ~/coval]
+routine_append_final() {
+  local title="$1" report="$2" dir="${3:-/Users/bronson/coval}" PW D sid
+  PW=$(head -1 "$HOME/.config/opencode/server-password")
+  D="x-opencode-directory: $dir"
+  sid=$(curl -s -u "cow:$PW" -H "$D" "http://127.0.0.1:4096/session?limit=200" 2>/dev/null | python3 -c "
+import json,sys
+for s in json.load(sys.stdin):
+    if s.get('title') == sys.argv[1]: print(s['id']); break" "$title" 2>/dev/null || true)
+  [ -n "$sid" ] || return 0
+  {
+    echo "=== final message, read back from the server (session $sid) ==="
+    curl -s -u "cow:$PW" -H "$D" "http://127.0.0.1:4096/session/$sid/message" 2>/dev/null | python3 -c "
+import json,sys
+msgs=json.load(sys.stdin)
+users=[i for i,m in enumerate(msgs) if m.get('info',{}).get('role')=='user']
+replies=[m for m in msgs[(users[-1]+1 if users else 0):] if m.get('info',{}).get('role')=='assistant']
+for p in (replies[-1].get('parts',[]) if replies else []):
+    if p.get('type')=='text' and p.get('text','').strip(): print(p['text'].strip())" 2>/dev/null || true
+  } >> "$report"
+  return 0
+}

@@ -59,10 +59,11 @@ trap cleanup EXIT INT TERM
 
 stamp=$(date +%Y%m%dT%H%M%S)
 report="${REPORT_DIR}/${stamp}.log"
+title="routine: pr-review-sweep $(date +%Y-%m-%dT%H:%M)"
 
 rc=0
 NO_COLOR=1 /Users/bronson/.opencode/bin/opencode run --auto --attach http://127.0.0.1:4096 \
-  --title "routine: pr-review-sweep $(date +%Y-%m-%dT%H:%M)" \
+  --title "${title}" \
   -m cloudflare-workers-ai/@cf/zai-org/glm-5.3 \
   "You are the pr-review-sweep scheduled runner (a launchd-driven headless opencode session). Working directory /Users/bronson/coval — a multi-repo container, NOT a git repo; always git -C <repo>. GitHub login callumreid, org coval-ai. Display all times in PST/PDT, never UTC.
 
@@ -100,6 +101,7 @@ if (( rc == 0 )); then
   wait "${runner_pid}" || rc=$?
 fi
 runner_pid=""
+routine_append_final "${title}" "${report}"   # the client can drop the closing message
 
 # No completion line means the sweep is INCOMPLETE, whatever the runner's own
 # exit code was — surface that to launchd instead of a false rc 0.

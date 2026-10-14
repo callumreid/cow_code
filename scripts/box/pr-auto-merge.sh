@@ -125,6 +125,7 @@ arm() {
 fix_bounce() {
   local repo="$1" number="$2" url="$3" head="$4" branch="$5" reason="$6" at="$7" key="$1#$2"
   local report="$LOG_DIR/pr-auto-merge-$(date +%Y%m%dT%H%M%S)-$repo-$number.log"
+  local title="routine: pr-auto-merge $repo#$number $(date +%Y-%m-%dT%H:%M)"
   local prompt="You are the merge-when-ready agent on the cow box. PR: $url (coval-ai/$repo #$number, branch $branch, head $head). It carries the cow:merge label, so Callum has authorized merging it. The merge queue removed it at $at with this reason: \"$reason\".
 Do this:
 1. Find out why the queue removed it: read the reason, look at the merge-group checks (gh run list -R coval-ai/$repo, the merge-group runs for this PR, and gh pr checks $number -R coval-ai/$repo) and read the failing job logs.
@@ -133,7 +134,7 @@ Rules: never merge, never enable auto-merge yourself, never touch other PRs, nev
 Finish with exactly one line in this format, using one of the three words: AUTO_MERGE_RESULT fixed|flake|needs-human <one-sentence reason>"
   [ "$DRY" = 1 ] && { log "would run the fix agent for $url ($reason)"; return 0; }
   NO_COLOR=1 "$HOME/.opencode/bin/opencode" run --auto --attach http://127.0.0.1:4096 --dir "$HOME/coval/$repo" -m "$AGENT_MODEL" --variant "$AGENT_VARIANT" \
-    --title "routine: pr-auto-merge $repo#$number $(date +%Y-%m-%dT%H:%M)" "$prompt" > "$report" 2>&1 &
+    --title "$title" "$prompt" > "$report" 2>&1 &
   local pid=$! started=$SECONDS
   while kill -0 "$pid" 2>/dev/null; do
     if (( SECONDS - started > AGENT_LIMIT_SECONDS )); then
@@ -144,6 +145,7 @@ Finish with exactly one line in this format, using one of the three words: AUTO_
     sleep 20
   done
   wait "$pid" 2>/dev/null
+  routine_append_final "$title" "$report" "$HOME/coval/$repo"   # the client can drop the closing message
   routine_finish "routine: pr-auto-merge $repo#$number"
   local result verdict why
   result=$(grep -a -o 'AUTO_MERGE_RESULT .*' "$report" | tail -1)
