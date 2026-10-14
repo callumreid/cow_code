@@ -108,6 +108,27 @@ class ReviewRequestsTest(unittest.TestCase):
                 for lock in locks:
                     lock.close()
 
+    def test_worker_failure_is_persisted_for_scheduler(self):
+        with tempfile.TemporaryDirectory() as directory, patch.object(lane, "STATE", Path(directory)), \
+                patch.object(lane.sys, "argv", ["lane", "--worker", "clustering-workbench", "51"]), \
+                patch.object(lane.shutil, "which", return_value="gh"), \
+                patch.object(lane.subprocess, "run", return_value=subprocess.CompletedProcess([], 0, json.dumps(pull()))), \
+                patch.object(lane, "review", side_effect=RuntimeError("provider failed")):
+            with self.assertRaises(RuntimeError):
+                lane.main()
+            receipt = json.loads((Path(directory) / "clustering-workbench-51-result.json").read_text())
+            self.assertEqual(receipt, {"head": "abc", "ok": False})
+
+    def test_discovery_retries_and_surfaces_worker_failure(self):
+        with tempfile.TemporaryDirectory() as directory, patch.object(lane, "STATE", Path(directory)), \
+                patch.object(lane.sys, "argv", ["lane"]), \
+                patch.object(lane.shutil, "which", return_value="gh"), \
+                patch.object(lane, "discover", return_value=[pull()]), \
+                patch.object(lane.subprocess, "Popen") as spawn:
+            (Path(directory) / "clustering-workbench-51-result.json").write_text('{"head":"abc","ok":false}')
+            self.assertEqual(lane.main(), 1)
+            spawn.assert_called_once()
+
 
 if __name__ == "__main__":
     unittest.main()
