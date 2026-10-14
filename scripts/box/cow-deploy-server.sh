@@ -4,7 +4,7 @@
 # binary, restarts cow-server and verifies. Rolls back if the new build opens a different database
 # (the sqlite file is named after the build channel: build with OPENCODE_CHANNEL=feat/cow-ui).
 # Set COW_DEPLOY_ALLOW_DB_CHANGE=1 only when a database switch is intended.
-export PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/bin:/bin"
+export PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin"  # /usr/sbin: lsof, for the database check
 LOG="$HOME/.coval/logs/cow-deploy-server.log"
 PW=$(head -1 "$HOME/.config/opencode/server-password")
 D="x-opencode-directory: /Users/bronson/coval"
