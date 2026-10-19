@@ -5,6 +5,7 @@ import {
   on,
   Component,
   Show,
+  For,
   onCleanup,
   createMemo,
   createSignal,
@@ -76,6 +77,7 @@ import { createPromptSubmit } from "./prompt-input/submit"
 import { PromptPopover, type AtOption, type SlashCommand } from "./prompt-input/slash-popover"
 import { PromptContextItems } from "./prompt-input/context-items"
 import { PromptImageAttachments } from "./prompt-input/image-attachments"
+import { imageCapability } from "./model-capabilities"
 import { PromptDragOverlay } from "./prompt-input/drag-overlay"
 import { promptPlaceholder } from "./prompt-input/placeholder"
 import { createPromptInputTransientState } from "./prompt-input/transient-state"
@@ -730,7 +732,9 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
       title: cmd.name,
       description: cmd.description,
       type: "custom" as const,
-      // source: cmd.source,
+      source: cmd.source,
+      location: cmd.location,
+      requirements: cmd.requirements,
     }))
 
     return [...custom, ...builtin]
@@ -743,6 +747,8 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     const images = imageAttachments()
 
     if (cmd.type === "custom") {
+      if (cmd.source === "skill")
+        showToast({ title: language.t("prompt.skill.selected", { name: cmd.trigger }), description: cmd.location })
       const text = `/${cmd.trigger} `
       if (menu) {
         editorRef.focus()
@@ -776,7 +782,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
   } = useFilteredList<SlashCommand>({
     items: slashCommands,
     key: (x) => x?.id,
-    filterKeys: ["trigger", "title"],
+    filterKeys: ["trigger", "title", "description", "location"],
     onSelect: handleSlashSelect,
   })
 
@@ -1541,6 +1547,40 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
           newLayoutDesigns={false}
           t={(key) => language.t(key as Parameters<typeof language.t>[0])}
         />
+        <Show
+          when={
+            imageAttachments().length > 0 && imageCapability(props.controls.model.selection.current()) !== "supported"
+          }
+        >
+          <div role="alert" class="flex flex-wrap items-center gap-2 px-3 py-2 text-12-regular text-text-base">
+            <span>
+              {language.t("prompt.vision.blocked.description", {
+                model: props.controls.model.selection.current()?.name ?? "",
+              })}
+            </span>
+            <For
+              each={props.controls.model.selection
+                .list()
+                .filter((model) => imageCapability(model) === "supported")
+                .slice(0, 3)}
+            >
+              {(model) => (
+                <Button
+                  size="small"
+                  variant="secondary"
+                  onClick={() =>
+                    props.controls.model.selection.set(
+                      { providerID: model.provider.id, modelID: model.id },
+                      { recent: true },
+                    )
+                  }
+                >
+                  {language.t("prompt.vision.useModel", { model: model.name, provider: model.provider.name })}
+                </Button>
+              )}
+            </For>
+          </div>
+        </Show>
         <PromptImageAttachments
           attachments={imageAttachments()}
           onOpen={(attachment) =>
@@ -1821,6 +1861,9 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                         </TooltipKeybind>
                       </Show>
                     </div>
+                    <span class="shrink-0 text-11-regular text-text-weak" data-component="model-vision-status">
+                      {language.t(`model.vision.${imageCapability(props.controls.model.selection.current())}`)}
+                    </span>
                     <Show when={showVariantControl()}>
                       <div
                         data-component="prompt-variant-control"

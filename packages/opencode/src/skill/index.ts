@@ -7,6 +7,7 @@ import { EventV2Bridge } from "@/event-v2-bridge"
 import { InstanceState } from "@/effect/instance-state"
 import { Global } from "@opencode-ai/core/global"
 import { SkillPlugin } from "@opencode-ai/core/plugin/skill"
+import { builtins } from "@opencode-ai/core/skill/builtins"
 import { Permission } from "@/permission"
 import { FSUtil } from "@opencode-ai/core/fs-util"
 import { Config } from "@/config/config"
@@ -20,6 +21,7 @@ import { escapeHtml } from "@/util/html"
 
 const CLAUDE_EXTERNAL_DIR = ".claude"
 const AGENTS_EXTERNAL_DIR = ".agents"
+const CODEX_EXTERNAL_DIR = ".codex"
 const EXTERNAL_SKILL_PATTERN = "skills/**/SKILL.md"
 const OPENCODE_SKILL_PATTERN = "{skill,skills}/**/SKILL.md"
 const SKILL_PATTERN = "**/SKILL.md"
@@ -39,6 +41,8 @@ export const Info = Schema.Struct({
   description: Schema.optional(Schema.String),
   location: Schema.String,
   content: Schema.String,
+  slash: Schema.optional(Schema.Boolean),
+  requirements: Schema.optional(Schema.String),
 })
 export type Info = Schema.Schema.Type<typeof Info>
 
@@ -50,7 +54,15 @@ const Issue = Schema.StructWithRest(
   [Schema.Record(Schema.String, Schema.Unknown)],
 )
 
-function isSkillFrontmatter(data: unknown): data is { name: string; description?: string } {
+function isSkillFrontmatter(
+  data: unknown,
+): data is {
+  name: string
+  description?: string
+  slash?: unknown
+  "user-invocable"?: unknown
+  compatibility?: unknown
+} {
   return (
     isRecord(data) &&
     typeof data.name === "string" &&
@@ -136,6 +148,8 @@ const add = Effect.fnUntraced(function* (state: State, match: string, events: Ev
     description: md.data.description,
     location: match,
     content: md.content,
+    slash: md.data["user-invocable"] === false || md.data.slash === false ? false : undefined,
+    requirements: typeof md.data.compatibility === "string" ? md.data.compatibility : undefined,
   }
 })
 
@@ -185,7 +199,7 @@ const discoverSkills = Effect.fnUntraced(function* (
   const externalDirs: string[] = []
   if (!disableExternalSkills) {
     if (!disableClaudeCodeSkills) externalDirs.push(CLAUDE_EXTERNAL_DIR)
-    externalDirs.push(AGENTS_EXTERNAL_DIR)
+    externalDirs.push(CODEX_EXTERNAL_DIR, AGENTS_EXTERNAL_DIR)
 
     for (const dir of externalDirs) {
       const root = path.join(global.home, dir)
@@ -238,7 +252,8 @@ const loadSkills = Effect.fnUntraced(function* (
   events: EventV2Bridge.Service["Service"],
 ) {
   yield* Effect.forEach(discovered.matches, (match) => add(state, match, events), {
-    concurrency: "unbounded",
+    // Preserve discovery precedence when canonical directories contain the same skill.
+    concurrency: 1,
     discard: true,
   })
 
@@ -273,6 +288,7 @@ const layer = Layer.effect(
     const state = yield* InstanceState.make(
       Effect.fn("Skill.state")(function* () {
         const s: State = { skills: {}, dirs: new Set() }
+        for (const skill of builtins) s.skills[skill.name] = { ...skill, location: "<built-in>" }
         // Register the built-in skill BEFORE disk discovery so a user-disk
         // skill with the same name can override it.
         s.skills[CUSTOMIZE_OPENCODE_SKILL_NAME] = {

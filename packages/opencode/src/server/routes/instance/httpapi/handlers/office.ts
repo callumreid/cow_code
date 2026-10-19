@@ -6,6 +6,7 @@ import { ConflictError } from "../errors"
 import { OfficeDriver } from "@/office/driver"
 import { Routines } from "@/office/routines"
 import { PhoneDoor } from "@/office/phone"
+import { read } from "@/session/spend"
 import { Effect } from "effect"
 import { HttpServerResponse } from "effect/unstable/http"
 import { HttpApiBuilder } from "effect/unstable/httpapi"
@@ -296,6 +297,11 @@ export const officeHandlers = HttpApiBuilder.group(RootHttpApi, "office", (handl
         }),
       )
       .handle("state", state)
+      .handle("spend", ({ payload }) => {
+        if (payload.start < 0 || payload.end <= payload.start || payload.end - payload.start > 172_800_000)
+          return Effect.fail(new ConflictError({ message: "Usage window must be at most two days." }))
+        return read(payload).pipe(Effect.mapError(() => new ConflictError({ message: "Session not found." })))
+      })
       .handle("overseer", overseer)
       .handle("ask", ask)
       .handle("brief", brief)

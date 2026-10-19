@@ -1,6 +1,32 @@
 import { DESKTOP_NATIVE_ENGLISH } from "./desktop-native"
 
 export const dict = {
+  "spend.open": "Spend and budget",
+  "spend.header": "Spend {{amount}}",
+  "spend.unknown": "Spend unknown",
+  "spend.unavailable": "Usage is unavailable from this server. It has not been counted as zero.",
+  "spend.task": "Task and descendants",
+  "spend.today": "Today on this server",
+  "spend.accounting":
+    "Today: {{reported}} provider-reported, {{estimated}} estimated. Incomplete turns (*): {{count}}.",
+  "spend.scope":
+    "Recorded CowCode requests only; this is not your provider account balance or invoice. Missing provider usage and requests outside CowCode are not included.",
+  "spend.budget": "Task budget (USD, includes descendants)",
+  "spend.unlimited": "No limit",
+  "spend.budgetHelp":
+    "Pause before the next model turn when recorded spend reaches this amount. Calls already in flight may exceed it. Clear the field to remove the limit; zero pauses immediately.",
+  "spend.saveError": "Could not save the budget. Enter a non-negative amount and check the server connection.",
+  "model.vision.supported": "Images",
+  "model.vision.unsupported": "No images",
+  "model.vision.unknown": "Image support unknown",
+  "prompt.vision.blocked.title": "Choose a model that can read images",
+  "prompt.vision.blocked.description":
+    "{{model}} does not advertise image support. Your images are kept here; choose a compatible model before sending.",
+  "prompt.vision.useModel": "Use {{model}} · {{provider}}",
+  "prompt.skill.selected": "Skill /{{name}} selected. Add instructions, then send to run it.",
+  "prompt.skill.source": "Skill source: {{path}}",
+  "prompt.skill.builtin": "Built into CowCode",
+  "prompt.skill.requirements": "Requirements: {{requirements}}",
   "office.stoppedCount": "{{count}} finished",
   "office.outcome.stale": "Said earlier · things may have moved on since",
   "office.host.observeOnly": "This task is unavailable or can only be observed.",

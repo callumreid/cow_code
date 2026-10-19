@@ -370,6 +370,7 @@ export type AssistantMessage = {
     }
   }
   structured?: unknown
+  costStatus?: "estimated" | "reported" | "unknown"
   variant?: string
   finish?: string
 }
@@ -5278,6 +5279,7 @@ export type SkillV2Info = {
   slash?: boolean
   location: string
   content: string
+  requirements?: string
 }
 
 export type ModelsDevRefreshed = {
@@ -7670,6 +7672,66 @@ export type GlobalUpgradeResponses = {
 
 export type GlobalUpgradeResponse = GlobalUpgradeResponses[keyof GlobalUpgradeResponses]
 
+export type OfficeSpendData = {
+  body?: {
+    sessionID: string
+    start: number
+    end: number
+  }
+  path?: never
+  query?: never
+  url: "/global/office/spend"
+}
+
+export type OfficeSpendErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * ConflictError
+   */
+  409: ConflictError
+}
+
+export type OfficeSpendError = OfficeSpendErrors[keyof OfficeSpendErrors]
+
+export type OfficeSpendResponses = {
+  /**
+   * Success
+   */
+  200: {
+    sessionID: string
+    children: number
+    budget?: number
+    task: {
+      amount: number
+      reported: number
+      estimated: number
+      unknown: number
+      turns: number
+    }
+    day: {
+      amount: number
+      reported: number
+      estimated: number
+      unknown: number
+      turns: number
+    }
+    providers: Array<{
+      provider: string
+      amount: number
+      reported: number
+      estimated: number
+      unknown: number
+      turns: number
+    }>
+    updated: number
+  }
+}
+
+export type OfficeSpendResponse = OfficeSpendResponses[keyof OfficeSpendResponses]
+
 export type OfficeRequestData = {
   body?: {
     id: string
@@ -9401,6 +9463,8 @@ export type AppSkillsResponses = {
     description?: string
     location: string
     content: string
+    slash?: boolean
+    requirements?: string
   }>
 }
 

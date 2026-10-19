@@ -30,10 +30,17 @@ export type ProjectMeta = {
   }
 }
 
+export type AppCommand = CommandInfo & {
+  source?: "command" | "mcp" | "skill"
+  location?: string
+  requirements?: string
+  invocation?: "prompt"
+}
+
 export type State = {
   status: "loading" | "partial" | "complete"
   agent: Agent[]
-  command: CommandInfo[]
+  command: AppCommand[]
   reference: ReferenceInfo[]
   project: string
   projectMeta: ProjectMeta | undefined

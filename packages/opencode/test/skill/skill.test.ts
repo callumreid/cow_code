@@ -64,6 +64,30 @@ const withHome = <A, E, R>(home: string, self: Effect.Effect<A, E, R>) =>
   )
 
 describe("skill", () => {
+  it.effect("discovers canonical Codex skills and ships the CowCode starter collection", () =>
+    provideTmpdirInstance((dir) =>
+      Effect.gen(function* () {
+        yield* Effect.promise(() =>
+          Bun.write(
+            path.join(dir, ".codex", "skills", "verify-custom", "SKILL.md"),
+            "---\nname: verify-custom\ndescription: Verify custom behavior.\ncompatibility: Requires browser tools\nuser-invocable: false\n---\nCheck the workflow.",
+          ),
+        )
+        const skill = yield* Skill.Service
+        const all = yield* skill.all()
+        expect(all.find((item) => item.name === "verify-custom")).toMatchObject({
+          slash: false,
+          requirements: "Requires browser tools",
+        })
+        expect(
+          all
+            .filter((item) => item.name.startsWith("cow-"))
+            .map((item) => item.name)
+            .sort(),
+        ).toEqual(["cow-investigate", "cow-plan", "cow-verify"])
+      }),
+    ),
+  )
   it.effect("formats verbose locations as XML-safe filesystem paths", () =>
     Effect.sync(() => {
       const output = Skill.fmt(

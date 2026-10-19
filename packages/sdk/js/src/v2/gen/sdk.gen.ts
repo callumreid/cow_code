@@ -145,6 +145,8 @@ import type {
   OfficeRoutinesResponses,
   OfficeRoutinesRunErrors,
   OfficeRoutinesRunResponses,
+  OfficeSpendErrors,
+  OfficeSpendResponses,
   OfficeStateErrors,
   OfficeStateResponses,
   OfficeThreadAnswerErrors,
@@ -1713,6 +1715,41 @@ export class Routines extends HeyApiClient {
 }
 
 export class Office extends HeyApiClient {
+  /**
+   * Read recorded task and daily provider usage
+   */
+  public spend<ThrowOnError extends boolean = false>(
+    parameters?: {
+      sessionID?: string
+      start?: number
+      end?: number
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "body", key: "sessionID" },
+            { in: "body", key: "start" },
+            { in: "body", key: "end" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<OfficeSpendResponses, OfficeSpendErrors, ThrowOnError>({
+      url: "/global/office/spend",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
   /**
    * Admit a Farmer request without waiting for reasoning
    */

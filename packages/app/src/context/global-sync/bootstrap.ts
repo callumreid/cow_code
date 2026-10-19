@@ -13,7 +13,6 @@ import type {
   AgentListInput,
   AgentListOutput,
   CatalogApi,
-  CommandInfo,
   CommandListInput,
   CommandListOutput,
   ProjectCurrentInput,
@@ -28,7 +27,7 @@ import { getFilename } from "@opencode-ai/core/util/path"
 import { retry } from "@opencode-ai/core/util/retry"
 import { batch } from "solid-js"
 import { produce, reconcile, type SetStoreFunction, type Store } from "solid-js/store"
-import type { State, VcsCache } from "./types"
+import type { AppCommand, State, VcsCache } from "./types"
 import type { ServerSession } from "../server-session"
 import {
   cmp,
@@ -248,6 +247,20 @@ type AgentListApi = {
 type CommandListApi = {
   readonly list: (input?: CommandListInput) => Promise<CommandListOutput>
 }
+type SkillListApi = {
+  list: (input?: {
+    location?: { directory?: string }
+  }) => Promise<{
+    data: readonly {
+      name: string
+      description?: string
+      slash?: boolean
+      location: string
+      content: string
+      requirements?: string
+    }[]
+  }>
+}
 
 type ReferenceListApi = {
   readonly list: (input?: ReferenceListInput) => Promise<ReferenceListOutput>
@@ -274,11 +287,21 @@ export const loadCommands = (
   api: CommandListApi,
   legacy?: OpencodeClient,
   protocol?: Promise<ServerProtocol>,
-): Promise<CommandInfo[]> =>
+  skills?: SkillListApi,
+): Promise<AppCommand[]> =>
   retry(async () => {
     if ((await protocol) === "v1" && legacy) {
-      return ((await legacy.command.list()).data ?? []).map((command) => {
-        const [providerID, id] = command.model?.split("/") ?? []
+      const [commands, catalog] = await Promise.all([
+        legacy.command.list().then((result) => result.data ?? []),
+        legacy.app
+          .skills()
+          .then((result) => result.data ?? [])
+          .catch(() => []),
+      ])
+      return commands.map((command) => {
+        const skill = command.source === "skill" ? catalog.find((skill) => skill.name === command.name) : undefined
+        const [providerID, ...modelParts] = command.model?.split("/") ?? []
+        const id = modelParts.join("/")
         return {
           name: command.name,
           template: command.template,
@@ -286,11 +309,33 @@ export const loadCommands = (
           agent: command.agent,
           model: providerID && id ? { providerID, id } : undefined,
           subtask: command.subtask,
-          // source: command.source === "skill" ? undefined : command.source,
+          source: command.source,
+          location: skill?.location,
+          requirements:
+            skill && "requirements" in skill && typeof skill.requirements === "string" ? skill.requirements : undefined,
         }
       })
     }
-    return api.list({ location: { directory } }).then((result) => result.data)
+    const [commands, catalog] = await Promise.all([
+      api.list({ location: { directory } }).then((result) => result.data),
+      skills?.list({ location: { directory } }).then((result) => result.data) ?? [],
+    ])
+    return [
+      ...commands,
+      ...catalog
+        .filter((skill) => skill.slash !== false && !commands.some((command) => command.name === skill.name))
+        .map(
+          (skill): AppCommand => ({
+            name: skill.name,
+            description: skill.description,
+            template: `Use the skill tool to load ${JSON.stringify(skill.name)} from ${JSON.stringify(skill.location)} and follow its instructions.`,
+            source: "skill",
+            location: skill.location,
+            requirements: skill.requirements,
+            invocation: "prompt",
+          }),
+        ),
+    ]
   })
 
 export const loadPathQuery = (
@@ -333,6 +378,7 @@ export async function bootstrapDirectory(input: {
   api: CatalogApi & {
     readonly agent: AgentListApi
     readonly command: CommandListApi
+    readonly skill?: SkillListApi
     readonly mcp: McpApi
     readonly permission: PermissionApi
     readonly project: ProjectApi
@@ -430,11 +476,10 @@ export async function bootstrapDirectory(input: {
             if (next) input.vcsCache.setStore("value", next)
           })
         }),
-      input.mcp &&
-        (() =>
-          loadCommands(input.directory, input.api.command, input.sdk, input.protocol).then((commands) =>
-            input.setStore("command", commands),
-          )),
+      () =>
+        loadCommands(input.directory, input.api.command, input.sdk, input.protocol, input.api.skill).then((commands) =>
+          input.setStore("command", commands),
+        ),
       () =>
         input.queryClient.fetchQuery(
           loadReferencesQuery(input.scope, input.directory, input.api.reference, input.sdk, input.protocol),

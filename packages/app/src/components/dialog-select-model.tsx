@@ -16,6 +16,7 @@ import { Tag as TagV2 } from "@opencode-ai/ui/v2/badge-v2"
 import { MenuV2 } from "@opencode-ai/ui/v2/menu-v2"
 import { TooltipV2 } from "@opencode-ai/ui/v2/tooltip-v2"
 import { ModelTooltip } from "./model-tooltip"
+import { imageCapability } from "./model-capabilities"
 import { useLanguage } from "@/context/language"
 import { decode64 } from "@/utils/base64"
 import { handleDocumentSearchKeydown } from "@/utils/search-keydown"
@@ -100,6 +101,7 @@ const ModelList: Component<{
       {(i) => (
         <div class="w-full flex items-center gap-x-2 text-13-regular">
           <span class="truncate">{i.name}</span>
+          <Tag>{language.t(`model.vision.${imageCapability(i)}`)}</Tag>
           <Show when={isFree(i.provider.id, i.cost)}>
             <Tag>{language.t("model.tag.free")}</Tag>
           </Show>
@@ -483,6 +485,7 @@ function ModelSelectorPopoverV2View(props: {
                                 onSelect={() => selectModel(item)}
                               >
                                 <span class="min-w-0 truncate leading-5">{item.name}</span>
+                                <TagV2 class="shrink-0">{language.t(`model.vision.${imageCapability(item)}`)}</TagV2>
                                 <Show when={isFree(item.provider.id, item.cost)}>
                                   <TagV2 class="shrink-0">{language.t("model.tag.free")}</TagV2>
                                 </Show>

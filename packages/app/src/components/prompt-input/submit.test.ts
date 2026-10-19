@@ -1,6 +1,6 @@
 import { beforeAll, beforeEach, describe, expect, mock, test } from "bun:test"
 import { createStore } from "solid-js/store"
-import type { Prompt, PromptStore } from "@/context/prompt"
+import type { ImageAttachmentPart, Prompt, PromptStore } from "@/context/prompt"
 import type { ModelSelection } from "@/context/local"
 
 let createPromptSubmit: typeof import("./submit").createPromptSubmit
@@ -658,4 +658,46 @@ describe("prompt submit worktree selection", () => {
     expect(storedSessions["/repo/worktree-a"]?.[0]).toMatchObject({ id: "session-1", title: "New session 1" })
     expect(optimisticSeeded).toEqual([true])
   })
+})
+
+test("incompatible images stay in the draft without creating a session or sending", async () => {
+  const image = {
+    type: "image",
+    id: "image-1",
+    filename: "screen.png",
+    mime: "image/png",
+    blob: { url: "blob:test" },
+  } as ImageAttachmentPart
+  promptValue = [{ type: "text", content: "read this", start: 0, end: 9 }, image]
+  const submit = createPromptSubmit({
+    prompt,
+    info: () => undefined,
+    imageAttachments: () => [image],
+    commentCount: () => 0,
+    autoAccept: () => false,
+    mode: () => "normal",
+    working: () => false,
+    editor: () => undefined,
+    queueScroll: () => undefined,
+    promptLength: () => 9,
+    addToHistory: () => {
+      throw new Error("must not clear history")
+    },
+    resetHistoryNavigation: () => undefined,
+    setMode: () => undefined,
+    setPopover: () => undefined,
+    model: {
+      current: () => ({
+        id: "text-model",
+        name: "Text model",
+        provider: { id: "provider" },
+        capabilities: { input: { image: false } },
+      }),
+      variant: { current: () => undefined },
+    } as unknown as ModelSelection,
+  })
+  await submit.handleSubmit({ preventDefault() {} } as unknown as Event)
+  expect(createdSessions).toEqual([])
+  expect(sentPrompts).toEqual([])
+  expect(promptValue).toContain(image)
 })

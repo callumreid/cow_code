@@ -34,6 +34,8 @@ const Frontmatter = Schema.Struct({
   name: Schema.String.pipe(Schema.optional),
   description: Schema.String.pipe(Schema.optional),
   slash: Schema.Boolean.pipe(Schema.optional),
+  "user-invocable": Schema.Boolean.pipe(Schema.optional),
+  compatibility: Schema.String.pipe(Schema.optional),
 })
 const decodeFrontmatter = Schema.decodeUnknownOption(Frontmatter)
 
@@ -95,7 +97,8 @@ const layer = Layer.effect(
           skills.push({
             name,
             description: frontmatter.description,
-            slash: frontmatter.slash,
+            slash: frontmatter["user-invocable"] === false ? false : frontmatter.slash,
+            requirements: frontmatter.compatibility,
             location: AbsolutePath.make(filepath),
             content: markdown.content,
           })

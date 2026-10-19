@@ -267,6 +267,7 @@ export default {
       yield* tx.run(
         `CREATE INDEX \`message_session_time_created_id_idx\` ON \`message\` (\`session_id\`,\`time_created\`,\`id\`);`,
       )
+      yield* tx.run(`CREATE INDEX \`message_time_created_idx\` ON \`message\` (\`time_created\`);`)
       yield* tx.run(`CREATE INDEX \`part_message_id_id_idx\` ON \`part\` (\`message_id\`,\`id\`);`)
       yield* tx.run(`CREATE INDEX \`part_session_idx\` ON \`part\` (\`session_id\`);`)
       yield* tx.run(

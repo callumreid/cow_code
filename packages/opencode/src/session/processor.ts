@@ -456,6 +456,12 @@ const layer = Layer.effect(
             })
             ctx.assistantMessage.finish = value.reason
             ctx.assistantMessage.cost += usage.cost
+            ctx.assistantMessage.costStatus =
+              ctx.assistantMessage.costStatus === "unknown" || usage.costStatus === "unknown"
+                ? "unknown"
+                : ctx.assistantMessage.costStatus === "estimated" || usage.costStatus === "estimated"
+                  ? "estimated"
+                  : usage.costStatus
             ctx.assistantMessage.tokens = usage.tokens
             yield* session.updatePart({
               id: PartID.ascending(),

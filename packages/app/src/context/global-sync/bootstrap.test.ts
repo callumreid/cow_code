@@ -25,6 +25,7 @@ type ProjectApi = ServerApi["project"]
 
 const provider = { all: new Map(), connected: [], default: {} } satisfies NormalizedProviderListResponse
 const api = {
+  command: { list: async () => ({ location: {}, data: [] }) },
   agent: { list: async () => ({ location: {}, data: [] }) },
   provider: { list: async () => ({ location: {}, data: [] }) },
   model: {
@@ -94,7 +95,7 @@ afterAll(() => {
 
 function legacySdk(overrides: { agents?: () => Promise<unknown>; providers?: () => Promise<unknown> }) {
   return {
-    app: { agents: overrides.agents ?? (async () => ({ data: [] })) },
+    app: { agents: overrides.agents ?? (async () => ({ data: [] })), skills: async () => ({ data: [] }) },
     config: { get: async () => ({ data: {} }) },
     session: { status: async () => ({ data: {} }) },
     vcs: { get: async () => ({ data: undefined }) },
@@ -180,7 +181,10 @@ describe("bootstrapDirectory", () => {
         provider,
       },
       sdk: {
-        app: { agents: async () => ({ data: [{ name: "build", mode: "primary" }] }) },
+        app: {
+          agents: async () => ({ data: [{ name: "build", mode: "primary" }] }),
+          skills: async () => ({ data: [] }),
+        },
         config: {
           get: async () => {
             legacyConfigReads.push("directory")
@@ -446,4 +450,43 @@ describe("query keys", () => {
     expect(calls).toEqual([{ location: { directory: "/repo" } }])
     expect(result).toHaveLength(1)
   })
+})
+
+test("slash discovery includes current-protocol skills and respects disabled invocations and command precedence", async () => {
+  const result = await loadCommands(
+    "/repo",
+    { list: async () => ({ location: {}, data: [{ name: "review", template: "custom" }] }) } as unknown as CommandApi,
+    undefined,
+    Promise.resolve("v2"),
+    {
+      list: async () => ({
+        data: [
+          { name: "review", description: "Skill review", content: "review", location: "/skills/review/SKILL.md" },
+          {
+            name: "verify",
+            description: "Verify behavior",
+            content: "verify",
+            location: "/skills/verify/SKILL.md",
+            requirements: "Browser access",
+          },
+          { name: "private", slash: false, content: "private", location: "/skills/private/SKILL.md" },
+        ],
+      }),
+    },
+  )
+  expect(result.map((item) => item.name)).toEqual(["review", "verify"])
+  expect(result[1]).toMatchObject({ source: "skill", invocation: "prompt", requirements: "Browser access" })
+  expect(result[1].template).toContain('skill tool to load "verify"')
+})
+
+test("legacy slash discovery retains skill classification and canonical path", async () => {
+  const legacy = {
+    command: { list: async () => ({ data: [{ name: "verify", template: "check", source: "skill", hints: [] }] }) },
+    app: {
+      skills: async () => ({ data: [{ name: "verify", location: "/canonical/verify/SKILL.md", content: "check" }] }),
+    },
+  } as unknown as OpencodeClient
+  expect(await loadCommands("/repo", {} as CommandApi, legacy, Promise.resolve("v1"))).toEqual([
+    expect.objectContaining({ name: "verify", source: "skill", location: "/canonical/verify/SKILL.md" }),
+  ])
 })

@@ -8,6 +8,7 @@ import { ConflictError } from "../errors"
 import { Routines } from "@/office/routines"
 import { PhoneDoor } from "@/office/phone"
 import { described } from "./metadata"
+import { Input, Result } from "@/session/spend"
 
 const Ok = Schema.Struct({ ok: Schema.Literal(true) })
 export const ReplayInput = Schema.Struct({
@@ -122,6 +123,13 @@ export const OfficePaths = {
 export const OfficeApi = HttpApi.make("office").add(
   HttpApiGroup.make("office")
     .add(
+      HttpApiEndpoint.post("spend", "/global/office/spend", {
+        payload: Input,
+        success: Result,
+        error: ConflictError,
+      }).annotateMerge(
+        OpenApi.annotations({ identifier: "office.spend", summary: "Read recorded task and daily provider usage" }),
+      ),
       HttpApiEndpoint.post("request", "/global/office/request", {
         payload: OfficeDriver.Request,
         success: OfficeDriver.RequestReceipt,

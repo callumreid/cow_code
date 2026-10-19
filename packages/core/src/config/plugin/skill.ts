@@ -20,6 +20,11 @@ export const Plugin = define({
         const entries = yield* config.entries()
         const directories = entries.flatMap((entry) => (entry.type === "directory" ? [entry.path] : []))
         const items = entries.flatMap((entry) => (entry.type === "document" ? (entry.info.skills ?? []) : []))
+        for (const root of [global.home, location.directory]) {
+          for (const directory of [".claude", ".codex", ".agents"]) {
+            draft.source({ type: "directory", path: AbsolutePath.make(path.join(root, directory, "skills")) })
+          }
+        }
         for (const directory of directories) {
           draft.source(
             SkillV2.DirectorySource.make({ type: "directory", path: AbsolutePath.make(path.join(directory, "skill")) }),

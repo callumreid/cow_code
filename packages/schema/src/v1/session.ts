@@ -480,6 +480,7 @@ export const Assistant = Schema.Struct({
     }),
   }),
   structured: Schema.optional(Schema.Any),
+  costStatus: Schema.optional(Schema.Literals(["estimated", "reported", "unknown"])),
   variant: Schema.optional(Schema.String),
   finish: Schema.optional(Schema.String),
 }).annotate({ identifier: "AssistantMessage" })

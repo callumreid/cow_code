@@ -76,7 +76,10 @@ export const MessageTable = sqliteTable(
     ...Timestamps,
     data: text({ mode: "json" }).notNull().$type<V1MessageData>(),
   },
-  (table) => [index("message_session_time_created_id_idx").on(table.session_id, table.time_created, table.id)],
+  (table) => [
+    index("message_session_time_created_id_idx").on(table.session_id, table.time_created, table.id),
+    index("message_time_created_idx").on(table.time_created),
+  ],
 )
 
 export const PartTable = sqliteTable(

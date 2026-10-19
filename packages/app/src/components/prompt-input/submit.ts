@@ -23,6 +23,7 @@ import { createPromptSubmissionState } from "./submission-state"
 import { normalizeSessionInfo } from "@/utils/session"
 import { Event } from "@opencode-ai/schema/event"
 import { blobDataUrl } from "@/utils/draft-store"
+import { imageCapability } from "../model-capabilities"
 
 type PendingPrompt = {
   abort: AbortController
@@ -56,7 +57,12 @@ const draftText = (prompt: Prompt) => prompt.map((part) => ("content" in part ? 
 const draftImages = (prompt: Prompt) => prompt.filter((part): part is ImageAttachmentPart => part.type === "image")
 
 export async function sendFollowupDraft(input: FollowupSendInput) {
-  const text = draftText(input.draft.prompt)
+  const originalText = draftText(input.draft.prompt)
+  const [originalHead, ...originalArgs] = originalText.split(" ")
+  const selected = originalHead?.startsWith("/")
+    ? input.sync.data.command.find((command) => command.name === originalHead.slice(1))
+    : undefined
+  const text = selected?.invocation === "prompt" ? `${selected.template}\n\n${originalArgs.join(" ")}` : originalText
   const images = draftImages(input.draft.prompt)
   const setBusy = () => {
     if (!input.optimisticBusy) return
@@ -347,6 +353,15 @@ export function createPromptSubmit(input: PromptSubmitInput) {
       return
     }
 
+    if (mode !== "shell" && images.length > 0 && imageCapability(currentModel) !== "supported") {
+      showToast({
+        variant: "error",
+        title: language.t("prompt.vision.blocked.title"),
+        description: language.t("prompt.vision.blocked.description", { model: currentModel.name }),
+      })
+      return
+    }
+
     input.addToHistory(currentPrompt, mode)
     input.resetHistoryNavigation()
 
@@ -513,6 +528,20 @@ export function createPromptSubmit(input: PromptSubmitInput) {
       const [cmdName, ...args] = text.split(" ")
       const commandName = cmdName.slice(1)
       const customCommand = sync().data.command.find((c) => c.name === commandName)
+      if (customCommand?.invocation === "prompt") {
+        clearInput()
+        void sendFollowupDraft({
+          api: sdk().api.session,
+          serverSync: serverSync(),
+          sync: sync(),
+          draft,
+          optimisticBusy: true,
+        }).catch((err) => {
+          showToast({ title: language.t("prompt.toast.commandSendFailed.title"), description: errorMessage(err) })
+          restoreInput()
+        })
+        return
+      }
       if (customCommand) {
         clearInput()
         const messageID = Identifier.ascending("message")

@@ -1,9 +1,9 @@
 {
   "version": "7",
   "dialect": "sqlite",
-  "id": "2da16c9c-52d6-46b5-bd6b-c3254a4bc4de",
+  "id": "c78f1a0c-ac48-4813-8a82-93551bf34aa5",
   "prevIds": [
-    "f14a9b18-8207-487e-a3d3-227e629ba9ad"
+    "2da16c9c-52d6-46b5-bd6b-c3254a4bc4de"
   ],
   "ddl": [
     {
@@ -2124,6 +2124,20 @@
       "where": null,
       "origin": "manual",
       "name": "message_session_time_created_id_idx",
+      "entityType": "indexes",
+      "table": "message"
+    },
+    {
+      "columns": [
+        {
+          "value": "time_created",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "message_time_created_idx",
       "entityType": "indexes",
       "table": "message"
     },

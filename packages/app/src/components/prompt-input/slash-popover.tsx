@@ -27,6 +27,8 @@ export interface SlashCommand {
   keybind?: string
   type: "builtin" | "custom"
   source?: "command" | "mcp" | "skill"
+  location?: string
+  requirements?: string
 }
 
 type PromptPopoverProps = {
@@ -293,6 +295,7 @@ export const PromptPopover: Component<PromptPopoverProps> = (props) => {
                   return (
                     <button
                       data-slash-id={cmd.id}
+                      title={[cmd.description, cmd.location, cmd.requirements].filter(Boolean).join("\n")}
                       classList={{
                         "w-full flex items-center justify-between gap-4 px-2 py-1": true,
                         "rounded-[4px] scroll-my-2": props.newLayoutDesigns,

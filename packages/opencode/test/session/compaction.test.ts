@@ -1679,6 +1679,27 @@ describe("util.token.estimate", () => {
 })
 
 describe("SessionNs.getUsage", () => {
+  test("prefers OpenRouter reported charges and labels missing usage honestly", () => {
+    const model = {
+      ...createModel({
+        context: 100_000,
+        output: 32_000,
+        cost: { input: 10, output: 20, cache: { read: 1, write: 2 } },
+      }),
+      providerID: ProviderV2.ID.make("openrouter"),
+    }
+    const reported = SessionNs.getUsage({
+      model,
+      usage: usage({ inputTokens: 1000, outputTokens: 500 }),
+      metadata: { openrouter: { usage: { cost: 0.123 } } },
+    })
+    expect(reported.cost).toBe(0.123)
+    expect(reported.costStatus).toBe("reported")
+    expect(SessionNs.getUsage({ model, usage: usage({}) }).costStatus).toBe("unknown")
+    expect(SessionNs.getUsage({ model, usage: usage({ inputTokens: 1000, outputTokens: 500 }) }).costStatus).toBe(
+      "estimated",
+    )
+  })
   test("normalizes standard usage to token format", () => {
     const model = createModel({ context: 100_000, output: 32_000 })
     const result = SessionNs.getUsage({

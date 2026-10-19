@@ -385,21 +385,48 @@ export const getUsage = (input: { model: Provider.Model; usage: Usage; metadata?
       ? input.model.cost.experimentalOver200K
       : input.model.cost)
   const totalNanoAiu = input.metadata?.["copilot"]?.["totalNanoAiu"]
+  const metadata = input.metadata?.["openrouter"] ?? input.metadata?.["openai"]
+  const reported =
+    input.model.providerID === "openrouter" && metadata && typeof metadata === "object"
+      ? "usage" in metadata && metadata.usage && typeof metadata.usage === "object" && "cost" in metadata.usage
+        ? metadata.usage.cost
+        : "cost" in metadata
+          ? metadata.cost
+          : undefined
+      : undefined
+  const reportedCost = typeof reported === "number" && Number.isFinite(reported) && reported >= 0 ? reported : undefined
+  const hasUsage =
+    input.usage.inputTokens !== undefined ||
+    input.usage.outputTokens !== undefined ||
+    input.usage.totalTokens !== undefined
+  const hasPricing = [costInfo?.input, costInfo?.output, costInfo?.cache?.read, costInfo?.cache?.write].some(
+    (rate) => typeof rate === "number" && rate > 0,
+  )
+  const copilotReported = typeof totalNanoAiu === "number" && Number.isFinite(totalNanoAiu) && totalNanoAiu >= 0
+  const costStatus =
+    reportedCost !== undefined || copilotReported
+      ? ("reported" as const)
+      : hasUsage && hasPricing
+        ? ("estimated" as const)
+        : ("unknown" as const)
   return {
+    costStatus,
     cost:
-      typeof totalNanoAiu === "number" && Number.isFinite(totalNanoAiu) && totalNanoAiu >= 0
-        ? new Decimal(totalNanoAiu).div(100_000_000_000).toNumber()
-        : safe(
-            new Decimal(0)
-              .add(new Decimal(tokens.input).mul(finite(costInfo?.input ?? 0)).div(1_000_000))
-              .add(new Decimal(tokens.output).mul(finite(costInfo?.output ?? 0)).div(1_000_000))
-              .add(new Decimal(tokens.cache.read).mul(finite(costInfo?.cache?.read ?? 0)).div(1_000_000))
-              .add(new Decimal(tokens.cache.write).mul(finite(costInfo?.cache?.write ?? 0)).div(1_000_000))
-              // TODO: update models.dev to have better pricing model, for now:
-              // charge reasoning tokens at the same rate as output tokens
-              .add(new Decimal(tokens.reasoning).mul(finite(costInfo?.output ?? 0)).div(1_000_000))
-              .toNumber(),
-          ),
+      reportedCost !== undefined
+        ? reportedCost
+        : typeof totalNanoAiu === "number" && Number.isFinite(totalNanoAiu) && totalNanoAiu >= 0
+          ? new Decimal(totalNanoAiu).div(100_000_000_000).toNumber()
+          : safe(
+              new Decimal(0)
+                .add(new Decimal(tokens.input).mul(finite(costInfo?.input ?? 0)).div(1_000_000))
+                .add(new Decimal(tokens.output).mul(finite(costInfo?.output ?? 0)).div(1_000_000))
+                .add(new Decimal(tokens.cache.read).mul(finite(costInfo?.cache?.read ?? 0)).div(1_000_000))
+                .add(new Decimal(tokens.cache.write).mul(finite(costInfo?.cache?.write ?? 0)).div(1_000_000))
+                // TODO: update models.dev to have better pricing model, for now:
+                // charge reasoning tokens at the same rate as output tokens
+                .add(new Decimal(tokens.reasoning).mul(finite(costInfo?.output ?? 0)).div(1_000_000))
+                .toNumber(),
+            ),
     tokens,
   }
 }

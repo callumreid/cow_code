@@ -2535,6 +2535,7 @@ export type SkillsListOutput = {
     readonly slash?: boolean
     readonly location: string
     readonly content: string
+    readonly requirements?: string
   }>
 }
 
