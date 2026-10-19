@@ -12,6 +12,10 @@ what each feature is, and the films, live in the [feature reel](docs/features/RE
 - slash skills are searchable by name and description, show their source and requirements, and tell you what was selected; the cow ships planning, investigation and verification skills and reads your existing Codex, Claude and Agents skill folders
 - model choices show image support, and pasted images stay in the composer with compatible model choices when the selected provider cannot read them
 - task spend includes descendants, with daily provider totals, reported versus estimated charges, explicit missing accounting, and a persistent task budget checked before further model turns
+- long tasks keep their place through a barn restart, show last progress and provider retry times, and pause for inspection when a tool may already have changed something; Stop stays stopped, and Resume starts a new recovery window
+- connections have a read-only test and a separate reconnect action, with tool count, response time and the last successful tool call observed on that connection
+- scheduled routines show missing attempts, quiet workers, stale snapshots and the last verified success separately from an agent saying it finished
+
 - browser and terminal buttons in the top-right of every session: replaces the unused review toggle with one-click browser (`⌘⇧B`) and terminal (``⌃` ``) toggles that pop open the box's shared browser or a terminal right beside the thread, plus a pop-out button when you want the browser in its own window
 
 ### Fixed

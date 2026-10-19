@@ -5,6 +5,7 @@ import { IconButton } from "@opencode-ai/ui/icon-button"
 import { Tooltip } from "@opencode-ai/ui/tooltip"
 import { useLanguage } from "@/context/language"
 import { threadHref } from "@/office/stream"
+import { lastVerified, routineHealth } from "@/routines/health"
 import type { RoutinesStore } from "@/routines/store"
 import type { Routine, RoutineRun, RoutineRunStatus } from "@/routines/types"
 
@@ -149,6 +150,9 @@ const RoutineRow = (props: {
   store: RoutinesStore
   onNavigate: (href: string) => void
 }) => {
+  const language = useLanguage()
+  const health = () => routineHealth(props.routine, props.now)
+  const verified = () => lastVerified(props.routine)
   const [open, setOpen] = createSignal(false)
   const [log, setLog] = createSignal<{ path?: string | null; text: string }>()
   const [logError, setLogError] = createSignal<string>()
@@ -219,6 +223,27 @@ const RoutineRow = (props: {
                 >
                   running · {duration(props.now - running().startedAt)}
                   <Show when={running().summary}> · {running().summary}</Show>
+                </span>
+              )}
+            </Show>
+            <span
+              class="text-12-medium"
+              classList={{
+                "text-icon-warning-base": ["disabled", "missed", "stalled", "waiting", "failed"].includes(health()),
+                "text-text-weak": !["disabled", "missed", "stalled", "waiting", "failed"].includes(health()),
+              }}
+            >
+              {language.t("routine.health." + health())}
+            </span>
+            <span class="text-12-regular text-text-weak">
+              {verified()
+                ? language.t("routine.lastVerified", { time: when(verified()!.startedAt, props.now) })
+                : language.t("routine.noVerified")}
+            </span>
+            <Show when={props.routine.running?.lastProgressAt}>
+              {(time) => (
+                <span class="text-12-regular text-text-weak">
+                  {language.t("routine.lastProgress", { time: when(time(), props.now) })}
                 </span>
               )}
             </Show>
@@ -384,6 +409,11 @@ export const ScheduledPanel = (props: {
 
       <div class="flex-1 min-h-0 overflow-y-auto">
         <div class="mx-auto w-full max-w-[960px] px-6 py-4 flex flex-col gap-6">
+          <Show when={data() && now() - data()!.now > 90_000}>
+            <div role="status" class="text-12-regular text-icon-warning-base">
+              {useLanguage().t("routine.stale")}
+            </div>
+          </Show>
           <Show when={props.store.error()}>
             <div class="text-12-regular text-icon-critical-base">{props.store.error()}</div>
           </Show>

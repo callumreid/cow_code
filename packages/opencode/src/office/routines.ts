@@ -39,6 +39,7 @@ export const Run = Schema.Struct({
   processStatus: Schema.optional(RunStatus),
   agentStatus: Schema.optional(Schema.String),
   outcome: Schema.optional(Schema.Literals(["unverified", "reported", "verified"])),
+  lastProgressAt: Schema.optional(Schema.Finite),
   startedAt: Schema.Finite,
   endedAt: Schema.optional(Schema.Finite),
   status: RunStatus,
@@ -60,6 +61,7 @@ export const Routine = Schema.Struct({
   schedule: Schema.String,
   loaded: Schema.Boolean,
   nextRunAt: Schema.optional(Schema.Finite),
+  previousRunAt: Schema.optional(Schema.Finite),
   running: Schema.optional(Run),
   last: Schema.optional(Run),
   runs: Schema.Array(Run),
@@ -297,6 +299,17 @@ export function nextCalendar(entries: Calendar[], now: number, window?: Window) 
   return undefined
 }
 
+/** Previous eligible occurrence; a missing receipt is evidence to inspect, not proof launchd failed. */
+export function previousCalendar(entries: Calendar[], now: number, window?: Window) {
+  const start = new Date(now)
+  start.setSeconds(0, 0)
+  for (let i = 0; i <= LOOKAHEAD_MIN; i++) {
+    const at = new Date(start.getTime() - i * 60_000)
+    if (inWindow(window, at) && entries.some((cal) => matches(cal, at))) return at.getTime()
+  }
+  return undefined
+}
+
 export function describeCalendar(entries: Calendar[]) {
   const parts = entries.map((cal) => {
     const time =
@@ -431,6 +444,7 @@ async function build(): Promise<Snapshot> {
         schedule,
         loaded: state.loaded,
         nextRunAt: entries.length ? nextCalendar(entries, now, meta?.window) : undefined,
+        previousRunAt: entries.length ? previousCalendar(entries, now, meta?.window) : undefined,
         running,
         last: runs[0],
         runs,
@@ -491,6 +505,7 @@ export function withThreads(snapshot: Snapshot, threads: readonly Thread[], now:
         sessionID: thread.sessionID,
         directory: thread.directory,
         summary: thread.summary || run.summary,
+        lastProgressAt: thread.time.updated,
       }
     }
     const running = routine.running ? attach(routine.running) : undefined
@@ -517,6 +532,7 @@ export function withThreads(snapshot: Snapshot, threads: readonly Thread[], now:
                     ? "running"
                     : "unknown",
           summary: thread.summary,
+          lastProgressAt: thread.time.updated,
           sessionID: thread.sessionID,
           directory: thread.directory,
         }),

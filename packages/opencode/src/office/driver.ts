@@ -4,6 +4,7 @@ import { LayerNode } from "@opencode-ai/core/effect/layer-node"
 import { EffectBridge } from "@/effect/bridge"
 import { InstanceStore } from "@/project/instance-store"
 import { SessionPrompt } from "@/session/prompt"
+import { SessionRecovery } from "@/session/recovery"
 import { Session } from "@/session/session"
 import { MessageID, PartID, SessionID } from "@/session/schema"
 import { Cause, Context, Effect, Layer, Schema, Scope, Semaphore } from "effect"
@@ -78,6 +79,7 @@ const layer = Layer.effect(
     const office = yield* Office.Service
     const sessions = yield* Session.Service
     const prompt = yield* SessionPrompt.Service
+    const recovery = yield* SessionRecovery.Service
     const instances = yield* InstanceStore.Service
     const ledger = yield* OfficeLedger.Service
     const control = yield* OfficeControl.Service
@@ -367,6 +369,38 @@ const layer = Layer.effect(
         yield* ledger.put({ ...row, state: "reconciliation_required" })
     }
 
+    // Separate checkpoint reconciliation from Office admission. Uncertain tools
+    // never auto-replay. Limit simultaneous recovery after a server restart.
+    yield* recovery.pending().pipe(
+      Effect.flatMap((rows) =>
+        Effect.forEach(
+          rows.filter((row) => !SessionRecovery.ownerAlive(row.value)),
+          (row) =>
+            Effect.gen(function* () {
+              const checkpoint = yield* recovery.claim(row.value.sessionID)
+              if (!checkpoint) return
+              yield* instances.provide({ directory: checkpoint.directory }, prompt.recover(checkpoint))
+            }).pipe(
+              Effect.catchCause((cause) =>
+                Cause.hasInterruptsOnly(cause)
+                  ? Effect.void
+                  : recovery
+                      .update(row.value.sessionID, "blocked", {
+                        reason: "Recovery could not reopen this workspace. Inspect the thread before resuming.",
+                      })
+                      .pipe(
+                        Effect.andThen(
+                          Effect.logWarning("session recovery failed", { sessionID: row.sessionID, cause }),
+                        ),
+                      ),
+              ),
+            ),
+          { concurrency: 3, discard: true },
+        ),
+      ),
+      Effect.forkIn(scope),
+    )
+
     const currentReport = (report: Office.Report) =>
       Effect.gen(function* () {
         const thread = yield* office.thread(report.sessionID)
@@ -560,6 +594,14 @@ const layer = Layer.effect(
 export const node = LayerNode.make({
   service: Service,
   layer,
-  deps: [Office.node, OfficeLedger.node, OfficeControl.node, Session.node, SessionPrompt.node, InstanceStore.node],
+  deps: [
+    SessionRecovery.node,
+    Office.node,
+    OfficeLedger.node,
+    OfficeControl.node,
+    Session.node,
+    SessionPrompt.node,
+    InstanceStore.node,
+  ],
 })
 export * as OfficeDriver from "./driver"

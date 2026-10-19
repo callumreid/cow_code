@@ -1249,11 +1249,12 @@ const layer = Layer.effect(
         seeded: startup.seeded,
         outcomes: (yield* ledger.list<Outcome>("outcome")).slice(-100).map((row) => row.value),
         sources: structuredClone(sources),
-        recovery: (yield* Effect.forEach(["command", "request", "report", "reminder"], (kind) =>
-          ledger.list(kind, "reconciliation_required"),
-        ))
-          .flat()
-          .map((row) => ({ id: row.id, kind: row.kind, sessionID: row.sessionID })),
+        recovery: [
+          ...(yield* Effect.forEach(["command", "request", "report", "reminder"], (kind) =>
+            ledger.list(kind, "reconciliation_required"),
+          )).flat(),
+          ...(yield* ledger.list("recovery", "blocked")),
+        ].map((row) => ({ id: row.id, kind: row.kind, sessionID: row.sessionID })),
         overseer: settings.overseer ?? null,
         threads: list,
         reports: [...reports],

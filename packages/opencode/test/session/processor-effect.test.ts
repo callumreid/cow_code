@@ -226,6 +226,24 @@ const fragmentFailureLLM = Layer.succeed(
 const fragmentFailureEnv = LayerNode.compile(root, [...replacements, [LLM.node, fragmentFailureLLM]])
 const itFragmentFailure = testEffect(fragmentFailureEnv)
 
+let settledRequests = 0
+const settledFailureLLM = Layer.succeed(
+  LLM.Service,
+  LLM.Service.of({
+    stream: () =>
+      Stream.suspend(() => {
+        settledRequests++
+        return Stream.make(
+          LLMEvent.toolInputStart({ id: "saved-call", name: "write" }),
+          LLMEvent.toolCall({ id: "saved-call", name: "write", input: {} }),
+          LLMEvent.toolResult({ id: "saved-call", name: "write", result: { type: "text", value: "saved-once" } }),
+          LLMEvent.providerError({ message: "503 upstream connection lost" }),
+        )
+      }),
+  }),
+)
+const itSettledFailure = testEffect(LayerNode.compile(root, [...replacements, [LLM.node, settledFailureLLM]]))
+
 const boot = Effect.fn("test.boot")(function* () {
   const processors = yield* SessionProcessor.Service
   const session = yield* Session.Service
@@ -1165,6 +1183,39 @@ itFragmentFailure.live("session.processor effect tests retain partial legacy par
         expect(seen).toContain(MessageV2.Event.PartUpdated.type)
         expect(seen).toContain(Session.Event.Error.type)
         expect(seen.filter((type) => type.startsWith("session.next."))).toEqual([])
+      }),
+    { config: cfg },
+  ),
+)
+
+itSettledFailure.live("stream failure after a completed tool rebuilds history instead of replaying the request", () =>
+  provideTmpdirInstance(
+    (dir) =>
+      Effect.gen(function* () {
+        settledRequests = 0
+        const { processors, session, provider } = yield* boot()
+        const chat = yield* session.create({})
+        const parent = yield* user(chat.id, "write once")
+        const msg = yield* assistant(chat.id, parent.id, path.resolve(dir))
+        const mdl = yield* provider.getModel(ref.providerID, ref.modelID)
+        const handle = yield* processors.create({ assistantMessage: msg, sessionID: chat.id, model: mdl })
+        const result = yield* handle.process({
+          user: parent as SessionV1.User,
+          sessionID: chat.id,
+          model: mdl,
+          agent: agent(),
+          system: [],
+          messages: [{ role: "user", content: "write once" }],
+          tools: {},
+        })
+        const parts = yield* MessageV2.parts(msg.id)
+        expect(result).toBe("continue")
+        expect(settledRequests).toBe(1)
+        expect(handle.message.finish).toBe("tool-calls")
+        expect(handle.message.error).toBeUndefined()
+        expect(parts.filter((part) => part.type === "tool")).toEqual([
+          expect.objectContaining({ state: expect.objectContaining({ status: "completed", output: "saved-once" }) }),
+        ])
       }),
     { config: cfg },
   ),

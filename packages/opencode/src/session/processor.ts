@@ -16,6 +16,7 @@ import { isOverflow } from "./overflow"
 import { PartID } from "./schema"
 import type { SessionID } from "./schema"
 import { SessionRetry } from "./retry"
+import { SessionRecovery } from "./recovery"
 import { SessionStatus } from "./status"
 import { SessionSummary } from "./summary"
 import type { Provider } from "@/provider/provider"
@@ -81,6 +82,7 @@ export class Service extends Context.Service<Service, Interface>()("@opencode/Se
 const layer = Layer.effect(
   Service,
   Effect.gen(function* () {
+    const recovery = yield* SessionRecovery.Service
     const session = yield* Session.Service
     const config = yield* Config.Service
     const snapshot = yield* Snapshot.Service
@@ -113,6 +115,9 @@ const layer = Layer.effect(
         reasoningMap: {},
       }
       let aborted = false
+      let toolsStarted = false
+      let continueFromHistory = false
+      let lastProgressAt = 0
 
       const parse = (e: unknown) =>
         MessageV2.fromError(e, {
@@ -147,7 +152,9 @@ const layer = Layer.effect(
       ) {
         const match = yield* readToolCall(toolCallID)
         if (!match) return undefined
-        const part = yield* session.updatePart(update(match.part))
+        const updated = update(match.part)
+        if (updated.state.status === "running") toolsStarted = true
+        const part = yield* session.updatePart(updated)
         ctx.toolcalls[toolCallID] = {
           ...match.call,
           partID: part.id,
@@ -276,6 +283,13 @@ const layer = Layer.effect(
       }
 
       const handleEvent = Effect.fnUntraced(function* (value: StreamEvent) {
+        if (
+          ["text-delta", "reasoning-delta", "tool-result", "tool-error"].includes(value.type) &&
+          Date.now() - lastProgressAt >= 2_000
+        ) {
+          lastProgressAt = Date.now()
+          yield* recovery.update(ctx.sessionID, "running", { lastProgressAt, next: undefined, reason: undefined })
+        }
         switch (value.type) {
           case "reasoning-start":
             if (value.id in ctx.reasoningMap) return
@@ -313,6 +327,7 @@ const layer = Layer.effect(
             return
 
           case "tool-input-start":
+            toolsStarted = true
             if (ctx.assistantMessage.summary) {
               throw new Error(`Tool call not allowed while generating summary: ${value.name}`)
             }
@@ -624,6 +639,27 @@ const layer = Layer.effect(
           stack: e instanceof Error ? e.stack : undefined,
         })
         const error = parse(e)
+        const retry = SessionRetry.retryable(error, input.model.providerID)
+        if (!aborted && toolsStarted && retry && !retry.action) {
+          const parts = yield* MessageV2.parts(ctx.assistantMessage.id).pipe(
+            Effect.provideService(Database.Service, database),
+          )
+          const calls = parts.filter((part) => part.type === "tool")
+          if (
+            calls.length &&
+            calls.every(
+              (part) =>
+                part.state.status === "completed" ||
+                (part.state.status === "error" && part.state.metadata?.interrupted !== true),
+            )
+          ) {
+            // Rebuild from durable tool results; retrying streamInput would hide
+            // completed side effects from the model and risk repeating them.
+            continueFromHistory = true
+            ctx.assistantMessage.finish = "tool-calls"
+            return
+          }
+        }
         if (SessionV1.ContextOverflowError.isInstance(error)) {
           if ((yield* config.get()).compaction?.auto === false && !ctx.assistantMessage.summary) {
             ctx.assistantMessage.error = error
@@ -656,6 +692,7 @@ const layer = Layer.effect(
           yield* Effect.gen(function* () {
             ctx.currentText = undefined
             ctx.reasoningMap = {}
+            yield* recovery.update(ctx.sessionID, "running", { next: undefined })
             yield* status.set(ctx.sessionID, { type: "busy" })
             const stream = llm.stream(streamInput)
 
@@ -681,21 +718,29 @@ const layer = Layer.effect(
               SessionRetry.policy({
                 provider: input.model.providerID,
                 parse,
-                set: (info) => {
-                  return status.set(ctx.sessionID, {
-                    type: "retry",
-                    attempt: info.attempt,
-                    message: info.message,
-                    action: info.action,
-                    next: info.next,
-                  })
-                },
+                safe: () => !toolsStarted,
+                set: (info) =>
+                  Effect.gen(function* () {
+                    yield* recovery.update(ctx.sessionID, "retrying", {
+                      attempt: info.attempt,
+                      next: info.next,
+                      reason: info.message,
+                    })
+                    yield* status.set(ctx.sessionID, {
+                      type: "retry",
+                      attempt: info.attempt,
+                      message: info.message,
+                      action: info.action,
+                      next: info.next,
+                    })
+                  }),
               }),
             ),
             Effect.catch(halt),
             Effect.ensuring(cleanup()),
           )
 
+          if (continueFromHistory) return "continue"
           if (ctx.needsCompaction) return "compact"
           if (ctx.blocked || ctx.assistantMessage.error) return "stop"
           return "continue"
@@ -720,6 +765,7 @@ export const node = LayerNode.make({
   service: Service,
   layer: layer,
   deps: [
+    SessionRecovery.node,
     Session.node,
     Config.node,
     Snapshot.node,

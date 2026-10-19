@@ -10,6 +10,9 @@ import { Effect } from "effect"
 
 const DEFAULT_TIMEOUT = 30_000
 const MAX_LIST_PAGES = 1_000
+const successes = new WeakMap<Client, { at: number; tool: string }>()
+export const lastSuccess = (client: Client) => successes.get(client)
+export const recordSuccess = (client: Client, tool: string) => successes.set(client, { at: Date.now(), tool })
 
 const TolerantListToolsResultSchema = ListToolsResultSchema.extend({
   tools: ToolSchema.omit({ outputSchema: true }).array(),
@@ -72,6 +75,7 @@ export function convertTool(mcpTool: MCPToolDef, client: Client, timeout?: numbe
             .filter((text) => text.trim())
             .join("\n\n") || "MCP tool returned an error",
         )
+      recordSuccess(client, mcpTool.name)
       if (result.content.length > 0 || result.structuredContent === undefined || result.structuredContent === null)
         return result
       return {
@@ -142,7 +146,7 @@ export function resourceTemplates(client: Client, timeout?: number) {
   )
 }
 
-function listTools(client: Client, timeout: number) {
+export function listTools(client: Client, timeout: number) {
   return Effect.tryPromise({
     try: () =>
       paginate(

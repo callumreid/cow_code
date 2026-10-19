@@ -28,7 +28,8 @@ export const RETRY_BACKOFF_FACTOR = 2
 export const RETRY_JITTER_FACTOR = 0.25
 export const RETRY_MAX_DELAY_NO_HEADERS = 30_000 // 30 seconds
 export const RETRY_MAX_DELAY = 2_147_483_647 // max 32-bit signed integer for setTimeout
-export const RETRY_MAX_RETRIES = 5
+export const RETRY_MAX_RETRIES = 30
+export const RETRY_MAX_ELAPSED = 15 * 60_000
 
 const RETRYABLE_MESSAGE_PATTERNS = [
   /429|500|502|503|504|524/i,
@@ -41,7 +42,7 @@ const RETRYABLE_MESSAGE_PATTERNS = [
 ]
 
 function cap(ms: number) {
-  return Math.min(ms, RETRY_MAX_DELAY)
+  return Math.max(0, Math.min(ms, RETRY_MAX_DELAY))
 }
 
 export function delay(attempt: number, error?: SessionV1.APIError, random = Math.random()) {
@@ -51,7 +52,7 @@ export function delay(attempt: number, error?: SessionV1.APIError, random = Math
       const retryAfterMs = headers["retry-after-ms"]
       if (retryAfterMs) {
         const parsedMs = Number.parseFloat(retryAfterMs)
-        if (!Number.isNaN(parsedMs)) {
+        if (Number.isFinite(parsedMs) && parsedMs >= 0) {
           return cap(parsedMs)
         }
       }
@@ -59,7 +60,7 @@ export function delay(attempt: number, error?: SessionV1.APIError, random = Math
       const retryAfter = headers["retry-after"]
       if (retryAfter) {
         const parsedSeconds = Number.parseFloat(retryAfter)
-        if (!Number.isNaN(parsedSeconds)) {
+        if (Number.isFinite(parsedSeconds) && parsedSeconds >= 0) {
           // convert seconds to milliseconds
           return cap(Math.ceil(parsedSeconds * 1000))
         }
@@ -183,25 +184,30 @@ function parseJSON(value: unknown) {
 export function policy(opts: {
   provider: string
   parse: (error: unknown) => Err
+  safe?: () => boolean
   set: (input: { attempt: number; message: string; action?: Retryable["action"]; next: number }) => Effect.Effect<void>
 }) {
   return Schedule.fromStepWithMetadata(
-    Effect.succeed((meta: Schedule.InputMetadata<unknown>) => {
-      const error = opts.parse(meta.input)
-      const retry = retryable(error, opts.provider)
-      if (!retry) return Cause.done(meta.attempt)
-      if (meta.attempt > RETRY_MAX_RETRIES) return Cause.done(meta.attempt)
-      return Effect.gen(function* () {
-        const wait = delay(meta.attempt, SessionV1.APIError.isInstance(error) ? error : undefined)
-        const now = yield* Clock.currentTimeMillis
-        yield* opts.set({
-          attempt: meta.attempt,
-          message: retry.message,
-          action: retry.action,
-          next: now + wait,
+    Effect.gen(function* () {
+      const started = yield* Clock.currentTimeMillis
+      return (meta: Schedule.InputMetadata<unknown>) => {
+        const error = opts.parse(meta.input)
+        const retry = retryable(error, opts.provider)
+        if (!retry || retry.action || opts.safe?.() === false) return Cause.done(meta.attempt)
+        if (meta.attempt > RETRY_MAX_RETRIES) return Cause.done(meta.attempt)
+        return Effect.gen(function* () {
+          const wait = delay(meta.attempt, SessionV1.APIError.isInstance(error) ? error : undefined)
+          const now = yield* Clock.currentTimeMillis
+          if (now + wait - started > RETRY_MAX_ELAPSED) return yield* Cause.done(meta.attempt)
+          yield* opts.set({
+            attempt: meta.attempt,
+            message: retry.message,
+            action: retry.action,
+            next: now + wait,
+          })
+          return [meta.attempt, Duration.millis(wait)] as [number, Duration.Duration]
         })
-        return [meta.attempt, Duration.millis(wait)] as [number, Duration.Duration]
-      })
+      }
     }),
   )
 }

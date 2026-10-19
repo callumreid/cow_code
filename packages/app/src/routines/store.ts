@@ -36,12 +36,23 @@ export function createRoutinesStore(
   const [available, setAvailable] = createSignal(true)
   const init = () => ({ fetch: fetcher() })
   let inflight: Promise<void> | undefined
+  let owner: OfficeSdk | undefined
+  let controller: AbortController | undefined
 
   const refresh = () => {
-    if (inflight) return inflight
     const current = sdk()
+    if (inflight && owner === current) return inflight
+    if (owner !== current) {
+      controller?.abort()
+      setData(undefined)
+      setError(undefined)
+      setAvailable(true)
+    }
+    owner = current
+    controller = new AbortController()
+    const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(30_000)])
     setLoading(true)
-    inflight = getRoutines(current, init())
+    const request = getRoutines(current, { ...init(), signal })
       .then(
         (snapshot) => {
           // A server switch mid-flight makes this response someone else's.
@@ -61,10 +72,12 @@ export function createRoutinesStore(
         },
       )
       .finally(() => {
+        if (inflight !== request) return
         inflight = undefined
         setLoading(false)
       })
-    return inflight
+    inflight = request
+    return request
   }
 
   createEffect(
@@ -82,8 +95,16 @@ export function createRoutinesStore(
       void refresh()
     }, ms)
   })
+  const visible = () => {
+    if (!document.hidden) void refresh()
+  }
+  document.addEventListener("visibilitychange", visible)
+  window.addEventListener("online", visible)
   onCleanup(() => {
+    controller?.abort()
     if (timer) clearInterval(timer)
+    document.removeEventListener("visibilitychange", visible)
+    window.removeEventListener("online", visible)
   })
 
   const run = async (name: string) => {

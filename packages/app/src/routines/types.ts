@@ -6,6 +6,7 @@ export type RoutineRun = {
   processStatus?: RoutineRunStatus
   agentStatus?: string
   outcome?: "unverified" | "reported" | "verified"
+  lastProgressAt?: number
   startedAt: number
   endedAt?: number | null
   status: RoutineRunStatus
@@ -26,6 +27,7 @@ export type Routine = {
   schedule: string
   loaded: boolean
   nextRunAt?: number | null
+  previousRunAt?: number | null
   running?: RoutineRun | null
   last?: RoutineRun | null
   runs: RoutineRun[] // newest first, at most 20

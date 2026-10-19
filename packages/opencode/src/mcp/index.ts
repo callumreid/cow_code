@@ -106,6 +106,18 @@ export const Status = Schema.Union([
 ]).annotate({ identifier: "MCPStatus", discriminator: "status" })
 export type Status = Schema.Schema.Type<typeof Status>
 
+export const Health = Schema.Struct({
+  status: Schema.String,
+  checkedAt: Schema.Finite,
+  reachable: Schema.Boolean,
+  latencyMs: Schema.optional(Schema.Finite),
+  toolCount: Schema.optional(Schema.Finite),
+  capabilities: Schema.Array(Schema.String),
+  lastSuccess: Schema.optional(Schema.Struct({ at: Schema.Finite, tool: Schema.String })),
+  error: Schema.optional(Schema.String),
+}).annotate({ identifier: "MCPHealth" })
+export type Health = typeof Health.Type
+
 // Store transports for OAuth servers to allow finishing auth
 type TransportWithAuth = StreamableHTTPClientTransport | SSEClientTransport
 const pendingOAuthTransports = new Map<string, { transport: TransportWithAuth; provider?: McpOAuthPendingProvider }>()
@@ -162,6 +174,7 @@ export interface McpTool {
 }
 
 export interface Interface {
+  readonly health: (name: string) => Effect.Effect<Health, NotFoundError>
   readonly status: () => Effect.Effect<Record<string, Status>>
   readonly clients: () => Effect.Effect<Record<string, MCPClient>>
   readonly instructions: () => Effect.Effect<ServerInstructions[]>
@@ -607,6 +620,48 @@ const layer = Layer.effect(
       return result
     })
 
+    const health: Interface["health"] = Effect.fn("MCP.health")(function* (name) {
+      yield* requireMcpConfig(name)
+      const s = yield* InstanceState.get(state)
+      const client = s.clients[name]
+      const current = s.status[name] ?? { status: "disabled" as const }
+      const checkedAt = Date.now()
+      if (!client)
+        return {
+          status: current.status,
+          checkedAt,
+          reachable: false,
+          capabilities: [],
+          error: "error" in current ? current.error : undefined,
+        }
+      const result = yield* Effect.gen(function* () {
+        yield* Effect.tryPromise(() => client.ping({ timeout: 8_000 }))
+        const defs = client.getServerCapabilities()?.tools ? yield* McpCatalog.listTools(client, 8_000) : []
+        return {
+          status: current.status,
+          checkedAt,
+          reachable: true,
+          latencyMs: Date.now() - checkedAt,
+          toolCount: defs.length,
+          capabilities: Object.keys(client.getServerCapabilities() ?? {}),
+          lastSuccess: McpCatalog.lastSuccess(client),
+        }
+      }).pipe(
+        Effect.timeout("10 seconds"),
+        Effect.catch((error) =>
+          Effect.succeed({
+            status: "failed",
+            checkedAt,
+            reachable: false,
+            capabilities: Object.keys(client.getServerCapabilities() ?? {}),
+            lastSuccess: McpCatalog.lastSuccess(client),
+            error: error instanceof Error ? error.message : String(error),
+          }),
+        ),
+      )
+      return result
+    })
+
     const clients = Effect.fn("MCP.clients")(function* () {
       const s = yield* InstanceState.get(state)
       return s.clients
@@ -970,6 +1025,7 @@ const layer = Layer.effect(
     })
 
     return Service.of({
+      health,
       status,
       clients,
       instructions,

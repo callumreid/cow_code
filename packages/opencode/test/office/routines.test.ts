@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { describeCalendar, nextCalendar, withThreads, type Snapshot } from "../../src/office/routines"
+import { describeCalendar, nextCalendar, previousCalendar, withThreads, type Snapshot } from "../../src/office/routines"
 import type { Thread } from "../../src/office/office"
 
 // A Wednesday, 16:20 local time.
@@ -176,4 +176,11 @@ test("exact executions override timestamps and preserve process versus agent out
     now,
   )
   expect(unknown.routines[0].runs.find((run) => run.executionID === "missing")?.sessionID).toBeUndefined()
+})
+
+test("previous calendar honors skipped weekends and script windows", () => {
+  const now = new Date(2026, 8, 14, 7, 59).getTime()
+  const previous = previousCalendar([{ Hour: 8, Minute: 0 }], now, { weekdays: true })
+  expect(new Date(previous!).getDay()).toBe(5)
+  expect(new Date(previous!).getDate()).toBe(11)
 })

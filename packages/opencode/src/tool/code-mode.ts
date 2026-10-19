@@ -165,6 +165,7 @@ const invokeChildTool = Effect.fn("CodeMode.invokeChildTool")(function* (input: 
             .filter((text) => text.trim())
             .join("\n\n") || "MCP tool returned an error",
         )
+      McpCatalog.recordSuccess(input.entry.tool.client, input.entry.tool.def.name)
       return raw
     })
   }).pipe(

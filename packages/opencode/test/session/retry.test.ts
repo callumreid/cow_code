@@ -143,10 +143,47 @@ describe("session.retry.delay", () => {
         Effect.ignore(step(error)),
       )
 
-      expect(attempts).toStrictEqual([1, 2, 3, 4, 5])
+      expect(attempts).toStrictEqual(Array.from({ length: SessionRetry.RETRY_MAX_RETRIES }, (_, i) => i + 1))
     }),
   )
 })
+
+it.instance("does not replay a request after a tool has started", () =>
+  Effect.gen(function* () {
+    const attempts: number[] = []
+    const step = yield* Schedule.toStepWithMetadata(
+      SessionRetry.policy({
+        provider: "test",
+        parse: () => apiError(),
+        safe: () => false,
+        set: (info) =>
+          Effect.sync(() => {
+            attempts.push(info.attempt)
+          }),
+      }),
+    )
+    yield* Effect.ignore(step(apiError()))
+    expect(attempts).toEqual([])
+  }),
+)
+it.instance("does not wait past the retry time budget", () =>
+  Effect.gen(function* () {
+    const attempts: number[] = []
+    const error = apiError({ "retry-after": "3600" })
+    const step = yield* Schedule.toStepWithMetadata(
+      SessionRetry.policy({
+        provider: "test",
+        parse: () => error,
+        set: (info) =>
+          Effect.sync(() => {
+            attempts.push(info.attempt)
+          }),
+      }),
+    )
+    yield* Effect.ignore(step(error))
+    expect(attempts).toEqual([])
+  }),
+)
 
 describe("session.retry.retryable", () => {
   test("retries serialized too_many_requests messages", () => {

@@ -99,6 +99,18 @@ export const mcpHandlers = HttpApiBuilder.group(InstanceHttpApi, "mcp", (handler
     })
 
     return handlers
+      .handle("health", (ctx) =>
+        mcp.health(ctx.params.name).pipe(
+          Effect.catchTag("MCP.NotFoundError", (error) =>
+            Effect.fail(
+              new McpServerNotFoundError({
+                name: error.name,
+                message: `MCP server not found: ${error.name}`,
+              }),
+            ),
+          ),
+        ),
+      )
       .handle("status", status)
       .handle("add", add)
       .handle("authStart", authStart)

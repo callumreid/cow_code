@@ -1,3 +1,5 @@
+import { InstanceStore } from "../../src/project/instance-store"
+import { InstanceBootstrap } from "../../src/project/bootstrap-service"
 import { ConfigV1 } from "@opencode-ai/core/v1/config/config"
 import { SessionV1 } from "@opencode-ai/core/v1/session"
 import { Database } from "@opencode-ai/core/database/database"
@@ -35,6 +37,7 @@ import { SessionSummary } from "../../src/session/summary"
 import { Instruction } from "../../src/session/instruction"
 import { SessionProcessor } from "../../src/session/processor"
 import { SessionPrompt } from "../../src/session/prompt"
+import { SessionRecovery } from "../../src/session/recovery"
 import { SessionRevert } from "../../src/session/revert"
 import { SessionRunState } from "../../src/session/run-state"
 import { MessageID, PartID, SessionID } from "../../src/session/schema"
@@ -113,6 +116,7 @@ function makeMcp(instructions: MCP.ServerInstructions[] = []) {
   return Layer.succeed(
     MCP.Service,
     MCP.Service.of({
+      health: () => Effect.die("unexpected health test"),
       status: () => Effect.succeed({}),
       clients: () => Effect.succeed({}),
       instructions: () => Effect.succeed(instructions),
@@ -169,6 +173,7 @@ const runtimeFlags = RuntimeFlags.layer({ experimentalEventSystem: true })
 const testLLMServerNode = LayerNode.make({ service: TestLLMServer, layer: TestLLMServer.layer, deps: [] })
 
 const promptRoot = LayerNode.group([
+  SessionRecovery.node,
   SessionPrompt.node,
   Session.node,
   SessionProjector.node,
@@ -210,6 +215,7 @@ const promptRoot = LayerNode.group([
 
 function makePrompt(input?: { mcpInstructions?: MCP.ServerInstructions[]; processor?: "blocking" }) {
   const replacements = [
+    [InstanceStore.bootstrapNode, Layer.succeed(InstanceBootstrap.Service, { run: Effect.void })],
     [SessionSummary.node, summary],
     [LSP.node, lsp],
     [MCP.node, makeMcp(input?.mcpInstructions)],
@@ -224,6 +230,7 @@ function makePrompt(input?: { mcpInstructions?: MCP.ServerInstructions[]; proces
 function makeHttp(input?: { mcpInstructions?: MCP.ServerInstructions[]; processor?: "blocking" }) {
   const root = LayerNode.group([promptRoot, testLLMServerNode])
   const replacements = [
+    [InstanceStore.bootstrapNode, Layer.succeed(InstanceBootstrap.Service, { run: Effect.void })],
     [SessionSummary.node, summary],
     [LSP.node, lsp],
     [MCP.node, makeMcp(input?.mcpInstructions)],
@@ -575,6 +582,8 @@ withMcpInstructions.instance(
       const body = JSON.stringify(hits[0]?.body)
       expect(body).toContain('<server name=\\"guide-server\\">')
       expect(body).toContain("Use lookup before mutate.")
+      // Interrupting a request waiter deliberately leaves the shared session running.
+      yield* prompt.cancel(chat.id)
       yield* Fiber.interrupt(fiber)
     }),
   15_000,
@@ -2467,4 +2476,140 @@ noLLMServer.instance(
       }
     }),
   30_000,
+)
+
+it.instance("recovery resumes saved provider work from settled history without repeating the tool", () =>
+  Effect.gen(function* () {
+    const { dir, llm } = yield* useServerConfig(providerCfg)
+    const prompt = yield* SessionPrompt.Service
+    const sessions = yield* Session.Service
+    const recovery = yield* SessionRecovery.Service
+    const chat = yield* sessions.create({ title: "Pinned" })
+    const seeded = yield* seed(chat.id, { finish: "stop" })
+    yield* sessions.updatePart({
+      id: PartID.ascending(),
+      messageID: seeded.assistant.id,
+      sessionID: chat.id,
+      type: "tool",
+      callID: "already-done",
+      tool: "bash",
+      state: {
+        status: "completed",
+        input: { command: "touch important-file" },
+        output: "completed-once",
+        title: "write",
+        metadata: {},
+        time: { start: Date.now(), end: Date.now() },
+      },
+    })
+    const checkpoint = yield* recovery.start(chat.id, dir, seeded.user.time.created)
+    yield* llm.text("Task finished using the existing result")
+    yield* prompt.recover(checkpoint)
+    const hits = yield* llm.hits
+    expect(hits).toHaveLength(1)
+    expect(JSON.stringify(hits[0]?.body)).toContain("completed-once")
+    expect((yield* recovery.get(chat.id))?.state).toBe("completed")
+    yield* prompt.recover(checkpoint)
+    expect(yield* llm.hits).toHaveLength(1)
+  }),
+)
+
+it.instance("recovery blocks uncertain tool effects and expired or canceled checkpoints without provider calls", () =>
+  Effect.gen(function* () {
+    const { dir, llm } = yield* useServerConfig(providerCfg)
+    const prompt = yield* SessionPrompt.Service
+    const sessions = yield* Session.Service
+    const recovery = yield* SessionRecovery.Service
+    const chat = yield* sessions.create({ title: "Pinned" })
+    const seeded = yield* seed(chat.id)
+    yield* sessions.updatePart({
+      id: PartID.ascending(),
+      messageID: seeded.assistant.id,
+      sessionID: chat.id,
+      type: "tool",
+      callID: "uncertain",
+      tool: "bash",
+      state: { status: "running", input: { command: "publish" }, time: { start: Date.now() } },
+    })
+    const checkpoint = yield* recovery.start(chat.id, dir, seeded.user.time.created)
+    yield* prompt.recover(checkpoint)
+    expect((yield* recovery.get(chat.id))?.state).toBe("blocked")
+    expect((yield* recovery.get(chat.id))?.value.reason).toContain("has not been repeated")
+    const clean = yield* sessions.create({ title: "Pinned" })
+    const cleanSeed = yield* seed(clean.id)
+    const expired = yield* recovery.start(clean.id, dir, cleanSeed.user.time.created)
+    yield* recovery.update(clean.id, "running", { deadline: Date.now() - 1 })
+    yield* prompt.recover({ ...expired, deadline: Date.now() - 1 })
+    expect((yield* recovery.get(clean.id))?.state).toBe("blocked")
+    yield* recovery.update(clean.id, "canceled")
+    yield* prompt.recover(expired)
+    expect((yield* recovery.get(clean.id))?.state).toBe("canceled")
+    expect(yield* llm.hits).toHaveLength(0)
+  }),
+)
+
+it.instance("explicit stop during a saved retry wait prevents automatic resume", () =>
+  Effect.gen(function* () {
+    const { dir, llm } = yield* useServerConfig(providerCfg)
+    const prompt = yield* SessionPrompt.Service
+    const sessions = yield* Session.Service
+    const recovery = yield* SessionRecovery.Service
+    const status = yield* SessionStatus.Service
+    const chat = yield* sessions.create({ title: "Pinned" })
+    const seeded = yield* seed(chat.id)
+    const checkpoint = yield* recovery.start(chat.id, dir, seeded.user.time.created)
+    const fiber = yield* prompt.recover({ ...checkpoint, next: Date.now() + 60_000 }).pipe(Effect.forkChild)
+    yield* pollWithTimeout(
+      status.get(chat.id).pipe(Effect.map((state) => (state.type === "retry" ? true : undefined))),
+      "retry wait did not start",
+    )
+    yield* prompt.cancel(chat.id)
+    yield* Fiber.join(fiber)
+    expect((yield* recovery.get(chat.id))?.state).toBe("canceled")
+    expect(yield* llm.hits).toHaveLength(0)
+  }),
+)
+
+it.instance("task budget blocks the provider and an explicit resume works after increasing it", () =>
+  Effect.gen(function* () {
+    const { llm } = yield* useServerConfig(providerCfg)
+    const prompt = yield* SessionPrompt.Service
+    const sessions = yield* Session.Service
+    const recovery = yield* SessionRecovery.Service
+    const chat = yield* sessions.create({ title: "Pinned" })
+    yield* seed(chat.id)
+    yield* sessions.setMetadata({ sessionID: chat.id, metadata: { costBudgetUsd: 0 } })
+    const blocked = yield* prompt.loop({ sessionID: chat.id })
+    expect(SessionRecovery.reason(blocked)).toContain("Task budget reached")
+    expect((yield* recovery.get(chat.id))?.state).toBe("blocked")
+    expect(yield* llm.hits).toHaveLength(0)
+    yield* sessions.setMetadata({ sessionID: chat.id, metadata: { costBudgetUsd: 1 } })
+    yield* llm.text("Resumed")
+    const result = yield* prompt.loop({ sessionID: chat.id })
+    expect(result.info.role === "assistant" && result.info.error).toBeUndefined()
+    expect((yield* recovery.get(chat.id))?.state).toBe("completed")
+    expect(yield* llm.hits).toHaveLength(1)
+  }),
+)
+
+it.instance("a model without vision blocks attached images before a provider call", () =>
+  Effect.gen(function* () {
+    const { llm } = yield* useServerConfig(providerCfg)
+    const prompt = yield* SessionPrompt.Service
+    const sessions = yield* Session.Service
+    const chat = yield* sessions.create({ title: "Pinned" })
+    const seeded = yield* seed(chat.id)
+    yield* sessions.updatePart({
+      id: PartID.ascending(),
+      messageID: seeded.user.id,
+      sessionID: chat.id,
+      type: "file",
+      mime: "image/png",
+      filename: "photo.png",
+      url: "data:image/png;base64,aGVsbG8=",
+    })
+    const result = yield* prompt.loop({ sessionID: chat.id })
+    expect(SessionRecovery.reason(result)).toContain("cannot read the attached image")
+    expect(yield* llm.hits).toHaveLength(0)
+  }),
 )

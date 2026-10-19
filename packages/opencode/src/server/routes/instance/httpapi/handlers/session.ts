@@ -11,6 +11,7 @@ import { MessageV2 } from "@/session/message-v2"
 import { SessionPrompt } from "@/session/prompt"
 import { SessionRevert } from "@/session/revert"
 import { SessionRunState } from "@/session/run-state"
+import { SessionRecovery } from "@/session/recovery"
 import { SessionStatus } from "@/session/status"
 import { SessionSummary } from "@/session/summary"
 import { Todo } from "@/session/todo"
@@ -55,6 +56,7 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
     const runState = yield* SessionRunState.Service
     const agentSvc = yield* Agent.Service
     const permissionSvc = yield* Permission.Service
+    const recovery = yield* SessionRecovery.Service
     const statusSvc = yield* SessionStatus.Service
     const todoSvc = yield* Todo.Service
     const summary = yield* SessionSummary.Service
@@ -411,6 +413,14 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
     })
 
     return handlers
+      .handle("recovery", (ctx) =>
+        Effect.gen(function* () {
+          yield* requireSession(ctx.params.sessionID)
+          const saved = yield* recovery.get(ctx.params.sessionID)
+          if (!saved) return null
+          return { ...saved.value, state: saved.state as SessionRecovery.State }
+        }),
+      )
       .handle("list", list)
       .handle("status", status)
       .handle("get", get)

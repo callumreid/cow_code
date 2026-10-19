@@ -55,6 +55,8 @@ import { eq } from "drizzle-orm"
 import { SessionTable } from "@opencode-ai/core/session/sql"
 import { SessionReminders } from "./reminders"
 import { SessionTools } from "./tools"
+import { SessionRecovery } from "./recovery"
+import { checkBudget } from "./budget"
 import { LLMEvent } from "@opencode-ai/llm"
 
 // @ts-ignore
@@ -100,6 +102,7 @@ function isOrphanedInterruptedTool(part: SessionV1.ToolPart) {
 }
 
 export interface Interface {
+  readonly recover: (checkpoint: SessionRecovery.Checkpoint) => Effect.Effect<void>
   readonly cancel: (sessionID: SessionID) => Effect.Effect<void>
   readonly prompt: (input: PromptInput) => Effect.Effect<SessionV1.WithParts, Image.Error>
   /** Persist input without taking ownership of a provider turn. */
@@ -115,6 +118,7 @@ export class Service extends Context.Service<Service, Interface>()("@opencode/Se
 const layer = Layer.effect(
   Service,
   Effect.gen(function* () {
+    const recovery = yield* SessionRecovery.Service
     const status = yield* SessionStatus.Service
     const sessions = yield* Session.Service
     const agents = yield* Agent.Service
@@ -155,7 +159,9 @@ const layer = Layer.effect(
 
     const cancel = Effect.fn("SessionPrompt.cancel")(function* (sessionID: SessionID) {
       yield* Effect.logInfo("cancel", { "session.id": sessionID })
+      yield* recovery.update(sessionID, "canceled")
       yield* state.cancel(sessionID)
+      yield* recovery.update(sessionID, "canceled")
     })
 
     const resolvePromptParts = Effect.fn("SessionPrompt.resolvePromptParts")(function* (template: string) {
@@ -1100,6 +1106,7 @@ const layer = Layer.effect(
           const { user: lastUser, assistant: lastAssistant, finished: lastFinished, tasks } = MessageV2.latest(msgs)
 
           if (!lastUser) throw new Error("No user message found in stream. This should never happen.")
+          const checkpoint = yield* recovery.start(sessionID, ctx.directory, lastUser.time.created)
 
           const lastAssistantMsg = msgs.findLast(
             (msg) => msg.info.role === "assistant" && msg.info.id === lastAssistant?.id,
@@ -1116,6 +1123,7 @@ const layer = Layer.effect(
             lastAssistant?.finish &&
             !["tool-calls", "unknown"].includes(lastAssistant.finish) &&
             !hasToolCalls &&
+            !lastAssistant.error &&
             lastAssistant.parentID === lastUser.id
           ) {
             const orphan = lastAssistantMsg?.parts.find(
@@ -1203,6 +1211,25 @@ const layer = Layer.effect(
             sessionID,
           }
           yield* sessions.updateMessage(msg)
+          const budget = yield* checkBudget(sessions, sessionID).pipe(Effect.orDie)
+          const imageUnsupported =
+            !model.capabilities.input.image &&
+            msgs
+              .findLast((item) => item.info.role === "user")
+              ?.parts.some((part) => part.type === "file" && part.mime.startsWith("image/"))
+          if (budget || imageUnsupported || Date.now() >= checkpoint.deadline) {
+            msg.error = new NamedError.Unknown({
+              message: budget
+                ? `Task budget reached ($${budget.spent.toFixed(2)} of $${budget.limit.toFixed(2)}). Increase the budget to resume.`
+                : imageUnsupported
+                  ? "This model cannot read the attached image. Choose a model with image support before resuming."
+                  : "The 24-hour task window expired. Resume explicitly to continue.",
+            }).toObject()
+            msg.time.completed = Date.now()
+            yield* sessions.updateMessage(msg)
+            yield* events.publish(Session.Event.Error, { sessionID, error: msg.error })
+            break
+          }
 
           const finalizeInterruptedAssistant = Effect.gen(function* () {
             if (msg.time.completed) return
@@ -1347,7 +1374,78 @@ const layer = Layer.effect(
     const loop: (input: LoopInput) => Effect.Effect<SessionV1.WithParts> = Effect.fn("SessionPrompt.loop")(function* (
       input: LoopInput,
     ) {
-      return yield* state.ensureRunning(input.sessionID, lastAssistant(input.sessionID), runLoop(input.sessionID))
+      return yield* state.ensureRunning(
+        input.sessionID,
+        lastAssistant(input.sessionID),
+        runLoop(input.sessionID).pipe(
+          Effect.tap((result) =>
+            recovery.update(
+              input.sessionID,
+              result.info.role === "assistant" && result.info.error ? "blocked" : "completed",
+              { reason: SessionRecovery.reason(result) },
+            ),
+          ),
+          Effect.tapCause((cause) =>
+            Cause.hasInterruptsOnly(cause)
+              ? Effect.void
+              : recovery.update(input.sessionID, "blocked", {
+                  reason: "Execution stopped unexpectedly. Inspect the thread and resume.",
+                }),
+          ),
+        ),
+      )
+    })
+
+    const recover: Interface["recover"] = Effect.fn("SessionPrompt.recover")(function* (checkpoint) {
+      const sessionID = checkpoint.sessionID
+      const current = yield* recovery.get(sessionID)
+      if (!current || !["running", "retrying"].includes(current.state)) return
+      yield* state.ensureRunning(
+        sessionID,
+        lastAssistant(sessionID),
+        Effect.gen(function* () {
+          const session = yield* sessions.get(sessionID).pipe(Effect.orDie)
+          if (session.time.archived) {
+            yield* recovery.update(sessionID, "canceled")
+            return yield* lastAssistant(sessionID)
+          }
+          const messages = yield* sessions.messages({ sessionID }).pipe(Effect.orDie)
+          const decision = SessionRecovery.reconcile(messages, checkpoint.startedAt, checkpoint.deadline, Date.now())
+          if (decision.state !== "running") {
+            yield* recovery.update(sessionID, decision.state, "reason" in decision ? { reason: decision.reason } : {})
+            if (decision.state === "blocked")
+              yield* events.publish(Session.Event.Error, {
+                sessionID,
+                error: new NamedError.Unknown({ message: decision.reason }).toObject(),
+              })
+            return yield* lastAssistant(sessionID)
+          }
+          if (checkpoint.next && checkpoint.next > Date.now()) {
+            if (checkpoint.next >= checkpoint.deadline) {
+              yield* recovery.update(sessionID, "blocked", {
+                reason: "Provider retry falls outside the recovery window.",
+              })
+              return yield* lastAssistant(sessionID)
+            }
+            yield* status.set(sessionID, {
+              type: "retry",
+              attempt: checkpoint.attempt ?? 1,
+              next: checkpoint.next,
+              message: "Resuming saved work after reconnecting to the provider",
+            })
+            yield* Effect.sleep(checkpoint.next - Date.now())
+          }
+          return yield* runLoop(sessionID).pipe(
+            Effect.tap((result) =>
+              recovery.update(
+                sessionID,
+                result.info.role === "assistant" && result.info.error ? "blocked" : "completed",
+                { reason: SessionRecovery.reason(result) },
+              ),
+            ),
+          )
+        }),
+      )
     })
 
     const shell: (input: ShellInput) => Effect.Effect<SessionV1.WithParts, Session.BusyError> = Effect.fn(
@@ -1485,6 +1583,7 @@ const layer = Layer.effect(
     })
 
     return Service.of({
+      recover,
       cancel,
       prompt,
       admit: (input) => prompt({ ...input, noReply: true }),
@@ -1604,6 +1703,7 @@ export const node = LayerNode.make({
   service: Service,
   layer: layer,
   deps: [
+    SessionRecovery.node,
     SessionStatus.node,
     Session.node,
     Agent.node,

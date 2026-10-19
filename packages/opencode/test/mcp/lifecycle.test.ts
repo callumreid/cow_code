@@ -558,3 +558,21 @@ it.live("McpOAuthCallback.cancelPending rejects the pending callback", () =>
     () => Effect.promise(() => McpOAuthCallback.stop()).pipe(Effect.ignore),
   ),
 )
+
+it.instance("health tests a live connection without running a tool and reports catalog failures", () =>
+  Effect.gen(function* () {
+    const server = yield* lifecycleServer({ capabilities: { tools: {} } })
+    const mcp = yield* MCP.Service
+    yield* mcp.add("health-server", remote(server.url))
+    const healthy = yield* mcp.health("health-server")
+    expect(healthy.reachable).toBe(true)
+    expect(healthy.toolCount).toBe(1)
+    expect(healthy.lastSuccess).toBeUndefined()
+    server.state.listToolsError = "catalog unavailable"
+    const failed = yield* mcp.health("health-server")
+    expect(failed.reachable).toBe(false)
+    expect(failed.error).toContain("catalog unavailable")
+    yield* mcp.disconnect("health-server")
+    expect((yield* mcp.health("health-server")).status).toBe("disabled")
+  }),
+)

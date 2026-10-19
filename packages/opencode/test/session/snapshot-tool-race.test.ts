@@ -1,3 +1,5 @@
+import { InstanceStore } from "../../src/project/instance-store"
+import { InstanceBootstrap } from "../../src/project/bootstrap-service"
 /**
  * Reproducer for snapshot race condition with instant tool execution.
  *
@@ -35,6 +37,7 @@ import { RuntimeFlags } from "@/effect/runtime-flags"
 const mcp = Layer.succeed(
   MCP.Service,
   MCP.Service.of({
+    health: () => Effect.die("unexpected health test"),
     status: () => Effect.succeed({}),
     clients: () => Effect.succeed({}),
     instructions: () => Effect.succeed([]),
@@ -88,6 +91,7 @@ const root = LayerNode.group([
 ])
 const it = testEffect(
   LayerNode.compile(root, [
+    [InstanceStore.bootstrapNode, Layer.succeed(InstanceBootstrap.Service, { run: Effect.void })],
     [MCP.node, mcp],
     [LSP.node, lsp],
     [RuntimeFlags.node, RuntimeFlags.layer({ experimentalEventSystem: true })],

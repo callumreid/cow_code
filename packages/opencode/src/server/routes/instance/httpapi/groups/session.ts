@@ -6,6 +6,7 @@ import { Session } from "@/session/session"
 import { MessageV2 } from "@/session/message-v2"
 import { SessionPrompt } from "@/session/prompt"
 import { SessionRevert } from "@/session/revert"
+import { SessionRecovery } from "@/session/recovery"
 import { SessionStatus } from "@/session/status"
 import { SessionSummary } from "@/session/summary"
 import { Todo } from "@/session/todo"
@@ -78,6 +79,7 @@ export const PermissionResponsePayload = Schema.Struct({
 export const SessionPaths = {
   list: root,
   status: `${root}/status`,
+  recovery: `${root}/:sessionID/recovery`,
   get: `${root}/:sessionID`,
   children: `${root}/:sessionID/children`,
   todo: `${root}/:sessionID/todo`,
@@ -116,6 +118,18 @@ export const SessionApi = HttpApi.make("session")
             identifier: "session.list",
             summary: "List sessions",
             description: "Get a list of all OpenCode sessions, sorted by most recently updated.",
+          }),
+        ),
+        HttpApiEndpoint.get("recovery", SessionPaths.recovery, {
+          params: { sessionID: SessionID },
+          query: WorkspaceRoutingQuery,
+          success: described(SessionRecovery.Snapshot, "Durable execution checkpoint, or null for untracked work"),
+          error: ApiNotFoundError,
+        }).annotateMerge(
+          OpenApi.annotations({
+            identifier: "session.recovery",
+            summary: "Get task recovery status",
+            description: "Inspect task progress, retry timing and recovery limits without changing execution.",
           }),
         ),
         HttpApiEndpoint.get("status", SessionPaths.status, {

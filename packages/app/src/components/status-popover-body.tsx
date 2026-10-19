@@ -1,3 +1,4 @@
+import { IntegrationHealth } from "./integration-health"
 import { Button } from "@opencode-ai/ui/button"
 import { useDialog } from "@opencode-ai/ui/context/dialog"
 import { Icon } from "@opencode-ai/ui/icon"
@@ -397,7 +398,7 @@ export function StatusPopoverBody(props: { shown: Accessor<boolean> }) {
           </Tabs.Content>
         )}
 
-        <Tabs.Content value="mcp">
+        <Tabs.Content value="mcp" class="max-h-[65vh] overflow-y-auto">
           <div class="flex flex-col px-2 pb-2">
             <div class="flex flex-col p-3 bg-background-base rounded-sm min-h-14">
               <Show
@@ -410,47 +411,54 @@ export function StatusPopoverBody(props: { shown: Accessor<boolean> }) {
                   {(name) => {
                     const status = () => mcpStatus(name)
                     const enabled = () => status() === "connected"
+                    const error = () => {
+                      const item = sync().data.mcp[name]
+                      return item && "error" in item ? item.error : undefined
+                    }
                     return (
-                      <button
-                        type="button"
-                        class="flex items-center gap-2 w-full min-h-8 pl-3 pr-2 py-1 rounded-md hover:bg-surface-raised-base-hover transition-colors text-left"
-                        onClick={() => {
-                          if (toggleMcp.isPending) return
-                          toggleMcp.mutate(name)
-                        }}
-                        disabled={toggleMcp.isPending && toggleMcp.variables === name}
-                      >
-                        <div
-                          classList={{
-                            "size-1.5 rounded-full shrink-0": true,
-                            "bg-icon-success-base": status() === "connected",
-                            "bg-icon-critical-base": status() === "failed",
-                            "bg-border-weak-base": status() === "disabled",
-                            "bg-icon-warning-base":
-                              status() === "needs_auth" || status() === "needs_client_registration",
+                      <div class="border-b border-border-weaker-base last:border-b-0">
+                        <button
+                          type="button"
+                          class="flex items-center gap-2 w-full min-h-8 pl-3 pr-2 py-1 rounded-md hover:bg-surface-raised-base-hover transition-colors text-left"
+                          onClick={() => {
+                            if (toggleMcp.isPending) return
+                            toggleMcp.mutate(name)
                           }}
-                        />
-                        <span class="flex flex-col min-w-0 flex-1">
-                          <span class="flex items-center gap-2 min-w-0">
-                            <span class="text-14-regular text-text-base truncate">{name}</span>
-                          </span>
-                          <Show when={status() === "needs_auth"}>
-                            <span class="text-11-regular text-text-weaker truncate">
-                              {language.t("mcp.auth.clickToAuthenticate")}
-                            </span>
-                          </Show>
-                        </span>
-                        <div onClick={(event) => event.stopPropagation()}>
-                          <Switch
-                            checked={enabled()}
-                            disabled={toggleMcp.isPending && toggleMcp.variables === name}
-                            onChange={() => {
-                              if (toggleMcp.isPending) return
-                              toggleMcp.mutate(name)
+                          disabled={toggleMcp.isPending && toggleMcp.variables === name}
+                        >
+                          <div
+                            classList={{
+                              "size-1.5 rounded-full shrink-0": true,
+                              "bg-icon-success-base": status() === "connected",
+                              "bg-icon-critical-base": status() === "failed",
+                              "bg-border-weak-base": status() === "disabled",
+                              "bg-icon-warning-base":
+                                status() === "needs_auth" || status() === "needs_client_registration",
                             }}
                           />
-                        </div>
-                      </button>
+                          <span class="flex flex-col min-w-0 flex-1">
+                            <span class="flex items-center gap-2 min-w-0">
+                              <span class="text-14-regular text-text-base truncate">{name}</span>
+                            </span>
+                            <Show when={status() === "needs_auth"}>
+                              <span class="text-11-regular text-text-weaker truncate">
+                                {language.t("mcp.auth.clickToAuthenticate")}
+                              </span>
+                            </Show>
+                          </span>
+                          <div onClick={(event) => event.stopPropagation()}>
+                            <Switch
+                              checked={enabled()}
+                              disabled={toggleMcp.isPending && toggleMcp.variables === name}
+                              onChange={() => {
+                                if (toggleMcp.isPending) return
+                                toggleMcp.mutate(name)
+                              }}
+                            />
+                          </div>
+                        </button>
+                        <IntegrationHealth name={name} status={status() ?? "pending"} error={error()} />
+                      </div>
                     )
                   }}
                 </For>
