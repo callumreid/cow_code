@@ -1,53 +1,141 @@
 #!/bin/bash
-# Box server deploy: stage the new binary at ~/.local/bin/opencode.new, then run this (nohup) on the box.
-# Waits until no session is busy and no scheduled job is mid-run, provisions from ~/cow-box, swaps the
-# binary, restarts cow-server and verifies. Rolls back if the new build opens a different database
-# (the sqlite file is named after the build channel: build with OPENCODE_CHANNEL=feat/cow-ui).
-# Set COW_DEPLOY_ALLOW_DB_CHANGE=1 only when a database switch is intended.
-export PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin"  # /usr/sbin: lsof, for the database check
-LOG="$HOME/.coval/logs/cow-deploy-server.log"
-PW=$(head -1 "$HOME/.config/opencode/server-password")
-D="x-opencode-directory: /Users/bronson/coval"
-JOBS="dev.coval.pr-review-sweep dev.coval.pr-review-fixer dev.coval.pr-keep-updated dev.coval.daily-workers-health-audit dev.coval.daily-prod-validation dev.bronson.cow-health"
+# Stage ~/.local/bin/opencode.new, then run this on the box. This script only
+# replaces cow-server: it never provisions the machine or sends notifications.
+set -euo pipefail
+umask 077
+export PATH="$PATH:/usr/sbin"
+ROOT="${COW_DEPLOY_ROOT:-$HOME}"
+LOG="$ROOT/.coval/logs/cow-deploy-server.log"
+BIN="$ROOT/.local/bin/opencode"
+SERVICE="${COW_DEPLOY_SERVICE:-gui/$(id -u)/dev.bronson.cow-server}"
+DOMAIN="${SERVICE%/*}"
+JOBS="${COW_DEPLOY_JOBS:-dev.coval.pr-review-sweep dev.coval.pr-review-fixer dev.coval.pr-keep-updated dev.coval.daily-workers-health-audit dev.coval.daily-prod-validation dev.bronson.cow-health}"
+WAIT_ATTEMPTS="${COW_DEPLOY_WAIT_ATTEMPTS:-360}"
+WAIT_SECONDS="${COW_DEPLOY_WAIT_SECONDS:-30}"
+HEALTH_ATTEMPTS="${COW_DEPLOY_HEALTH_ATTEMPTS:-30}"
+HEALTH_SECONDS="${COW_DEPLOY_HEALTH_SECONDS:-2}"
+DIRECTORY="${COW_DEPLOY_DIRECTORY:-/Users/bronson/coval}"
+swapped=0
+committed=0
+locked=0
+mkdir -p "$ROOT/.coval/logs"
 say() { echo "$(date -Iseconds): $*" >> "$LOG"; }
-running_jobs() { for j in $JOBS; do launchctl print "gui/501/$j" 2>/dev/null | grep -q "state = running" && printf '%s ' "$j"; done; }
-say "deploy start; staged $(ls -la "$HOME/.local/bin/opencode.new" | awk '{print $5}') bytes"
-# Wait (up to 3 hours) until no session is busy and no scheduled job is mid-run, so nothing is cut off.
-for i in $(seq 1 360); do
-  busy=$(curl -s -m 5 -u "cow:$PW" -H "$D" http://127.0.0.1:4096/session/status)
-  jobs=$(running_jobs)
-  if { [ "$busy" = "{}" ] || [ -z "$busy" ]; } && [ -z "$jobs" ]; then break; fi
-  [ "$i" = 1 ] && say "waiting for idle (busy=$busy jobs=$jobs)"
-  sleep 30
+fail() { say "ABORT: $*"; echo "cow deploy: $* (see $LOG)" >&2; exit 1; }
+health() {
+  curl -fsS -m 5 -u "cow:$PW" http://127.0.0.1:4096/global/health |
+    python3 -c 'import json,sys; d=json.load(sys.stdin); sys.exit(0 if isinstance(d,dict) and d.get("healthy") is True and d.get("version")==sys.argv[1] else 1)' "$1"
+}
+service_pid() {
+  launchctl print "$SERVICE" | python3 -c 'import re,sys; p=re.findall(r"^\s*pid = ([1-9][0-9]*)\s*$",sys.stdin.read(),re.M); sys.exit(1) if len(p)!=1 else print(p[0])'
+}
+database() {
+  local pid
+  pid=${1:-$(service_pid)}
+  [ -n "$pid" ] || return 1
+  lsof -a -p "$pid" -Fn 2>/dev/null | python3 -c 'import os,sys; p=sorted(set(os.path.realpath(s[1:].rstrip("\n")) for s in sys.stdin if s.startswith("n") and os.path.basename(s[1:].rstrip("\n")).startswith("opencode") and s.rstrip("\n").endswith(".db"))); sys.exit(1) if len(p)!=1 else print(p[0])'
+}
+verify() {
+  local expected="$1" previous="${2:-}" actual pid i
+  for ((i=1; i<=HEALTH_ATTEMPTS; i++)); do
+    if health "$expected" 2>/dev/null; then
+      pid=$(service_pid) || pid=""
+      actual=$(database "$pid") || actual=""
+      [ -n "$pid" ] && [ "$pid" != "$previous" ] && [ "$actual" = "$db_before" ] && return 0
+    fi
+    sleep "$HEALTH_SECONDS"
+  done
+  return 1
+}
+cleanup() {
+  local result=$?
+  trap - EXIT
+  if [ "$swapped" = 1 ] && [ "$committed" = 0 ]; then
+    say "new server failed verification; restoring saved binary (database snapshot retained at $backup/database.sqlite)"
+    if cp "$backup/opencode" "$BIN.rollback" && mv "$BIN.rollback" "$BIN" && launchctl kickstart -k "$SERVICE" && verify "$old_version"; then
+      say "rollback verified: original version and database restored"
+    else
+      say "ROLLBACK NEEDS ATTENTION: original binary or database could not be verified; inspect snapshot before any database restore"
+      echo "cow deploy: rollback needs attention; snapshot: $backup/database.sqlite" >&2
+    fi
+    result=1
+  fi
+  [ "$locked" = 0 ] || rmdir "$ROOT/.coval/cow-deploy.lock"
+  exit "$result"
+}
+trap cleanup EXIT
+for value in "$WAIT_ATTEMPTS" "$HEALTH_ATTEMPTS"; do
+  [[ "$value" =~ ^[1-9][0-9]*$ ]] || fail "attempt count must be a positive integer"
 done
-say "idle (or wait expired: busy=$busy jobs=$(running_jobs)); provisioning"
-bash "$HOME/cow-box/provision-mac.sh" >> "$LOG" 2>&1 || say "provision exited $?"
-# The server's database is named after the build channel (opencode-<channel>.db); a binary built on
-# another channel opens a fresh, empty database and every session "disappears". Record which file
-# the live server has open so the swap can be checked and reverted.
-db_of() { lsof -p "$1" 2>/dev/null | grep -o '[^ ]*share/opencode/opencode[^ ]*\.db' | head -1; }
-db_before=$(db_of "$(pgrep -x opencode | head -1)")
-say "live database before swap: ${db_before:-unknown}"
-say "swapping binary"
-cp "$HOME/.local/bin/opencode" "$HOME/.local/bin/opencode.prev"
-mv "$HOME/.local/bin/opencode.new" "$HOME/.local/bin/opencode"
-chmod 755 "$HOME/.local/bin/opencode"
-launchctl kickstart -k gui/501/dev.bronson.cow-server
-for i in $(seq 1 30); do
-  sleep 2
-  h=$(curl -s -m 3 -u "cow:$PW" http://127.0.0.1:4096/global/health)
-  if [ -n "$h" ]; then say "healthy: $h"; break; fi
+for value in "$WAIT_SECONDS" "$HEALTH_SECONDS"; do
+  [[ "$value" =~ ^[0-9]+$ ]] || fail "wait interval must be a nonnegative integer"
 done
-db_after=$(db_of "$(pgrep -x opencode | head -1)")
-say "live database after swap: ${db_after:-unknown}"
-if [ -n "$db_before" ] && [ -n "$db_after" ] && [ "$db_before" != "$db_after" ] && [ -z "${COW_DEPLOY_ALLOW_DB_CHANGE:-}" ]; then
-  say "DATABASE CHANGED ($db_before -> $db_after): the new build is on another channel; rolling back to opencode.prev"
-  cp "$HOME/.local/bin/opencode.prev" "$HOME/.local/bin/opencode"
-  launchctl kickstart -k gui/501/dev.bronson.cow-server
-  "$HOME/bin/cow-notify.sh" "cow deploy rolled back: the new server build opened $db_after instead of $db_before (build it with OPENCODE_CHANNEL=feat/cow-ui)" >/dev/null 2>&1 || true
-  say "deploy done (rolled back)"
-  exit 1
-fi
-r=$(curl -s -m 15 -u "cow:$PW" http://127.0.0.1:4096/global/office/routines | head -c 600)
-say "routines route: ${r:-<empty>}"
-say "deploy done"
+mkdir "$ROOT/.coval/cow-deploy.lock" 2>/dev/null || fail "another deployment holds the lock"
+locked=1
+[ -x "$BIN" ] && [ -f "$BIN.new" ] || fail "installed binary or staged binary is missing"
+[ -r "$ROOT/.config/opencode/server-password" ] || fail "server password file is missing"
+PW=$(head -1 "$ROOT/.config/opencode/server-password")
+[ -n "$PW" ] || fail "server password is empty"
+chmod 755 "$BIN.new"
+old_version=$("$BIN" --version) || fail "cannot read installed binary version"
+new_version=$("$BIN.new" --version) || fail "cannot read staged binary version"
+[[ "$old_version" =~ ^[[:alnum:]][[:alnum:]./_+-]*$ ]] || fail "installed version is not a single version token"
+[[ "$new_version" =~ ^[[:alnum:]][[:alnum:]./_+-]*$ ]] || fail "staged version is not a single version token"
+[ -z "${COW_DEPLOY_EXPECTED_VERSION:-}" ] || [ "$new_version" = "$COW_DEPLOY_EXPECTED_VERSION" ] || fail "staged version does not match the requested version"
+health "$old_version" 2>/dev/null || fail "current server is not healthy at the installed binary version"
+pid_before=$(service_pid) || fail "cannot identify cow-server PID"
+db_before=$(database "$pid_before") || fail "cannot identify exactly one database opened by cow-server"
+[ -f "$db_before" ] || fail "live database is not a regular file"
+say "deploy start: $old_version -> $new_version; database $db_before"
+check_idle() {
+  health "$old_version" 2>/dev/null || fail "current server health changed while waiting"
+  status=$(curl -fsS -m 5 -u "cow:$PW" -H "x-opencode-directory: $DIRECTORY" http://127.0.0.1:4096/session/status) || fail "cannot read session status"
+  count=$(printf '%s' "$status" | python3 -c 'import json,sys; d=json.load(sys.stdin); sys.exit(1) if not isinstance(d,dict) else print(len(d))') || fail "session status is not a JSON object"
+  jobs=0
+  for job in $JOBS; do
+    if state=$(launchctl print "$DOMAIN/$job" 2>&1); then
+      if printf '%s' "$state" | grep -qE '^[[:space:]]*state = running$'; then jobs=1
+      elif ! printf '%s' "$state" | grep -qE '^[[:space:]]*state = (not running|waiting|exited)$'; then fail "unknown job state for $job"; fi
+    elif ! printf '%s' "$state" | grep -q 'Could not find service'; then
+      fail "cannot inspect job $job"
+    fi
+  done
+}
+idle=0
+for ((i=1; i<=WAIT_ATTEMPTS; i++)); do
+  check_idle
+  if [ "$count" = 0 ] && [ "$jobs" = 0 ]; then idle=1; break; fi
+  [ "$i" != 1 ] || say "waiting for idle: $count session entries, scheduled jobs active=$jobs"
+  sleep "$WAIT_SECONDS"
+done
+[ "$idle" = 1 ] || fail "idle deadline expired; staged binary left untouched"
+[ "$(database)" = "$db_before" ] || fail "live database changed while waiting"
+backup="$ROOT/.coval/backups/cow-server-$(date +%Y%m%d-%H%M%S)-$$"
+mkdir -p "$backup"
+cp -p "$BIN" "$backup/opencode"
+python3 - "$db_before" "$backup/database.sqlite" <<'PY'
+import pathlib, sqlite3, sys, time
+deadline = time.monotonic() + 60
+def progress(status, remaining, total):
+    if time.monotonic() > deadline:
+        raise TimeoutError("database snapshot exceeded 60 seconds")
+with sqlite3.connect(pathlib.Path(sys.argv[1]).as_uri() + "?mode=ro", uri=True, timeout=10) as source:
+    with sqlite3.connect(sys.argv[2]) as target:
+        source.backup(target, pages=1024, progress=progress)
+        if target.execute("PRAGMA quick_check").fetchall() != [("ok",)]:
+            raise RuntimeError("database snapshot failed quick_check")
+PY
+printf '%s\n' "$db_before" > "$backup/database-path.txt"
+printf '%s\n' "$old_version" > "$backup/version.txt"
+say "verified SQLite snapshot and binary rollback copy: $backup"
+# The snapshot is not restored automatically: doing so could erase requests
+# admitted during cutover. Retain it for explicit recovery if migrations fail.
+check_idle
+[ "$count" = 0 ] && [ "$jobs" = 0 ] || fail "work appeared during snapshot; leaving staged binary for a later attempt"
+[ "$(service_pid)" = "$pid_before" ] && [ "$(database)" = "$db_before" ] || fail "server changed during snapshot"
+cp -p "$backup/opencode" "$BIN.prev"
+swapped=1
+mv "$BIN.new" "$BIN"
+launchctl kickstart -k "$SERVICE"
+verify "$new_version" "$pid_before" || fail "new server health, version or database did not verify"
+committed=1
+say "deploy verified: $new_version; original database $db_before; rollback copy $backup"

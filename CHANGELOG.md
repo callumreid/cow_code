@@ -26,6 +26,7 @@ what each feature is, and the films, live in the [feature reel](docs/features/RE
 - browser reconnects preserve the shared tab and human control; clipboard copy, drag release and localhost previews behave consistently, and stalled browser commands no longer wait forever
 - desktop phone pairing keys survive tunnel restarts; temporary quick-tunnel addresses are labelled honestly instead of looking permanent
 
+- box server deployment now requires verified idle, health, version and the original channel database, retains a checked SQLite snapshot, and rolls back a failed binary without running provisioning or sending notifications
 - the computer view (`cow-eyes`) streams an immediate frame on attach and after every click, key, paste or navigation, pastes straight from your laptop clipboard on `⌘V`, dismisses Chrome's managed-profile modal automatically, reattaches when a tab closes or Chrome restarts, and is proxied under `/computer/` on the cow server itself so it never asks for a separate password
 
 ## 2026-10-14
