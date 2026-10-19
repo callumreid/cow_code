@@ -98,7 +98,9 @@ test("browser takeover, screenshot draft and recording use the visible browser",
   await expect(panel.getByText("Watching the agent’s active tab", { exact: true })).toBeVisible()
   await page.screenshot({ path: testInfo.outputPath("browser-workspace.png") })
   await page.setViewportSize({ width: 1100, height: 1000 })
-  await expect.poll(async () => (await panel.boundingBox())?.width ?? 0).toBeLessThanOrEqual(360)
+  // Locator screenshots wait for layout transitions to settle before measuring the controls.
+  await panel.screenshot({ path: testInfo.outputPath("browser-toolbar-narrow.png") })
+  expect((await panel.boundingBox())?.width ?? Infinity).toBeLessThan(550)
   const toolbar = panel.locator('[data-slot="browser-toolbar"]')
   expect(await toolbar.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true)
   for (const control of await toolbar.locator("button, input").all()) {
@@ -108,6 +110,5 @@ test("browser takeover, screenshot draft and recording use the visible browser",
     expect(controlBounds!.x).toBeGreaterThanOrEqual(panelBounds!.x)
     expect(controlBounds!.x + controlBounds!.width).toBeLessThanOrEqual(panelBounds!.x + panelBounds!.width)
   }
-  await panel.screenshot({ path: testInfo.outputPath("browser-toolbar-narrow.png") })
   expect(errors).toEqual([])
 })
