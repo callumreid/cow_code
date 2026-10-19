@@ -151,25 +151,23 @@ export async function bootstrapGlobal(input: {
   setGlobalStore: SetStoreFunction<GlobalStore>
   queryClient: QueryClient
 }) {
-  const slow = [
+  // The catalog can be large or unavailable while a provider is recovering.
+  // Its query observers own loading state; it must not hold navigation hostage.
+  void runAll([
     () => input.queryClient.fetchQuery(loadGlobalConfigQuery(input.scope, input.serverSDK, input.protocol)),
     () =>
       input.queryClient.fetchQuery(
         loadProvidersQuery(input.scope, null, input.serverAPI, input.serverSDK, input.protocol),
       ),
+  ])
+  const navigation = [
     () => input.queryClient.fetchQuery(loadPathQuery(input.scope, null, input.serverSDK, input.protocol)),
     () =>
       input.queryClient
         .fetchQuery(loadProjectsQuery(input.scope, input.serverAPI.project))
         .then((data) => input.setGlobalStore("project", data)),
   ]
-  await runAll(slow)
-  // showErrors({
-  //   errors: errors(),
-  //   title: input.requestFailedTitle,
-  //   translate: input.translate,
-  //   formatMoreCount: input.formatMoreCount,
-  // })
+  await runAll(navigation)
 }
 
 function groupBySession<T extends { id: string; sessionID: string }>(input: T[]) {
@@ -513,7 +511,6 @@ export async function bootstrapDirectory(input: {
             )
           }),
         ),
-      () => Promise.resolve(input.loadSessions(input.directory)),
       input.mcp &&
         (() =>
           input.queryClient.fetchQuery(

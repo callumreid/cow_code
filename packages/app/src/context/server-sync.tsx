@@ -27,7 +27,12 @@ import {
 } from "./global-sync/bootstrap"
 import { createChildStoreManager } from "./global-sync/child-store"
 import { applyDirectoryEvent, applyGlobalEvent } from "./global-sync/event-reducer"
-import { estimateRootSessionTotal, loadRootSessions, loadRootSessionsV1 } from "./global-sync/session-load"
+import {
+  estimateRootSessionTotal,
+  loadRootSessions,
+  loadRootSessionsV1,
+  loadSessionChildren,
+} from "./global-sync/session-load"
 import { trimSessions } from "./global-sync/session-trim"
 import type { ProjectMeta } from "./global-sync/types"
 import { SESSION_RECENT_LIMIT } from "./global-sync/types"
@@ -35,7 +40,7 @@ import { formatServerError, isTransportError } from "@/utils/server-errors"
 import { queryOptions, useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/solid-query"
 import type { SolidQueryOptions } from "@tanstack/solid-query"
 import { createRefreshQueue } from "./global-sync/queue"
-import { directoryKey } from "./global-sync/utils"
+import { cmp, directoryKey } from "./global-sync/utils"
 import { PathKey } from "@/utils/path-key"
 import { createDirSyncContext } from "./directory-sync"
 import { createSimpleContext } from "@opencode-ai/ui/context"
@@ -667,6 +672,29 @@ export function createServerSyncContextInner(serverSDK: ServerSDK) {
 
   const projectApi = {
     loadSessions,
+    async loadChildren(directory: string, sessionID: string) {
+      const found = await queryClient.fetchQuery({
+        queryKey: [serverSDK.scope, "session-children", sessionID],
+        staleTime: 5_000,
+        queryFn: async () =>
+          loadSessionChildren({
+            client: sdkFor(directory),
+            api: serverSDK.api.session,
+            protocol: await serverSDK.protocol,
+            sessionID,
+          }),
+      })
+      const [, setStore] = children.child(directory, { bootstrap: false })
+      batch(() => {
+        found.forEach(session.remember)
+        setStore("session", (current) => {
+          const next = new Map(current.map((item) => [item.id, item]))
+          for (const item of found) next.set(item.id, item)
+          return [...next.values()].sort((a, b) => cmp(a.id, b.id))
+        })
+      })
+      return found
+    },
     meta(directory: string, patch: ProjectMeta) {
       children.projectMeta(directory, patch)
     },

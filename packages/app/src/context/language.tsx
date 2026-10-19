@@ -35,6 +35,7 @@ type PluralKey =
   | "session.revertDock.summary"
   | "pr.hover.files"
   | "sidebar.nav.runningNow"
+  | "sidebar.session.children.count"
   | "sidebar.nav.officeUnread"
   | "sidebar.nav.officeNeedsYou"
 type Source = { dict: Record<string, string> }

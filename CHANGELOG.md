@@ -7,10 +7,12 @@ what each feature is, and the films, live in the [feature reel](docs/features/RE
 
 ### Added
 
+- expandable subagent trees show every child task, its live status and nested work; scheduled activity folds away so your own chats have room
 - browser and terminal buttons in the top-right of every session: replaces the unused review toggle with one-click browser (`⌘⇧B`) and terminal (``⌃` ``) toggles that pop open the box's shared browser or a terminal right beside the thread, plus a pop-out button when you want the browser in its own window
 
 ### Fixed
 
+- opening the app no longer waits for the entire provider catalog before showing navigation, and each workspace loads its recent sessions only once during startup
 - the computer view (`cow-eyes`) streams an immediate frame on attach and after every click, key, paste or navigation, pastes straight from your laptop clipboard on `⌘V`, dismisses Chrome's managed-profile modal automatically, reattaches when a tab closes or Chrome restarts, and is proxied under `/computer/` on the cow server itself so it never asks for a separate password
 
 ## 2026-10-14

@@ -30,6 +30,8 @@ import { IconButtonV2 } from "@opencode-ai/ui/v2/icon-button-v2"
 import { KeybindV2 } from "@opencode-ai/ui/v2/keybind-v2"
 import { TooltipV2 } from "@opencode-ai/ui/v2/tooltip-v2"
 import { useTitlebarRightMount } from "../titlebar"
+import { A } from "@solidjs/router"
+import { base64Encode } from "@opencode-ai/core/util/encode"
 
 const OPEN_APPS = [
   "vscode",
@@ -161,6 +163,7 @@ export function SessionHeader() {
   const isV2 = settings.general.newLayoutDesigns
   const search = settings.visibility.search
   const status = settings.visibility.status
+  const parentID = createMemo(() => (params.id ? sync().session.get(params.id)?.parentID : undefined))
 
   const [exists, setExists] = createStore<Partial<Record<OpenApp, boolean>>>({
     finder: true,
@@ -321,6 +324,19 @@ export function SessionHeader() {
       <Show when={rightMount()} keyed>
         {(mount) => (
           <Portal mount={mount}>
+            <Show when={parentID()} keyed>
+              {(parent) => (
+                <Tooltip placement="bottom" value={language.t("sidebar.session.parent")}>
+                  <A
+                    href={`/${base64Encode(projectDirectory())}/session/${parent}`}
+                    class="flex items-center justify-center size-7 rounded-md text-icon-weak hover:bg-surface-raised-base-hover"
+                    aria-label={language.t("sidebar.session.parent")}
+                  >
+                    <Icon name="arrow-left" size="small" />
+                  </A>
+                </Tooltip>
+              )}
+            </Show>
             <Show
               when={isV2()}
               fallback={

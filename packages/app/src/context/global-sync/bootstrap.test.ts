@@ -8,6 +8,7 @@ import type { AgentApi, CatalogApi, CommandApi, ReferenceApi } from "@opencode-a
 import type { NormalizedProviderListResponse } from "@opencode-ai/session-ui/context"
 import {
   bootstrapDirectory,
+  bootstrapGlobal,
   loadAgentsQuery,
   loadCommands,
   loadGlobalConfigQuery,
@@ -267,6 +268,37 @@ describe("bootstrapDirectory", () => {
     await new Promise((resolve) => setTimeout(resolve, 80))
 
     expect(store.status).toBe("complete")
+  })
+})
+
+describe("navigation startup", () => {
+  test("makes navigation ready while a provider catalog is still pending", async () => {
+    const catalog = Promise.withResolvers<{ data: { all: []; connected: []; default: {} } }>()
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const sdk = {
+      provider: { list: () => catalog.promise },
+      global: { config: { get: async () => ({ data: {} }) } },
+      path: { get: async () => ({ data: { directory: "/project" } }) },
+    } as unknown as OpencodeClient
+    const seen: string[] = []
+    try {
+      await bootstrapGlobal({
+        serverSDK: sdk,
+        serverAPI: api,
+        protocol: Promise.resolve("v1"),
+        scope: ServerScope.local,
+        requestFailedTitle: "failed",
+        translate: (key) => key,
+        formatMoreCount: String,
+        setGlobalStore: ((key: string) => seen.push(key)) as never,
+        queryClient,
+      })
+      expect(seen).toContain("project")
+      expect(queryClient.isFetching({ queryKey: [ServerScope.local, null, "providers"] })).toBe(1)
+    } finally {
+      catalog.resolve({ data: { all: [], connected: [], default: {} } })
+      queryClient.clear()
+    }
   })
 })
 

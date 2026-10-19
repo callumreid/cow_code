@@ -190,6 +190,7 @@ export async function mockOpenCodeServer(page: Page, config: MockServerConfig) {
       const sessions = config.sessions
         .filter((session) => !directory || session.directory === directory)
         .filter((session) => parentID !== "null" || session.parentID === undefined)
+        .filter((session) => !parentID || parentID === "null" || session.parentID === parentID)
         .filter((session) => {
           const search = url.searchParams.get("search")?.toLowerCase()
           return (
@@ -272,7 +273,13 @@ export async function mockOpenCodeServer(page: Page, config: MockServerConfig) {
 
     const todoMatch = path.match(/^\/session\/([^/]+)\/todo$/)
     if (todoMatch) return json(route, config.todos?.(todoMatch[1]!) ?? [])
-    if (/^\/session\/[^/]+\/(children|diff)$/.test(path)) return json(route, [])
+    const childrenMatch = path.match(/^\/session\/([^/]+)\/children$/)
+    if (childrenMatch)
+      return json(
+        route,
+        config.sessions.filter((session) => session.parentID === childrenMatch[1]),
+      )
+    if (/^\/session\/[^/]+\/diff$/.test(path)) return json(route, [])
 
     const currentMessagesMatch = path.match(/^\/api\/session\/([^/]+)\/message$/)
     if (currentMessagesMatch) {

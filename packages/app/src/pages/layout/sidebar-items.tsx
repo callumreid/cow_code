@@ -9,7 +9,7 @@ import { CowReady, CowWorking } from "@/components/cow-activity"
 import { Tooltip } from "@opencode-ai/ui/tooltip"
 import { getFilename } from "@opencode-ai/core/util/path"
 import { A, useParams } from "@solidjs/router"
-import { type Accessor, createMemo, For, type JSX, Match, Show, Switch } from "solid-js"
+import { type Accessor, createEffect, createMemo, For, type JSX, Match, Show, Switch } from "solid-js"
 import { useServerSync } from "@/context/server-sync"
 import { useLanguage } from "@/context/language"
 import { getAvatarColors, type LocalProject, useLayout } from "@/context/layout"
@@ -20,7 +20,13 @@ import { sessionTitle } from "@/utils/session-title"
 import { officeOpen } from "@/office/presence"
 import { sessionPermissionRequest } from "../session/composer/session-request-tree"
 import { useServerSDK } from "@/context/server-sdk"
-import { childSessionOnPath, getProjectAvatarSource, hasProjectPermissions, routineSessionName } from "./helpers"
+import {
+  childSessionOnPath,
+  getProjectAvatarSource,
+  hasProjectPermissions,
+  routineSessionName,
+  sessionChildren,
+} from "./helpers"
 import { createInlineEditorController } from "./inline-editor"
 
 export const ProjectIcon = (props: {
@@ -88,6 +94,7 @@ export type SessionItemProps = {
   showTooltip?: boolean
   showChild?: boolean
   level?: number
+  ancestors?: readonly string[]
   sidebarExpanded: Accessor<boolean>
   clearHoverProjectSoon: () => void
   prefetchSession: (session: Session, priority?: "high" | "low") => void
@@ -228,6 +235,30 @@ export const SessionItem = (props: SessionItemProps): JSX.Element => {
     if (!props.showChild) return
     return childSessionOnPath(sessionStore.session, props.session.id, params.id)
   })
+  const [tree, setTree] = createStore<{ expanded?: boolean; loading: boolean; loaded: boolean; failed: boolean }>({
+    loading: false,
+    loaded: false,
+    failed: false,
+  })
+  const children = createMemo(() => sessionChildren(sessionStore.session, props.session.id, props.ancestors))
+  const expanded = () => tree.expanded ?? !!currentChild()
+  const loadChildren = async () => {
+    if (tree.loading) return
+    setTree({ loading: true, failed: false })
+    try {
+      await serverSync().project.loadChildren(props.session.directory, props.session.id)
+      setTree("loaded", true)
+    } catch {
+      setTree("failed", true)
+    } finally {
+      setTree("loading", false)
+    }
+  }
+  createEffect(() => {
+    if (!props.showChild || tree.loaded || tree.loading || tree.failed) return
+    if (params.id !== props.session.id && !currentChild()) return
+    void loadChildren()
+  })
 
   const warm = (span: number, priority: "high" | "low") => {
     const nav = props.navList?.()
@@ -283,6 +314,24 @@ export const SessionItem = (props: SessionItemProps): JSX.Element => {
           style={{ "padding-left": `${8 + (props.level ?? 0) * 16}px` }}
         >
           <div class="flex min-w-0 items-center gap-1">
+            <Show when={props.showChild}>
+              <button
+                type="button"
+                data-action="session-children-toggle"
+                class="size-5 shrink-0 flex items-center justify-center rounded text-icon-weak hover:text-text-strong hover:bg-surface-raised-base-hover focus-visible:outline-2 focus-visible:outline-border-focus"
+                aria-label={language.t(expanded() ? "sidebar.session.children.hide" : "sidebar.session.children.show")}
+                aria-expanded={expanded()}
+                onClick={() => {
+                  const next = !expanded()
+                  setTree("expanded", next)
+                  if (next) void loadChildren()
+                }}
+              >
+                <Show when={!tree.loading} fallback={<Spinner class="size-3" />}>
+                  <Icon name={expanded() ? "chevron-down" : "chevron-right"} size="small" />
+                </Show>
+              </button>
+            </Show>
             <div class="min-w-0 flex-1">
               <Show
                 when={!tooltip()}
@@ -300,6 +349,15 @@ export const SessionItem = (props: SessionItemProps): JSX.Element => {
                 {item}
               </Show>
             </div>
+
+            <Show when={props.showChild && children().length > 0}>
+              <span
+                class="text-11-medium text-text-weak tabular-nums"
+                title={language.plural("sidebar.session.children.count", children().length)}
+              >
+                {children().length}
+              </span>
+            </Show>
 
             <Show when={!props.level || pinned()}>
               <div
@@ -344,7 +402,7 @@ export const SessionItem = (props: SessionItemProps): JSX.Element => {
                       void props.archiveSession(props.session)
                     }}
                   >
-                    🌾
+                    <Icon name="archive" size="small" />
                   </button>
                 </Tooltip>
               </div>
@@ -376,12 +434,33 @@ export const SessionItem = (props: SessionItemProps): JSX.Element => {
           </ContextMenu.Content>
         </ContextMenu.Portal>
       </ContextMenu>
-      <Show when={currentChild()} keyed>
-        {(child) => (
-          <div class="w-full">
-            <SessionItem {...props} session={child} level={(props.level ?? 0) + 1} />
-          </div>
-        )}
+      <Show when={props.showChild && expanded()}>
+        <div data-component="session-children" class="w-full">
+          <For each={children()}>
+            {(child) => (
+              <SessionItem
+                {...props}
+                session={child}
+                level={(props.level ?? 0) + 1}
+                ancestors={[...(props.ancestors ?? []), props.session.id]}
+              />
+            )}
+          </For>
+          <Show when={tree.failed}>
+            <button
+              type="button"
+              class="ml-8 px-2 py-1 text-12-regular text-text-weak hover:text-text-strong"
+              onClick={() => void loadChildren()}
+            >
+              {language.t("sidebar.session.children.retry")}
+            </button>
+          </Show>
+          <Show when={tree.loaded && !tree.loading && !tree.failed && children().length === 0}>
+            <div class="ml-8 px-2 py-1 text-12-regular text-text-weak">
+              {language.t("sidebar.session.children.empty")}
+            </div>
+          </Show>
+        </div>
       </Show>
     </>
   )

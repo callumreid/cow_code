@@ -9,6 +9,7 @@ import {
 import { type Session } from "@opencode-ai/sdk/v2/client"
 import {
   childSessionOnPath,
+  sessionChildren,
   closeHomeProject,
   compareSessionTime,
   displayName,
@@ -187,7 +188,9 @@ describe("layout workspace helpers", () => {
     })
 
     expect(isOfficeOverseerSession(office)).toBe(true)
-    expect(sortedRootSessions({ path: { directory: "/workspace" }, session: [office, ordinary] }, 3)).toEqual([ordinary])
+    expect(sortedRootSessions({ path: { directory: "/workspace" }, session: [office, ordinary] }, 3)).toEqual([
+      ordinary,
+    ])
   })
 
   test("hides the Office session from its live overseer identity when session metadata is unavailable", () => {
@@ -277,6 +280,24 @@ describe("layout workspace helpers", () => {
     expect(childSessionOnPath(list, "child", "leaf")?.id).toBe("leaf")
     expect(childSessionOnPath(list, "root", "root")).toBeUndefined()
     expect(childSessionOnPath(list, "root", "other")).toBeUndefined()
+  })
+
+  test("shows siblings and nested work without archived tasks or ancestry cycles", () => {
+    const list = [
+      session({ id: "root", directory: "/workspace", parentID: "leaf" }),
+      session({ id: "child", directory: "/workspace", parentID: "root" }),
+      session({ id: "sibling", directory: "/workspace", parentID: "root" }),
+      session({ id: "leaf", directory: "/workspace", parentID: "child" }),
+      session({
+        id: "archived",
+        directory: "/workspace",
+        parentID: "root",
+        time: { created: 0, updated: 0, archived: 1 },
+      }),
+    ]
+    expect(sessionChildren(list, "root").map((item) => item.id)).toEqual(["child", "sibling"])
+    expect(sessionChildren(list, "leaf", ["root", "child"])).toEqual([])
+    expect(childSessionOnPath(list, "unrelated", "leaf")).toBeUndefined()
   })
 
   test("formats fallback project display name", () => {

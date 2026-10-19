@@ -1,5 +1,9 @@
 import { base64Encode } from "@opencode-ai/core/util/encode"
 import { createEffect, createMemo, For, type JSX, Show } from "solid-js"
+import { createStore } from "solid-js/store"
+import { Icon } from "@opencode-ai/ui/icon"
+import { useLanguage } from "@/context/language"
+import { Persist, persisted } from "@/utils/persist"
 import { useServerSync } from "@/context/server-sync"
 import type { RoutinesStore } from "@/routines/store"
 import { latestRoutineSessions } from "./helpers"
@@ -23,6 +27,8 @@ export const SidebarScheduledRuns = (props: {
   mobile?: boolean
 }): JSX.Element => {
   const serverSync = useServerSync()
+  const language = useLanguage()
+  const [state, setState] = persisted(Persist.global("sidebar-scheduled-runs"), createStore({ expanded: false }))
 
   const routines = createMemo(() => (props.store.data()?.routines ?? []).filter((routine) => routine.kind === "llm"))
 
@@ -62,22 +68,38 @@ export const SidebarScheduledRuns = (props: {
   return (
     <Show when={latest().length > 0}>
       <div class="shrink-0 pb-2 mb-2 border-b border-border-weaker-base">
-        <For each={latest()}>
-          {(session) => (
-            <SessionItem
-              session={session}
-              list={latest()}
-              navList={props.ctx.navList}
-              slug={base64Encode(session.directory)}
-              mobile={props.mobile}
-              showChild
-              sidebarExpanded={props.ctx.sidebarExpanded}
-              clearHoverProjectSoon={props.ctx.clearHoverProjectSoon}
-              prefetchSession={props.ctx.prefetchSession}
-              archiveSession={props.ctx.archiveSession}
-            />
-          )}
-        </For>
+        <button
+          type="button"
+          class="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-12-medium text-text-weak hover:bg-surface-raised-base-hover"
+          aria-expanded={state.expanded}
+          onClick={() => setState("expanded", !state.expanded)}
+        >
+          <Icon name={state.expanded ? "chevron-down" : "chevron-right"} size="small" />
+          <span class="flex-1 text-left">{language.t("sidebar.scheduledRuns")}</span>
+          <Show when={props.store.runningCount() > 0} fallback={<span class="tabular-nums">{latest().length}</span>}>
+            <span class="text-icon-info-base">
+              {language.plural("sidebar.nav.runningNow", props.store.runningCount())}
+            </span>
+          </Show>
+        </button>
+        <Show when={state.expanded}>
+          <For each={latest()}>
+            {(session) => (
+              <SessionItem
+                session={session}
+                list={latest()}
+                navList={props.ctx.navList}
+                slug={base64Encode(session.directory)}
+                mobile={props.mobile}
+                showChild
+                sidebarExpanded={props.ctx.sidebarExpanded}
+                clearHoverProjectSoon={props.ctx.clearHoverProjectSoon}
+                prefetchSession={props.ctx.prefetchSession}
+                archiveSession={props.ctx.archiveSession}
+              />
+            )}
+          </For>
+        </Show>
       </div>
     </Show>
   )
