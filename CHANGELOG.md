@@ -7,6 +7,8 @@ what each feature is, and the films, live in the [feature reel](docs/features/RE
 
 ### Added
 
+- box server deployments check both Coval and Office work by default, and can explicitly allow interrupting busy work with `--allow-busy` while keeping health, snapshot and rollback checks
+
 - parallel cows keep durable result receipts through restart, show interrupted queued updates, and deliver each update once; a finishing child can leave its result in a stopped parent without waking it
 
 - expandable subagent trees show every child task, its live status and nested work; scheduled activity folds away so your own chats have room

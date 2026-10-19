@@ -1,6 +1,8 @@
 #!/bin/bash
 # Stage ~/.local/bin/opencode.new, then run this on the box. This script only
 # replaces cow-server: it never provisions the machine or sends notifications.
+# --allow-busy explicitly permits interrupting known active work. It does not
+# bypass health, status inspection, snapshot, version, PID or database checks.
 set -euo pipefail
 umask 077
 export PATH="$PATH:/usr/sbin"
@@ -14,13 +16,23 @@ WAIT_ATTEMPTS="${COW_DEPLOY_WAIT_ATTEMPTS:-360}"
 WAIT_SECONDS="${COW_DEPLOY_WAIT_SECONDS:-30}"
 HEALTH_ATTEMPTS="${COW_DEPLOY_HEALTH_ATTEMPTS:-30}"
 HEALTH_SECONDS="${COW_DEPLOY_HEALTH_SECONDS:-2}"
-DIRECTORY="${COW_DEPLOY_DIRECTORY:-/Users/bronson/coval}"
+# Override with a newline-separated absolute directory list. Keep the legacy
+# singular setting for the primary workspace, and check Office by default too.
+DIRECTORIES="${COW_DEPLOY_DIRECTORY:-/Users/bronson/coval}"$'\n'"$ROOT/.local/share/opencode/office"
+DIRECTORIES="${COW_DEPLOY_DIRECTORIES-$DIRECTORIES}"
 swapped=0
 committed=0
 locked=0
+allow_busy=0
 mkdir -p "$ROOT/.coval/logs"
 say() { echo "$(date -Iseconds): $*" >> "$LOG"; }
 fail() { say "ABORT: $*"; echo "cow deploy: $* (see $LOG)" >&2; exit 1; }
+for argument in "$@"; do
+  case "$argument" in
+    --allow-busy) allow_busy=1 ;;
+    *) fail "unknown argument; only --allow-busy is supported" ;;
+  esac
+done
 health() {
   curl -fsS -m 5 -u "cow:$PW" http://127.0.0.1:4096/global/health |
     python3 -c 'import json,sys; d=json.load(sys.stdin); sys.exit(0 if isinstance(d,dict) and d.get("healthy") is True and d.get("version")==sys.argv[1] else 1)' "$1"
@@ -85,16 +97,30 @@ health "$old_version" 2>/dev/null || fail "current server is not healthy at the 
 pid_before=$(service_pid) || fail "cannot identify cow-server PID"
 db_before=$(database "$pid_before") || fail "cannot identify exactly one database opened by cow-server"
 [ -f "$db_before" ] || fail "live database is not a regular file"
-say "deploy start: $old_version -> $new_version; database $db_before"
+say "deploy start: $old_version -> $new_version; database $db_before; idle checks cover configured workspaces only"
 check_idle() {
   health "$old_version" 2>/dev/null || fail "current server health changed while waiting"
-  status=$(curl -fsS -m 5 -u "cow:$PW" -H "x-opencode-directory: $DIRECTORY" http://127.0.0.1:4096/session/status) || fail "cannot read session status"
-  count=$(printf '%s' "$status" | python3 -c 'import json,sys; d=json.load(sys.stdin); sys.exit(1) if not isinstance(d,dict) else print(len(d))') || fail "session status is not a JSON object"
+  count=0
+  scope_counts=""
+  while IFS= read -r directory; do
+    [[ "$directory" = /* ]] || fail "configured workspace directory must be an absolute path"
+    status=$(curl -fsS -m 5 -u "cow:$PW" -H "x-opencode-directory: $directory" http://127.0.0.1:4096/session/status) || fail "cannot read session status for $directory"
+    directory_count=$(printf '%s' "$status" | python3 -c 'import json,sys; d=json.load(sys.stdin); valid=isinstance(d,dict) and all(isinstance(s,dict) and s.get("type") in ("busy","retry","idle") for s in d.values()); sys.exit(1) if not valid else print(len(d))') || fail "session status for $directory is not a JSON object with known states"
+    count=$((count + directory_count))
+    scope_counts="${scope_counts:+$scope_counts; }$directory=$directory_count"
+  done <<< "$DIRECTORIES"
   jobs=0
+  active_jobs=""
   for job in $JOBS; do
     if state=$(launchctl print "$DOMAIN/$job" 2>&1); then
-      if printf '%s' "$state" | grep -qE '^[[:space:]]*state = running$'; then jobs=1
-      elif ! printf '%s' "$state" | grep -qE '^[[:space:]]*state = (not running|waiting|exited)$'; then fail "unknown job state for $job"; fi
+      # launchctl also prints nested resource states; only the outer job state
+      # can establish whether this scheduled process is running.
+      job_state=$(printf '%s' "$state" | python3 -c 'import re,sys; rows=re.findall(r"^([ \t]*)state = ([^\r\n]+)$",sys.stdin.read(),re.M); depth=min((len(p) for p,s in rows),default=-1); states=[s.strip() for p,s in rows if len(p)==depth]; sys.exit(1) if len(states)!=1 else print(states[0])') || fail "unknown job state for $job"
+      case "$job_state" in
+        running) jobs=$((jobs + 1)); active_jobs="${active_jobs:+$active_jobs,}$job" ;;
+        'not running'|waiting|exited) ;;
+        *) fail "unknown job state for $job" ;;
+      esac
     elif ! printf '%s' "$state" | grep -q 'Could not find service'; then
       fail "cannot inspect job $job"
     fi
@@ -104,7 +130,12 @@ idle=0
 for ((i=1; i<=WAIT_ATTEMPTS; i++)); do
   check_idle
   if [ "$count" = 0 ] && [ "$jobs" = 0 ]; then idle=1; break; fi
-  [ "$i" != 1 ] || say "waiting for idle: $count session entries, scheduled jobs active=$jobs"
+  if [ "$allow_busy" = 1 ]; then
+    say "explicit --allow-busy: proceeding with $count session entries, scheduled jobs active=$jobs [$active_jobs]; configured workspaces [$scope_counts]; active work may be interrupted"
+    idle=1
+    break
+  fi
+  [ "$i" != 1 ] || say "waiting for idle: $count session entries, scheduled jobs active=$jobs [$active_jobs]; configured workspaces [$scope_counts]"
   sleep "$WAIT_SECONDS"
 done
 [ "$idle" = 1 ] || fail "idle deadline expired; staged binary left untouched"
@@ -130,7 +161,11 @@ say "verified SQLite snapshot and binary rollback copy: $backup"
 # The snapshot is not restored automatically: doing so could erase requests
 # admitted during cutover. Retain it for explicit recovery if migrations fail.
 check_idle
-[ "$count" = 0 ] && [ "$jobs" = 0 ] || fail "work appeared during snapshot; leaving staged binary for a later attempt"
+if [ "$count" != 0 ] || [ "$jobs" != 0 ]; then
+  [ "$allow_busy" = 1 ] || fail "work appeared during snapshot; leaving staged binary for a later attempt"
+  say "explicit --allow-busy at final recheck: $count session entries, scheduled jobs active=$jobs [$active_jobs]; configured workspaces [$scope_counts]; active work may be interrupted"
+fi
+say "final state checked: configured workspaces [$scope_counts], scheduled jobs active=$jobs [$active_jobs]"
 [ "$(service_pid)" = "$pid_before" ] && [ "$(database)" = "$db_before" ] || fail "server changed during snapshot"
 cp -p "$backup/opencode" "$BIN.prev"
 swapped=1
