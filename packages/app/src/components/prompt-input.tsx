@@ -77,7 +77,7 @@ import { createPromptSubmit } from "./prompt-input/submit"
 import { PromptPopover, type AtOption, type SlashCommand } from "./prompt-input/slash-popover"
 import { PromptContextItems } from "./prompt-input/context-items"
 import { PromptImageAttachments } from "./prompt-input/image-attachments"
-import { imageCapability } from "./model-capabilities"
+import { imageCapability, imageModelSuggestions } from "./model-capabilities"
 import { PromptDragOverlay } from "./prompt-input/drag-overlay"
 import { promptPlaceholder } from "./prompt-input/placeholder"
 import { createPromptInputTransientState } from "./prompt-input/transient-state"
@@ -1559,10 +1559,11 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
               })}
             </span>
             <For
-              each={props.controls.model.selection
-                .list()
-                .filter((model) => imageCapability(model) === "supported")
-                .slice(0, 3)}
+              each={imageModelSuggestions(
+                props.controls.model.selection.list(),
+                props.controls.model.selection.current(),
+                props.controls.model.selection.recent(),
+              )}
             >
               {(model) => (
                 <Button

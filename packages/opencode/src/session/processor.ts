@@ -18,6 +18,7 @@ import type { SessionID } from "./schema"
 import { SessionRetry } from "./retry"
 import { SessionRecovery } from "./recovery"
 import { checkBudget } from "./budget"
+import { SessionGuard } from "./guard"
 import { SessionStatus } from "./status"
 import { SessionSummary } from "./summary"
 import type { Provider } from "@/provider/provider"
@@ -698,11 +699,7 @@ const layer = Layer.effect(
             if (budget) {
               if (!providerAttempted && ctx.assistantMessage.cost === 0 && !ctx.assistantMessage.costStatus)
                 ctx.assistantMessage.costStatus = "reported"
-              yield* halt(
-                new Error(
-                  `Task budget reached ($${budget.spent.toFixed(2)} of $${budget.limit.toFixed(2)}). Increase the budget to resume.`,
-                ),
-              )
+              yield* halt(new Error(SessionGuard.budgetMessage(budget.spent, budget.limit)))
               return
             }
             ctx.currentText = undefined

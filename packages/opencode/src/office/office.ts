@@ -15,6 +15,7 @@ import { Project } from "@/project/project"
 import { Question } from "@/question"
 import { Session } from "@/session/session"
 import { SessionID } from "@/session/schema"
+import { SessionGuard } from "@/session/guard"
 import { Context, Effect, Layer, Schema, Scope } from "effect"
 import { execFile } from "child_process"
 import fs from "fs/promises"
@@ -665,6 +666,17 @@ const layer = Layer.effect(
           if (!row) return
           if (row.lifecycle?.phase === "canceled") return
           const message = payload.error?.data?.message ?? payload.error?.name ?? "unknown error"
+          if (SessionGuard.isUserAction(payload.error)) {
+            // A model choice or spending limit needs the user, not another paid
+            // Farmer turn to interpret the same validation message.
+            row.lifecycle = transition(row.lifecycle, { type: "waiting", reason: message }, Date.now())
+            row.bucket = "needs_you"
+            row.waiting = { kind: "error", message }
+            row.stalled = false
+            row.summary = message
+            touch(row)
+            return
+          }
           row.lifecycle = transition(row.lifecycle, { type: "error", reason: message }, Date.now())
           // Rate limits and repeated identical errors: update the row, but do not raise another card.
           const repeat =

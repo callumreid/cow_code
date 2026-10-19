@@ -25,6 +25,10 @@ what each feature is, and the films, live in the [feature reel](docs/features/RE
 
 ### Fixed
 
+- custom CowCode builds install the matching published plugin SDK, so fresh local plugins and custom tools can load without requesting a nonexistent build version
+- budget and image compatibility stops stay visible under Needs you without triggering another paid Farmer error-reporting turn
+- image model suggestions prefer your current provider and recent coding models, excluding video generators and models without tool support
+
 - spend and recovery controls stay visible without holding up chat navigation; saved budgets survive background refreshes, provider retries honor the latest budget, and new forks do not count copied charges twice
 
 - opening the app no longer waits for the entire provider catalog before showing navigation, and each workspace loads its recent sessions only once during startup

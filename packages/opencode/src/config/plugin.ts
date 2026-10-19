@@ -3,6 +3,11 @@ import { ConfigPluginV1 } from "@opencode-ai/core/v1/config/plugin"
 import { pathToFileURL } from "url"
 import { isPathPluginSpec, parsePluginSpecifier, resolvePathPluginTarget } from "@/plugin/shared"
 import path from "path"
+import pkg from "../../../plugin/package.json"
+
+// CowCode's binary version can include an unpublished build suffix. Plugins use
+// the SDK package version that this checkout actually implements.
+export const dependency = { name: pkg.name, version: pkg.version }
 
 export type Scope = "global" | "local"
 

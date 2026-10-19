@@ -57,6 +57,7 @@ import { SessionReminders } from "./reminders"
 import { SessionTools } from "./tools"
 import { SessionRecovery } from "./recovery"
 import { checkBudget } from "./budget"
+import { SessionGuard } from "./guard"
 import { LLMEvent } from "@opencode-ai/llm"
 
 // @ts-ignore
@@ -1157,9 +1158,9 @@ const layer = Layer.effect(
         if (budget || imageUnsupported || Date.now() >= checkpoint.deadline) {
           const error = new NamedError.Unknown({
             message: budget
-              ? `Task budget reached ($${budget.spent.toFixed(2)} of $${budget.limit.toFixed(2)}). Increase the budget to resume.`
+              ? SessionGuard.budgetMessage(budget.spent, budget.limit)
               : imageUnsupported
-                ? "This model cannot read the attached image. Choose a model with image support before resuming."
+                ? SessionGuard.unsupportedImage
                 : "The 24-hour task window expired. Resume explicitly to continue.",
           }).toObject()
           yield* sessions.updateMessage({
