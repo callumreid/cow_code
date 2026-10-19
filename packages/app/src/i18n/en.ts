@@ -115,6 +115,7 @@ export const dict = {
   "browser.download": "Download",
   "browser.go": "Go",
   "browser.paste": "Paste",
+  "browser.enter": "Press Enter",
   "browser.send": "Send",
 
   "office.stoppedCount": "{{count}} finished",

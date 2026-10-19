@@ -5,6 +5,9 @@ import { usePrompt } from "@/context/prompt"
 import { createBlobReference } from "@/utils/draft-store"
 import { createBrowserRecording, downloadBrowserArtifact } from "./browser-recording"
 import { IconButton } from "@opencode-ai/ui/icon-button"
+import { Button } from "@opencode-ai/ui/button"
+import { Select } from "@opencode-ai/ui/select"
+import { TextField } from "@opencode-ai/ui/text-field"
 import { Tooltip } from "@opencode-ai/ui/tooltip"
 import { usePlatform } from "@/context/platform"
 import { useServerSDK } from "@/context/server-sdk"
@@ -308,160 +311,178 @@ export function BrowserPanel(props: { stacked?: boolean } = {}) {
         "min-h-0": props.stacked,
       }}
     >
-      <div class="shrink-0 flex flex-wrap items-center gap-2 px-2.5 py-2 border-b border-border-weaker-base bg-surface-panel">
-        <button
-          type="button"
-          class="rounded border border-border-base px-2 py-1 text-12-medium"
-          onClick={() => send({ type: "control", owner: state.owner === "human" ? "agent" : "human" })}
-        >
-          {language.t(state.owner === "human" ? "browser.returnAgent" : "browser.takeControl")}
-        </button>
-        <span role="status" class="text-11-regular text-text-weak flex-1">
-          {language.t(state.owner === "human" ? "browser.humanControl" : "browser.agentControl")}
-        </span>
-        <button
-          type="button"
-          disabled={!state.frameSrc}
-          class="text-12-regular disabled:opacity-40"
-          onClick={() => {
-            const request = crypto.randomUUID()
-            screenshotTargets.set(request, prompt.capture())
-            send({ type: "screenshot", request })
-          }}
-        >
-          {language.t("browser.attachScreenshot")}
-        </button>
-        <button
-          type="button"
-          disabled={!state.frameSrc}
-          class="text-12-regular disabled:opacity-40"
-          title={language.t("browser.recordingLimit")}
-          onClick={() => {
-            if (state.recording) {
-              recorder.stop()
-              return
-            }
-            if (recorder.start()) setState("recording", true)
-            else setState("status", language.t("browser.recordingUnavailable"))
-          }}
-        >
-          {language.t(state.recording ? "browser.stopRecording" : "browser.record")}
-        </button>
-      </div>
-      <div class="shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 border-b border-border-weaker-base bg-surface-panel">
-        <Tooltip placement="bottom" value={language.t("browser.back")}>
-          <IconButton
-            icon="arrow-left"
-            variant="ghost"
-            class="h-6 w-6 shrink-0"
-            onClick={() => send({ type: "back" })}
-            aria-label={language.t("browser.back")}
-          />
-        </Tooltip>
-        <Tooltip placement="bottom" value={language.t("browser.reload")}>
-          <IconButton
-            icon="reset"
-            variant="ghost"
-            class="h-6 w-6 shrink-0"
-            onClick={() => send({ type: "reload" })}
-            aria-label={language.t("browser.reload")}
-          />
-        </Tooltip>
-
-        <select
-          title={language.t("browser.tabs")}
-          aria-label={language.t("browser.tabs")}
-          value={state.currentTab}
-          onChange={(e) => {
-            const id = e.currentTarget.value
-            setState("currentTab", id)
-            send({ type: "tab", id })
-          }}
-          class="h-6 max-w-[160px] rounded border border-border-weak-base bg-background-base px-1.5 text-12-regular text-text-base outline-none"
-        >
-          <For each={state.tabs}>
-            {(t) => (
-              <option value={t.id} selected={t.id === state.currentTab}>
-                {(t.title || t.url || language.t("browser.tab")).slice(0, 40)}
-              </option>
-            )}
-          </For>
-        </select>
-
-        <Tooltip placement="bottom" value={language.t("browser.newTab")}>
-          <IconButton
-            icon="plus-small"
-            variant="ghost"
-            class="h-6 w-6 shrink-0"
-            onClick={() => send({ type: "newtab", url: "about:blank" })}
-            aria-label={language.t("browser.newTab")}
-          />
-        </Tooltip>
-
-        <Tooltip placement="bottom" value={language.t("browser.closeTab")}>
-          <IconButton
-            icon="close-small"
-            variant="ghost"
-            class="h-6 w-6 shrink-0"
-            aria-label={language.t("browser.closeTab")}
-            onClick={() => send({ type: "closetab", id: state.currentTab })}
-          />
-        </Tooltip>
-        <input
-          ref={urlInputRef}
-          type="text"
-          value={state.urlValue}
-          onInput={(e) => setState("urlValue", e.currentTarget.value)}
-          onKeyDown={(e) => {
-            e.stopPropagation()
-            if (e.key === "Enter") navigate()
-          }}
-          placeholder={language.t("browser.address")}
-          autocomplete="off"
-          autocapitalize="off"
-          spellcheck={false}
-          class="h-6 min-w-[80px] flex-1 rounded border border-border-weak-base bg-background-base px-2 text-12-regular text-text-strong outline-none focus:border-border-strong-base"
-        />
-
-        <button
-          type="button"
-          onClick={navigate}
-          class="h-6 shrink-0 rounded border border-border-weak-base bg-surface-raised-base px-2 text-12-regular text-text-strong hover:bg-surface-raised-base-hover"
-        >
-          {language.t("browser.go")}
-        </button>
-
-        <Tooltip placement="bottom" value={language.t("browser.pasteHint")}>
-          <button
-            type="button"
-            onClick={() => void pasteClipboard()}
-            class="h-6 shrink-0 rounded border border-border-weak-base bg-surface-raised-base px-2 text-12-regular text-text-base hover:bg-surface-raised-base-hover"
+      <div
+        class="shrink-0 flex flex-col gap-2 p-2.5 border-b border-border-weaker-base bg-surface-panel"
+        data-slot="browser-toolbar"
+      >
+        <div class="flex items-center gap-1 min-w-0">
+          <div class="min-w-0 flex-1">
+            <Select
+              options={state.tabs}
+              current={state.tabs.find((tab) => tab.id === state.currentTab)}
+              value={(tab) => tab.id}
+              label={(tab) => tab.title || tab.url || language.t("browser.tab")}
+              placeholder={language.t("browser.tabs")}
+              size="small"
+              variant="ghost"
+              class="min-w-0"
+              triggerStyle={{ width: "100%", "justify-content": "space-between" }}
+              valueClass="min-w-0 truncate text-12-medium"
+              triggerProps={{ "aria-label": language.t("browser.tabs") }}
+              onSelect={(tab) => {
+                if (!tab || tab.id === state.currentTab) return
+                setState("currentTab", tab.id)
+                send({ type: "tab", id: tab.id })
+              }}
+            />
+          </div>
+          <Tooltip placement="bottom" value={language.t("browser.newTab")}>
+            <IconButton
+              icon="plus-small"
+              size="small"
+              variant="ghost"
+              onClick={() => send({ type: "newtab", url: "about:blank" })}
+              aria-label={language.t("browser.newTab")}
+            />
+          </Tooltip>
+          <Tooltip placement="bottom" value={language.t("browser.closeTab")}>
+            <IconButton
+              icon="close-small"
+              size="small"
+              variant="ghost"
+              onClick={() => send({ type: "closetab", id: state.currentTab })}
+              aria-label={language.t("browser.closeTab")}
+            />
+          </Tooltip>
+          <span aria-hidden="true" class="h-3.5 w-px bg-border-weaker-base mx-1 shrink-0" />
+          <Tooltip placement="bottom" value={language.t("browser.popout")}>
+            <IconButton
+              icon="square-arrow-top-right"
+              size="small"
+              variant="ghost"
+              onClick={popOut}
+              aria-label={language.t("browser.popout")}
+            />
+          </Tooltip>
+          <Tooltip placement="bottom" value={language.t("browser.close")}>
+            <IconButton
+              icon="close-small"
+              size="small"
+              variant="ghost"
+              onClick={() => view().browser.close()}
+              aria-label={language.t("browser.close")}
+            />
+          </Tooltip>
+        </div>
+        <div class="flex items-center gap-1.5 min-w-0">
+          <Tooltip placement="bottom" value={language.t("browser.back")}>
+            <IconButton
+              icon="arrow-left"
+              size="small"
+              variant="ghost"
+              onClick={() => send({ type: "back" })}
+              aria-label={language.t("browser.back")}
+            />
+          </Tooltip>
+          <Tooltip placement="bottom" value={language.t("browser.reload")}>
+            <IconButton
+              icon="reset"
+              size="small"
+              variant="ghost"
+              onClick={() => send({ type: "reload" })}
+              aria-label={language.t("browser.reload")}
+            />
+          </Tooltip>
+          <div class="min-w-0 flex-1">
+            <TextField
+              ref={urlInputRef}
+              value={state.urlValue}
+              onChange={(value) => setState("urlValue", value)}
+              onKeyDown={(e: KeyboardEvent) => {
+                e.stopPropagation()
+                if (e.key === "Enter") navigate()
+              }}
+              label={language.t("browser.address")}
+              hideLabel
+              placeholder={language.t("browser.address")}
+              autocomplete="off"
+              autocapitalize="off"
+              spellcheck={false}
+              class="text-12-regular"
+            />
+          </div>
+          <Tooltip placement="bottom" value={language.t("browser.go")}>
+            <IconButton
+              icon="arrow-right"
+              size="small"
+              variant="ghost"
+              onClick={navigate}
+              aria-label={language.t("browser.go")}
+            />
+          </Tooltip>
+          <Tooltip placement="bottom" value={language.t("browser.pasteHint")}>
+            <IconButton
+              icon="copy"
+              size="small"
+              variant="ghost"
+              onClick={() => void pasteClipboard()}
+              aria-label={language.t("browser.paste")}
+            />
+          </Tooltip>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+          <Button
+            size="small"
+            variant={state.owner === "human" ? "primary" : "secondary"}
+            onClick={() => send({ type: "control", owner: state.owner === "human" ? "agent" : "human" })}
           >
-            {language.t("browser.paste")}
-          </button>
-        </Tooltip>
-
-        <span class="hidden xl:inline text-11-regular text-text-weak whitespace-nowrap px-1">{state.status}</span>
-
-        <Tooltip placement="bottom" value={language.t("browser.popout")}>
-          <IconButton
-            icon="square-arrow-top-right"
-            variant="ghost"
-            class="h-6 w-6 shrink-0"
-            onClick={popOut}
-            aria-label={language.t("browser.popout")}
-          />
-        </Tooltip>
-
-        <Tooltip placement="bottom" value={language.t("browser.close")}>
-          <IconButton
-            icon="close-small"
-            variant="ghost"
-            class="h-6 w-6 shrink-0"
-            onClick={() => view().browser.close()}
-            aria-label={language.t("browser.close")}
-          />
-        </Tooltip>
+            {language.t(state.owner === "human" ? "browser.returnAgent" : "browser.takeControl")}
+          </Button>
+          <div class="ml-auto flex items-center gap-1.5">
+            <Tooltip placement="bottom" value={language.t("browser.attachScreenshot")}>
+              <IconButton
+                icon="photo"
+                size="small"
+                variant="ghost"
+                disabled={!state.frameSrc}
+                aria-label={language.t("browser.attachScreenshot")}
+                onClick={() => {
+                  const request = crypto.randomUUID()
+                  screenshotTargets.set(request, prompt.capture())
+                  send({ type: "screenshot", request })
+                }}
+              />
+            </Tooltip>
+            <Tooltip placement="bottom" value={language.t("browser.recordingLimit")}>
+              <Button
+                icon={state.recording ? "stop" : undefined}
+                size="small"
+                variant={state.recording ? "primary" : "ghost"}
+                disabled={!state.frameSrc}
+                aria-pressed={state.recording}
+                onClick={() => {
+                  if (state.recording) {
+                    recorder.stop()
+                    return
+                  }
+                  if (recorder.start()) setState("recording", true)
+                  else setState("status", language.t("browser.recordingUnavailable"))
+                }}
+              >
+                <Show when={!state.recording}>
+                  <span aria-hidden="true" class="size-2 rounded-full border border-current" />
+                </Show>
+                {language.t(state.recording ? "browser.stopRecording" : "browser.record")}
+              </Button>
+            </Tooltip>
+          </div>
+        </div>
+        <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-11-regular text-text-weak">
+          <span role="status">
+            {language.t(state.owner === "human" ? "browser.humanControl" : "browser.agentControl")}
+          </span>
+          <span class="min-w-0 break-words">{state.status}</span>
+        </div>
       </div>
 
       <div
@@ -627,33 +648,39 @@ export function BrowserPanel(props: { stacked?: boolean } = {}) {
         </div>
       </Show>
       <div class="md:hidden shrink-0 flex items-center gap-1.5 p-1.5 border-t border-border-weaker-base bg-surface-panel">
-        <input
-          type="text"
-          value={state.mobileText}
-          onInput={(e) => setState("mobileText", e.currentTarget.value)}
-          onKeyDown={(e) => {
-            e.stopPropagation()
-            if (e.key === "Enter" && state.mobileText) {
-              send({ type: "text", text: state.mobileText })
-              setState("mobileText", "")
-            }
-          }}
-          placeholder={language.t("browser.mobileText")}
-          autocapitalize="off"
-          class="h-7 flex-1 rounded border border-border-weak-base bg-background-base px-2 text-12-regular text-text-strong outline-none"
-        />
-        <button
+        <div class="min-w-0 flex-1">
+          <TextField
+            value={state.mobileText}
+            onChange={(value) => setState("mobileText", value)}
+            onKeyDown={(e: KeyboardEvent) => {
+              e.stopPropagation()
+              if (e.key === "Enter" && state.mobileText) {
+                send({ type: "text", text: state.mobileText })
+                setState("mobileText", "")
+              }
+            }}
+            placeholder={language.t("browser.mobileText")}
+            label={language.t("browser.mobileText")}
+            hideLabel
+            autocapitalize="off"
+            class="text-12-regular"
+          />
+        </div>
+        <Button
+          size="small"
           type="button"
           onClick={() => {
             if (!state.mobileText) return
             send({ type: "text", text: state.mobileText })
             setState("mobileText", "")
           }}
-          class="h-7 rounded border border-border-weak-base bg-surface-raised-base px-2.5 text-12-regular text-text-strong"
         >
           {language.t("browser.send")}
-        </button>
-        <button
+        </Button>
+        <IconButton
+          icon="enter"
+          size="small"
+          aria-label={language.t("browser.enter")}
           type="button"
           onClick={() => {
             send({
@@ -677,10 +704,7 @@ export function BrowserPanel(props: { stacked?: boolean } = {}) {
               },
             })
           }}
-          class="h-7 rounded border border-border-weak-base bg-surface-raised-base px-2.5 text-12-regular text-text-strong"
-        >
-          ⏎
-        </button>
+        />
       </div>
     </aside>
   )

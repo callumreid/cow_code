@@ -34,6 +34,8 @@ what each feature is, and the films, live in the [feature reel](docs/features/RE
 - image model suggestions prefer your current provider and recent coding models, excluding video generators and models without tool support
 - stalled file searches stop after a minute, clean up their subprocess and explain how to narrow the search; cancelling a task also cancels its glob
 
+- the browser toolbar uses compact themed controls, a readable handoff status and separate tab/address rows that fit narrow panes
+- phone setup stops waiting after ten seconds when the task server cannot answer its connection check
 - spend and recovery controls stay visible without holding up chat navigation; saved budgets survive background refreshes, provider retries honor the latest budget, and new forks do not count copied charges twice
 
 - opening the app no longer waits for the entire provider catalog before showing navigation, and each workspace loads its recent sessions only once during startup

@@ -55,7 +55,7 @@ export function phoneUrl(
  * build, laptop) means no door.
  */
 function readDoor(sdk: OfficeSdk, fetch?: typeof globalThis.fetch) {
-  return officeFetch(sdk, "/global/office/phone", { fetch })
+  return officeFetch(sdk, "/global/office/phone", { fetch, signal: AbortSignal.timeout(10_000) })
     .then((response) => response.json())
     .then((body: unknown): Door | undefined => {
       if (!body || typeof body !== "object" || !("url" in body) || typeof body.url !== "string") return undefined

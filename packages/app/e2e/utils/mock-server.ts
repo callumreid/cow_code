@@ -46,6 +46,13 @@ export async function mockOpenCodeServer(page: Page, config: MockServerConfig) {
     "/agent": [{ name: "build", mode: "primary" }],
     "/vcs": { branch: "main", default_branch: "main" },
     "/session": config.sessions,
+    "/global/office/routines": {
+      available: false,
+      host: "fixture",
+      now: Date.now(),
+      routines: [],
+      services: [],
+    },
   }
 
   await page.route("**/*", async (route) => {
@@ -77,6 +84,8 @@ export async function mockOpenCodeServer(page: Page, config: MockServerConfig) {
     if (path === "/api/health" && config.protocol === "v2")
       return json(route, { healthy: true, version: "2.0.0", pid: 1 })
     if (path === "/experimental/capabilities") return json(route, { backgroundSubagents: true })
+    if (path === "/global/office/state") return json(route, {}, undefined, 404)
+    if (/^\/session\/[^/]+\/recovery$/.test(path)) return json(route, null)
     if (path === "/provider")
       return json(route, typeof config.provider === "function" ? config.provider() : config.provider)
     if (path === "/provider/auth") return json(route, config.integrationMethods ?? {})
