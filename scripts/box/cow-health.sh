@@ -15,6 +15,11 @@ curl -s -m 8 -u "$USER_:$PW" http://127.0.0.1:4099/api/health | grep -q '"ok":tr
 curl -s -m 5 http://127.0.0.1:9222/json/version >/dev/null || problems+=("browser DevTools not answering on :9222")
 docker info >/dev/null 2>&1 || problems+=("docker is down")
 origin=$(grep -o "https://[a-z0-9-]*\.trycloudflare\.com" "$HOME/Library/Logs/cow-public.log" 2>/dev/null | tail -1)
+if [ -f "$HOME/.config/cow/phone-origin" ]; then
+  origin=$(head -1 "$HOME/.config/cow/phone-origin")
+  [[ "$origin" =~ ^https://[a-zA-Z0-9.-]+(:[0-9]+)?/?$ ]] || origin=""
+  origin=${origin%/}
+fi
 [ -n "$origin" ] || problems+=("no public tunnel origin (phone path down)")
 # Through the tunnel and back: edge -> cloudflared -> gate. The key rides in a cookie, never in the URL (cloudflared logs failed URLs).
 gate_token=$(head -1 "$HOME/.config/opencode/gate-token" 2>/dev/null)

@@ -15,12 +15,17 @@ what each feature is, and the films, live in the [feature reel](docs/features/RE
 - long tasks keep their place through a barn restart, show last progress and provider retry times, and pause for inspection when a tool may already have changed something; Stop stays stopped, and Resume starts a new recovery window
 - connections have a read-only test and a separate reconnect action, with tool count, response time and the last successful tool call observed on that connection
 - scheduled routines show missing attempts, quiet workers, stale snapshots and the last verified success separately from an agent saying it finished
+- the browser follows the agent’s active tab, has a real take-control/return boundary for managed Playwright tools, attaches screenshots to the task draft, and downloads recordings of the visible browser
+- phone connection checks show the local gate, public address and task server separately; named tunnels can keep one authenticated address when a domain and tunnel credential are configured
 
 - browser and terminal buttons in the top-right of every session: replaces the unused review toggle with one-click browser (`⌘⇧B`) and terminal (``⌃` ``) toggles that pop open the box's shared browser or a terminal right beside the thread, plus a pop-out button when you want the browser in its own window
 
 ### Fixed
 
 - opening the app no longer waits for the entire provider catalog before showing navigation, and each workspace loads its recent sessions only once during startup
+- browser reconnects preserve the shared tab and human control; clipboard copy, drag release and localhost previews behave consistently, and stalled browser commands no longer wait forever
+- desktop phone pairing keys survive tunnel restarts; temporary quick-tunnel addresses are labelled honestly instead of looking permanent
+
 - the computer view (`cow-eyes`) streams an immediate frame on attach and after every click, key, paste or navigation, pastes straight from your laptop clipboard on `⌘V`, dismisses Chrome's managed-profile modal automatically, reattaches when a tab closes or Chrome restarts, and is proxied under `/computer/` on the cow server itself so it never asks for a separate password
 
 ## 2026-10-14

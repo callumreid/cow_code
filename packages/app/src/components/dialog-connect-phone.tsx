@@ -1,6 +1,6 @@
 import { Button } from "@opencode-ai/ui/button"
 import { Dialog } from "@opencode-ai/ui/dialog"
-import { createMemo, createSignal, For, Match, onMount, Show, Switch } from "solid-js"
+import { createMemo, createSignal, For, Match, onCleanup, onMount, Show, Switch } from "solid-js"
 import { createStore } from "solid-js/store"
 import { encode } from "uqr"
 import { useLanguage } from "@/context/language"
@@ -13,7 +13,12 @@ import { showToast } from "@/utils/toast"
 
 const LOOPBACK = new Set(["127.0.0.1", "localhost", "::1", "[::1]"])
 
-type Door = { url: string; since?: number }
+type Door = {
+  url: string
+  since?: number
+  address: "stable" | "temporary"
+  health?: { checkedAt: number; gate: boolean; public: boolean; server: boolean | null }
+}
 /** One square in the dialog: the barn door (works anywhere) or a same-network origin. */
 export type PhoneOption = { kind: "door"; url: string; since?: number } | { kind: "origin"; origin: string }
 
@@ -54,7 +59,24 @@ function readDoor(sdk: OfficeSdk, fetch?: typeof globalThis.fetch) {
     .then((response) => response.json())
     .then((body: unknown): Door | undefined => {
       if (!body || typeof body !== "object" || !("url" in body) || typeof body.url !== "string") return undefined
-      return { url: body.url, since: "since" in body && typeof body.since === "number" ? body.since : undefined }
+      const health = "health" in body && body.health && typeof body.health === "object" ? body.health : undefined
+      return {
+        url: body.url,
+        since: "since" in body && typeof body.since === "number" ? body.since : undefined,
+        address: "address" in body && body.address === "stable" ? "stable" : "temporary",
+        health:
+          health &&
+          "checkedAt" in health &&
+          typeof health.checkedAt === "number" &&
+          "gate" in health &&
+          typeof health.gate === "boolean" &&
+          "public" in health &&
+          typeof health.public === "boolean" &&
+          "server" in health &&
+          (typeof health.server === "boolean" || health.server === null)
+            ? { checkedAt: health.checkedAt, gate: health.gate, public: health.public, server: health.server }
+            : undefined,
+      }
     })
     .catch(() => undefined)
 }
@@ -91,29 +113,43 @@ export function DialogConnectPhone() {
     return current && "http" in current ? current.http : undefined
   })
 
-  onMount(async () => {
-    const base = http()
-    const current = server.current
-    if (!base || !current) return setState("value", { status: "unavailable" })
-    const door = readDoor({ url: base.url, server: current }, platform.fetch)
-    const parsed = new URL(base.url)
-    if (!LOOPBACK.has(parsed.hostname))
-      return setState("value", { status: "ready", origins: [parsed.origin], door: await door })
-    if (!platform.companionInfo) {
-      const found = await door
-      return setState("value", found ? { status: "ready", origins: [], door: found } : { status: "unavailable" })
-    }
+  const [refreshing, setRefreshing] = createSignal(false)
+  const refresh = async () => {
+    if (refreshing()) return
+    setRefreshing(true)
     try {
-      const info = await platform.companionInfo()
-      const insecureOrigins = (info.hosts.length ? info.hosts : [parsed.hostname]).map(
-        (host) => `http://${host}:${info.port}/`,
-      )
-      const origins = [...new Set([...(info.secureOrigins ?? []), ...insecureOrigins])]
-      setState("value", { status: "ready", origins, door: await door })
-    } catch (error) {
-      setState("value", { status: "error", message: error instanceof Error ? error.message : String(error) })
+      const base = http()
+      const current = server.current
+      if (!base || !current) return setState("value", { status: "unavailable" })
+      const door = readDoor({ url: base.url, server: current }, platform.fetch)
+      const parsed = new URL(base.url)
+      if (!LOOPBACK.has(parsed.hostname))
+        return setState("value", { status: "ready", origins: [parsed.origin], door: await door })
+      if (!platform.companionInfo) {
+        const found = await door
+        return setState("value", found ? { status: "ready", origins: [], door: found } : { status: "unavailable" })
+      }
+      try {
+        const info = await platform.companionInfo()
+        const insecureOrigins = (info.hosts.length ? info.hosts : [parsed.hostname]).map(
+          (host) => `http://${host}:${info.port}/`,
+        )
+        const origins = [...new Set([...(info.secureOrigins ?? []), ...insecureOrigins])]
+        setState("value", { status: "ready", origins, door: await door })
+      } catch (error) {
+        setState("value", { status: "error", message: error instanceof Error ? error.message : String(error) })
+      }
+    } finally {
+      setRefreshing(false)
     }
+  }
+  onMount(() => {
+    void refresh()
   })
+  const timer = setInterval(() => {
+    if (!document.hidden) void refresh()
+  }, 30_000)
+  onCleanup(() => clearInterval(timer))
 
   const options = createMemo((): PhoneOption[] => {
     if (state.value.status !== "ready") return []
@@ -123,6 +159,7 @@ export function DialogConnectPhone() {
       ...state.value.origins.map((origin) => ({ kind: "origin" as const, origin })),
     ]
   })
+  const door = createMemo(() => (state.value.status === "ready" ? state.value.door : undefined))
   const selected = createMemo(() => options()[index() % options().length])
   const isDoor = createMemo(() => selected()?.kind === "door")
   const secure = createMemo(() => {
@@ -188,7 +225,36 @@ export function DialogConnectPhone() {
                 }
               >
                 <p class="text-14-regular text-text-base text-center">{language.t("dialog.phone.door.description")}</p>
-                <p class="text-12-regular text-text-weak text-center">{language.t("dialog.phone.door.anywhere")}</p>
+                <p class="text-12-regular text-text-weak text-center">
+                  {language.t(door()?.address === "stable" ? "dialog.phone.stable" : "dialog.phone.temporary")}
+                </p>
+                <Show
+                  when={door()?.health}
+                  fallback={<p class="text-12-regular text-text-weak">{language.t("dialog.phone.healthUnknown")}</p>}
+                >
+                  {(health) => (
+                    <div role="status" class="text-12-regular text-text-weak text-center">
+                      <p>{language.t(health().gate ? "dialog.phone.gateHealthy" : "dialog.phone.gateUnavailable")}</p>
+                      <p>
+                        {language.t(health().public ? "dialog.phone.publicHealthy" : "dialog.phone.publicUnavailable")}
+                      </p>
+                      <p>
+                        {language.t(
+                          health().server === null
+                            ? "dialog.phone.serverUnknown"
+                            : health().server
+                              ? "dialog.phone.serverHealthy"
+                              : "dialog.phone.serverUnavailable",
+                        )}
+                      </p>
+                      <p>
+                        {language.t("dialog.phone.checked", {
+                          time: new Date(health().checkedAt).toLocaleTimeString(),
+                        })}
+                      </p>
+                    </div>
+                  )}
+                </Show>
                 <p class="text-12-regular text-text-weak text-center">{language.t("dialog.phone.voiceSecure")}</p>
                 <Show when={since()}>
                   <p class="text-12-regular text-text-weak text-center">
@@ -224,6 +290,9 @@ export function DialogConnectPhone() {
             </div>
           </Match>
         </Switch>
+        <Button type="button" variant="secondary" disabled={refreshing()} onClick={() => void refresh()}>
+          {language.t(refreshing() ? "dialog.phone.checking" : "dialog.phone.refresh")}
+        </Button>
       </div>
     </Dialog>
   )

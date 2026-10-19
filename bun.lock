@@ -387,6 +387,11 @@
     },
     "packages/cow-eyes": {
       "name": "@opencode-ai/cow-eyes",
+      "devDependencies": {
+        "@playwright/test": "catalog:",
+        "@types/bun": "catalog:",
+        "@typescript/native-preview": "catalog:",
+      },
     },
     "packages/desktop": {
       "name": "@opencode-ai/desktop",

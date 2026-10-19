@@ -19,6 +19,8 @@
   @media (pointer: coarse) { #mobile { display: flex; } #stage { bottom: 48px; } }
 </style>
 <div id="bar">
+  <button id="control">take control</button>
+  <button id="screenshot">screenshot</button>
   <button id="back" title="back">←</button>
   <button id="reload" title="reload">↻</button>
   <select id="tabs" title="tabs"></select>
@@ -35,15 +37,19 @@
   const $ = (id) => document.getElementById(id)
   const v = $("v"), status = $("status"), url = $("url"), tabs = $("tabs")
   const base = location.pathname.replace(/\/$/, "")
+  let owner = "agent"
   let ws, meta = { deviceWidth: 1440, deviceHeight: 900 }, buttons = 0, lastMove = 0
-  const send = (o) => { if (ws && ws.readyState === 1) ws.send(JSON.stringify(o)) }
+  const send = (o) => { if (!["control", "tabs", "ping", "screenshot", "copy"].includes(o.type) && owner !== "human") { status.textContent = "take control to interact"; return } if (ws && ws.readyState === 1) ws.send(JSON.stringify(o)) }
   function connect() {
     ws = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + location.host + base + "/ws" + location.search)
     ws.onopen = () => { status.textContent = "attaching…"; send({ type: "tabs" }) }
     ws.onclose = () => { status.textContent = "disconnected, retrying…"; setTimeout(connect, 2000) }
     ws.onmessage = (e) => {
       const m = JSON.parse(e.data)
-      if (m.type === "frame") { v.style.display = "block"; v.src = "data:image/jpeg;base64," + m.data; if (m.meta) meta = m.meta; status.textContent = meta.deviceWidth + "×" + meta.deviceHeight }
+      if (m.type === "control") { owner = m.owner; $("control").textContent = owner === "human" ? "return to agent" : "take control"; $("control").title = owner === "human" ? "agent browser actions are paused" : "watching the agent’s active tab" }
+      else if (m.type === "clipboard") { navigator.clipboard.writeText(m.text).catch(() => { status.textContent = "clipboard access failed" }) }
+      else if (m.type === "screenshot") { const a = document.createElement("a"); a.href = "data:image/png;base64," + m.data; a.download = "browser-" + Date.now() + ".png"; a.click() }
+      else if (m.type === "frame") { v.style.display = "block"; v.src = "data:image/jpeg;base64," + m.data; if (m.meta) meta = m.meta; status.textContent = meta.deviceWidth + "×" + meta.deviceHeight }
       else if (m.type === "url") { if (document.activeElement !== url) url.value = m.url; send({ type: "tabs" }) }
       else if (m.type === "attached") { url.value = m.target.url; status.textContent = "attached"; send({ type: "tabs" }) }
       else if (m.type === "tabs") { tabs.innerHTML = ""; for (const t of m.tabs) { const o = document.createElement("option"); o.value = t.id; o.textContent = (t.title || t.url || "tab").slice(0, 40); o.selected = t.id === m.current; tabs.appendChild(o) } }
@@ -55,8 +61,9 @@
   const pos = (e) => { const r = v.getBoundingClientRect(); return { x: Math.round((e.clientX - r.left) * meta.deviceWidth / r.width), y: Math.round((e.clientY - r.top) * meta.deviceHeight / r.height) } }
   const mods = (e) => (e.altKey ? 1 : 0) | (e.ctrlKey ? 2 : 0) | (e.metaKey ? 4 : 0) | (e.shiftKey ? 8 : 0)
   const btn = (e) => ["left", "middle", "right"][e.button] || "left"
-  v.addEventListener("mousedown", (e) => { e.preventDefault(); v.focus(); buttons |= (1 << e.button); send({ type: "mouse", kind: "mousePressed", ...pos(e), button: btn(e), clickCount: e.detail || 1, modifiers: mods(e), buttons }) })
-  v.addEventListener("mouseup", (e) => { e.preventDefault(); buttons &= ~(1 << e.button); send({ type: "mouse", kind: "mouseReleased", ...pos(e), button: btn(e), clickCount: e.detail || 1, modifiers: mods(e), buttons }) })
+  v.addEventListener("pointerdown", (e) => { if (e.pointerType === "mouse") v.setPointerCapture(e.pointerId) })
+  v.addEventListener("mousedown", (e) => { e.preventDefault(); v.focus(); buttons = e.buttons; send({ type: "mouse", kind: "mousePressed", ...pos(e), button: btn(e), clickCount: e.detail || 1, modifiers: mods(e), buttons }) })
+  v.addEventListener("mouseup", (e) => { e.preventDefault(); buttons = e.buttons; send({ type: "mouse", kind: "mouseReleased", ...pos(e), button: btn(e), clickCount: e.detail || 1, modifiers: mods(e), buttons }) })
   v.addEventListener("mousemove", (e) => { const now = performance.now(); if (now - lastMove < 33) return; lastMove = now; send({ type: "mouse", kind: "mouseMoved", ...pos(e), buttons, modifiers: mods(e) }) })
   v.addEventListener("contextmenu", (e) => e.preventDefault())
   v.addEventListener("wheel", (e) => { e.preventDefault(); send({ type: "wheel", ...pos(e), deltaX: Math.round(e.deltaX), deltaY: Math.round(e.deltaY) }) }, { passive: false })
@@ -76,6 +83,7 @@
   document.addEventListener("keydown", (e) => {
     if (!keyTarget()) return
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "v") return
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "c") { e.preventDefault(); send({ type: "copy" }); return }
     e.preventDefault()
     send({ type: "key", event: keyEvent(e, "keyDown") })
   })
@@ -90,6 +98,8 @@
     const text = e.clipboardData && e.clipboardData.getData("text/plain")
     if (text) { e.preventDefault(); send({ type: "text", text }) }
   })
+  $("control").onclick = () => send({ type: "control", owner: owner === "human" ? "agent" : "human" })
+  $("screenshot").onclick = () => send({ type: "screenshot" })
   $("go").onclick = () => { send({ type: "navigate", url: url.value }); v.focus() }
   url.addEventListener("keydown", (e) => { if (e.key === "Enter") { send({ type: "navigate", url: url.value }); v.focus() } })
   $("back").onclick = () => send({ type: "back" })
@@ -99,6 +109,6 @@
   tabs.onchange = () => send({ type: "tab", id: tabs.value })
   $("msend").onclick = () => { const t = $("mtext"); if (t.value) send({ type: "text", text: t.value }); t.value = "" }
   $("menter").onclick = () => { send({ type: "key", event: { type: "keyDown", key: "Enter", code: "Enter", text: "\r", unmodifiedText: "\r", windowsVirtualKeyCode: 13 } }); send({ type: "key", event: { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 } }) }
-  setInterval(() => send({ type: "tabs" }), 15000)
+  setInterval(() => { send({ type: "ping" }); send({ type: "tabs" }) }, 15000)
 })()
 </script>

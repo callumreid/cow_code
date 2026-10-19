@@ -2,7 +2,7 @@ import { spawn, type ChildProcess } from "node:child_process"
 import { randomBytes, timingSafeEqual } from "node:crypto"
 import { Resolver } from "node:dns/promises"
 import { existsSync } from "node:fs"
-import { chmod, mkdir, rm, writeFile } from "node:fs/promises"
+import { chmod, mkdir, readFile, rm, writeFile } from "node:fs/promises"
 import {
   createServer,
   request as httpRequest,
@@ -115,7 +115,7 @@ export function createPublicCompanionManager(options: PublicCompanionOptions): P
     await clearRuntime()
     if (!desired || currentGeneration !== generation) return undefined
 
-    gate = randomBytes(32).toString("base64url")
+    gate = await persistentCompanionGate(`${options.stateFile}.gate`)
     const proxyPort = await startPublicCompanionProxy(options.targetPort, options.password, gate).then((value) => {
       proxy = value.server
       return value.port
@@ -392,4 +392,18 @@ async function writeState(file: string, origin: string, gate: string, pid?: numb
 
 function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : String(error)
+}
+
+/** The pairing key outlives the tunnel process and the transient connection-state file. */
+export async function persistentCompanionGate(file: string) {
+  await mkdir(dirname(file), { recursive: true })
+  const existing = await readFile(file, "utf8").catch(() => "")
+  if (/^[A-Za-z0-9_-]{32,128}$/.test(existing.trim())) {
+    await chmod(file, 0o600)
+    return existing.trim()
+  }
+  const value = randomBytes(32).toString("base64url")
+  await writeFile(file, value + "\n", { mode: 0o600 })
+  await chmod(file, 0o600)
+  return value
 }

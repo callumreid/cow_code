@@ -63,7 +63,7 @@ fi
 
 log "services"
 changed=0
-for f in cow-serve.sh cow-gate.js cow-slack.sh claude-rc.sh cow-browser.sh cow-eyes.sh cow-pipeline.sh; do
+for f in cow-serve.sh cow-gate.js cow-slack.sh claude-rc.sh cow-browser.sh cow-eyes.sh cow-public.sh cow-pipeline.sh; do
   if ! cmp -s "$HERE/$f" "$HOME/bin/$f"; then install -m 755 "$HERE/$f" "$HOME/bin/$f"; changed=1; fi
 done
 # The watchdog only ever reloads itself: a change to it must not bounce cow-server.
@@ -72,6 +72,7 @@ if ! cmp -s "$HERE/cow-phone-watch.sh" "$HOME/bin/cow-phone-watch.sh"; then inst
 # cloudflared logs the full URL of failed requests; launchd recreates the log 644 after a truncation.
 [ ! -f "$HOME/Library/Logs/cow-public.log" ] || chmod 600 "$HOME/Library/Logs/cow-public.log"
 [ -x "$HOME/.local/bin/cow-slack" ] || warn "~/.local/bin/cow-slack missing: build with 'bun run build' in packages/slack and copy it here"
+[ -x "$HOME/.local/bin/cow-browser-agent" ] || warn "~/.local/bin/cow-browser-agent missing: build packages/cow-eyes and copy dist/cow-browser-agent here"
 [ -x "$HOME/.local/bin/cow-eyes" ] || warn "~/.local/bin/cow-eyes missing: build with 'bun run build' in packages/cow-eyes and copy it here"
 [ -d "/Applications/Google Chrome.app" ] || warn "Google Chrome missing: the box's browser (cow-browser) needs it"
 # (Re)load a job only when its plist changed, a script it runs changed, or it is not loaded.
@@ -128,10 +129,10 @@ import json, os
 p = os.path.expanduser("~/.config/opencode/opencode.json")
 try: c = json.load(open(p))
 except Exception: c = {}
-want = {"type": "local", "enabled": True, "command": ["npx", "-y", "@playwright/mcp@0.0.80", "--cdp-endpoint", "http://127.0.0.1:9222", "--image-responses=allow", "--output-dir", os.path.expanduser("~/.config/cow/browser-output")]}
+want = {"type": "local", "enabled": True, "command": [os.path.expanduser("~/.local/bin/cow-browser-agent")]}
 if (c.get("mcp") or {}).get("playwright") != want:
     c.setdefault("mcp", {})["playwright"] = want
-    json.dump(c, open(p, "w"), indent=2); print("  mcp.playwright -> cdp 127.0.0.1:9222")
+    json.dump(c, open(p, "w"), indent=2); print("  mcp.playwright -> cow-eyes managed CDP 127.0.0.1:4100")
 PY
 A="$HOME/.config/opencode/AGENTS.md"
 grep -q "cow-eyes" "$A" 2>/dev/null || { cat "$HERE/opencode-AGENTS.box.md" >> "$A"; log "  box rules appended to ~/.config/opencode/AGENTS.md"; }

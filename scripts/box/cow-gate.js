@@ -16,8 +16,9 @@ const HOME = process.env.HOME || "/Users/bronson"
 const TARGET_PORT = Number(process.env.COW_TARGET_PORT || 4096)
 const LISTEN_PORT = Number(process.env.COW_GATE_PORT || 4098)
 const EYES_PORT = Number(process.env.COW_EYES_PORT || 4099)
+const STABLE_ORIGIN = process.env.COW_PHONE_ORIGIN_FILE || path.join(HOME, ".config/cow/phone-origin")
 const PUBLIC_LOG = process.env.COW_PUBLIC_LOG || path.join(HOME, "Library/Logs/cow-public.log")
-const ACCESS_LOG = path.join(HOME, "Library/Logs/cow-gate-access.log")
+const ACCESS_LOG = process.env.COW_GATE_ACCESS_LOG || path.join(HOME, "Library/Logs/cow-gate-access.log")
 const ACCESS_MAX_BYTES = 5 * 1024 * 1024
 // Escape hatch if iOS turns out to honour the manifest but not its start_url query: "0" passes the upstream manifest through.
 const MANIFEST_REWRITE = process.env.COW_GATE_MANIFEST_REWRITE !== "0"
@@ -29,8 +30,8 @@ function route(pathname) {
 const GATE_QUERY = "_cowcode_gate"
 const GATE_COOKIE = "cowcode_gate"
 
-const password = fs.readFileSync(path.join(HOME, ".config/opencode/server-password"), "utf8").split("\n")[0].trim()
-const gateFile = path.join(HOME, ".config/opencode/gate-token")
+const password = fs.readFileSync(process.env.COW_SERVER_PASSWORD_FILE || path.join(HOME, ".config/opencode/server-password"), "utf8").split("\n")[0].trim()
+const gateFile = process.env.COW_GATE_TOKEN_FILE || path.join(HOME, ".config/opencode/gate-token")
 if (!fs.existsSync(gateFile) || fs.readFileSync(gateFile, "utf8").trim().length < 32) {
   fs.writeFileSync(gateFile, randomBytes(32).toString("base64url") + "\n", { mode: 0o600 })
 }
@@ -86,6 +87,12 @@ function away(request, response) {
 // The quick tunnel's hostname only ever appears in cloudflared's log; the last one wins.
 let originCache = { mtime: -1, value: null }
 function tunnelOrigin() {
+  if (fs.existsSync(STABLE_ORIGIN)) {
+    try {
+      const value = new URL(fs.readFileSync(STABLE_ORIGIN, "utf8").trim())
+      return value.protocol === "https:" && !value.username && !value.password && !value.search && !value.hash && value.pathname === "/" ? value.origin : null
+    } catch { return null }
+  }
   if (!fs.existsSync(PUBLIC_LOG)) return null
   const mtime = fs.statSync(PUBLIC_LOG).mtimeMs
   if (mtime === originCache.mtime) return originCache.value
@@ -94,8 +101,23 @@ function tunnelOrigin() {
   return originCache.value
 }
 function ping(response) {
-  response.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", "set-cookie": cookie })
-  response.end(JSON.stringify({ ok: true, origin: tunnelOrigin(), at: Date.now() }))
+  let done = false
+  const finish = (server) => {
+    if (done) return
+    done = true
+    response.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", "set-cookie": cookie })
+    response.end(JSON.stringify({ ok: true, server, origin: tunnelOrigin(), at: Date.now() }))
+  }
+  const check = http.get({ host: "127.0.0.1", port: TARGET_PORT, path: "/global/health", headers: { authorization }, timeout: 2000 }, (upstream) => {
+    let body = ""
+    upstream.on("data", (chunk) => { if (body.length < 4096) body += chunk })
+    upstream.on("end", () => {
+      try { finish(upstream.statusCode === 200 && JSON.parse(body).healthy === true) } catch { finish(false) }
+    })
+    upstream.on("error", () => finish(false))
+  })
+  check.on("timeout", () => { check.destroy(); finish(false) })
+  check.on("error", () => finish(false))
 }
 
 // iOS launches a home-screen web app at the manifest's start_url, in a cookie jar of its own, so the key has to be in it.

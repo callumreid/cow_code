@@ -18,6 +18,15 @@ export const State = Schema.Struct({
   url: Schema.NullOr(Schema.String),
   origin: Schema.NullOr(Schema.String),
   since: Schema.NullOr(Schema.Finite),
+  address: Schema.optional(Schema.Literals(["stable", "temporary"])),
+  health: Schema.optional(
+    Schema.Struct({
+      checkedAt: Schema.Finite,
+      gate: Schema.Boolean,
+      public: Schema.Boolean,
+      server: Schema.NullOr(Schema.Boolean),
+    }),
+  ),
 }).annotate({ identifier: "PhoneDoor" })
 export type State = typeof State.Type
 
@@ -36,6 +45,26 @@ const home = os.homedir()
 export const files = {
   log: path.join(home, "Library", "Logs", "cow-public.log"),
   token: path.join(home, ".config", "opencode", "gate-token"),
+  origin: path.join(home, ".config", "cow", "phone-origin"),
+}
+
+/** A stable origin is operator configuration, never a link scraped from a failed request. */
+export function stableOrigin(text: string) {
+  try {
+    const value = new URL(text.trim())
+    if (
+      value.protocol !== "https:" ||
+      value.username ||
+      value.password ||
+      value.search ||
+      value.hash ||
+      value.pathname !== "/"
+    )
+      return undefined
+    return value.origin
+  } catch {
+    return undefined
+  }
 }
 
 /**
@@ -54,15 +83,50 @@ export function parseLog(text: string) {
 }
 
 /** Reads the door from the given files; never rejects, nulls when either side is missing. */
-export async function read(input: { log: string; token: string }): Promise<State> {
+export async function read(input: {
+  log: string
+  token: string
+  origin?: string
+  probe?: boolean
+  gateUrl?: string
+}): Promise<State> {
   const token = await fs.readFile(input.token, "utf8").then(
     (text) => text.trim(),
     () => "",
   )
   if (token.length < MIN_TOKEN) return EMPTY
-  const found = parseLog(await tail(input.log))
+  const configured = input.origin ? await fs.readFile(input.origin, "utf8").catch(() => undefined) : undefined
+  const stable = configured === undefined ? undefined : stableOrigin(configured)
+  // Invalid explicit configuration must not silently advertise a different address.
+  if (configured !== undefined && !stable) return EMPTY
+  const found = stable ? { origin: stable, since: null } : parseLog(await tail(input.log))
   if (!found) return EMPTY
-  return { url: `${found.origin}/?_cowcode_gate=${token}`, origin: found.origin, since: found.since }
+  const health = input.probe ? await probeDoor(found.origin, token, input.gateUrl) : undefined
+  return {
+    url: `${found.origin}/?_cowcode_gate=${encodeURIComponent(token)}`,
+    origin: found.origin,
+    since: found.since,
+    ...(input.origin ? { address: stable ? ("stable" as const) : ("temporary" as const) } : {}),
+    ...(health ? { health } : {}),
+  }
+}
+
+export async function probeDoor(origin: string, token: string, gateUrl = "http://127.0.0.1:4098") {
+  const ping = (base: string) =>
+    fetch(`${base}/_cow/ping`, {
+      headers: { cookie: `cowcode_gate=${token}` },
+      signal: AbortSignal.timeout(4_000),
+      redirect: "error",
+    })
+      .then(async (response) => {
+        if (!response.ok) return undefined
+        const body: unknown = await response.json()
+        if (!body || typeof body !== "object" || !("ok" in body) || body.ok !== true) return undefined
+        return { server: "server" in body && typeof body.server === "boolean" ? body.server : null }
+      })
+      .catch(() => undefined)
+  const [local, remote] = await Promise.all([ping(gateUrl), ping(origin)])
+  return { checkedAt: Date.now(), gate: !!local, public: !!remote, server: local?.server ?? remote?.server ?? null }
 }
 
 async function tail(file: string) {
@@ -80,7 +144,7 @@ async function tail(file: string) {
   }
 }
 
-const layer = Layer.succeed(Service, Service.of({ state: () => Effect.promise(() => read(files)) }))
+const layer = Layer.succeed(Service, Service.of({ state: () => Effect.promise(() => read({ ...files, probe: true })) }))
 
 export const node = LayerNode.make({
   service: Service,

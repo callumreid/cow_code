@@ -2,8 +2,41 @@
 
 the whole barn on your phone, from anywhere, without a spinner.
 
-this page is <https://github.com/callumreid/cow_code/blob/dev/docs/features/phone.md>.
+this page is <https://github.com/callumreid/cow_code/blob/main/docs/features/phone.md>.
 🎬 the phone has its own segment in the [hype film](../../artifacts/hype-video/README.md).
+
+## connection health and a stable address
+
+The Connect phone dialog now checks the local gate, public tunnel and task server
+separately. **Check connection** refreshes those observations without restarting
+anything or rotating the address. An old server may report task-server health as
+unknown; a reachable gate alone does not prove tasks can load.
+
+The dialog labels quick-tunnel addresses **temporary**. Restarting those tunnels
+still changes the hostname. The pairing key is retained independently of the
+desktop tunnel process, but cookies cannot transfer to a new hostname.
+
+The Barn supports an existing named Cloudflare tunnel for a stable public address.
+Activation requires an already authorized domain and tunnel credential. Neither
+is created by the app. Install these two operator-managed files together:
+
+- `~/.config/cow/phone-origin`: one HTTPS origin, for example
+  `https://cow.example.com`, with no path, key or other query parameters.
+- `~/.config/cow/tunnel.yml`: the existing named tunnel's Cloudflared configuration,
+  routing that hostname to `http://127.0.0.1:4098`, followed by a catch-all
+  `http_status:404` ingress rule. Keep credentials restricted to the local user.
+
+The public launchd job calls `~/bin/cow-public.sh`. It uses the named tunnel when
+both files exist and otherwise retains the existing quick tunnel. Partial stable
+configuration fails visibly rather than silently rotating to a temporary address.
+The phone service, gate and watchdog all use the configured stable origin. Gate
+authentication is unchanged: the public hostname never bypasses the pairing key.
+Existing home-screen links need re-pairing once when moving to the stable hostname.
+
+On October 19 the Barn had no named-tunnel credentials or stable-origin config,
+and direct HTTP over its tailnet address did not answer. Stable public access
+therefore remains a setup dependency; do not advertise the tailnet as a working
+alternative without verifying its ACL and reachability.
 
 ## two ways in
 
@@ -96,9 +129,7 @@ now.
 - **the address changes when the door restarts.** a box reboot or a tunnel
   restart hands out a new random address. every saved link, tab and icon from the
   old one dies; the DM has the new one within a minute.
-- **a permanent address needs Callum.** either a domain (so the tunnel can have a
-  name that stays put) or a change to the coval tailnet ACL (so the phone can
-  reach the mini directly). the box cannot do either itself.
+- **a permanent address needs authorized domain/tunnel configuration.** the named-tunnel path above supports it; the current quick tunnel remains temporary until that configuration exists.
 - **the box has to be awake and on the internet.** it sits on wifi (the
   ethernet port is empty), and its internet blips for a few seconds now and then;
   no tunnel setting survives the box losing its network. a cable helps more than

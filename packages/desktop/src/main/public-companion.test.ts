@@ -1,6 +1,14 @@
+import { mkdtemp, readFile, rm, stat } from "node:fs/promises"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
 import { afterEach, describe, expect, test } from "bun:test"
 import { createServer, type Server } from "node:http"
-import { gatedCompanionUrl, parseCloudflaredOrigin, startPublicCompanionProxy } from "./public-companion"
+import {
+  gatedCompanionUrl,
+  parseCloudflaredOrigin,
+  persistentCompanionGate,
+  startPublicCompanionProxy,
+} from "./public-companion"
 
 const servers: Server[] = []
 
@@ -68,4 +76,18 @@ describe("startPublicCompanionProxy", () => {
       url: "/global/office?project=cow",
     })
   })
+})
+
+test("phone pairing retains a restricted persistent key across companion restarts", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "cow-pairing-"))
+  const file = join(directory, "companion.json.gate")
+  try {
+    const first = await persistentCompanionGate(file)
+    expect(first.length).toBeGreaterThanOrEqual(32)
+    expect(await persistentCompanionGate(file)).toBe(first)
+    expect((await readFile(file, "utf8")).trim()).toBe(first)
+    expect((await stat(file)).mode & 0o777).toBe(0o600)
+  } finally {
+    await rm(directory, { recursive: true, force: true })
+  }
 })

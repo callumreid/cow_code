@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test"
 import fs from "fs/promises"
 import os from "os"
 import path from "path"
-import { parseLog, read } from "../../src/office/phone"
+import { parseLog, probeDoor, read, stableOrigin } from "../../src/office/phone"
 
 const banner = (stamp: string, host: string) =>
   `${stamp} INF |  https://${host}.trycloudflare.com                                   |`
@@ -85,5 +85,52 @@ describe("phone door files", () => {
     } finally {
       await cleanup()
     }
+  })
+})
+
+describe("stable phone address and measured health", () => {
+  test("accepts only an HTTPS origin without credentials, paths, or tokens", () => {
+    expect(stableOrigin("https://cow.example.com\n")).toBe("https://cow.example.com")
+    for (const invalid of [
+      "http://cow.example.com",
+      "https://user:secret@cow.example.com",
+      "https://cow.example.com/a",
+      "https://cow.example.com/?token=x",
+      "broken",
+    ])
+      expect(stableOrigin(invalid)).toBeUndefined()
+  })
+  test("prefers the stable address and refuses to silently fall back on invalid configuration", async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "phone-stable-"))
+    const files = { token: path.join(dir, "token"), log: path.join(dir, "log"), origin: path.join(dir, "origin") }
+    try {
+      await fs.writeFile(files.token, token)
+      await fs.writeFile(files.log, log)
+      await fs.writeFile(files.origin, "https://cow.example.com")
+      expect(await read(files)).toMatchObject({ origin: "https://cow.example.com", address: "stable", since: null })
+      await fs.writeFile(files.origin, "https://user:secret@cow.example.com")
+      expect((await read(files)).url).toBeNull()
+      await fs.rm(files.origin)
+      expect((await read(files)).address).toBe("temporary")
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+  test("checks gate, public reachability and upstream server separately without putting a key in URLs", async () => {
+    const server = Bun.serve({
+      port: 0,
+      fetch(request) {
+        expect(new URL(request.url).search).toBe("")
+        expect(request.headers.get("cookie")).toBe(`cowcode_gate=${token}`)
+        return Response.json({ ok: true, server: false })
+      },
+    })
+    const origin = `http://127.0.0.1:${server.port}`
+    try {
+      expect(await probeDoor(origin, token, origin)).toMatchObject({ gate: true, public: true, server: false })
+    } finally {
+      server.stop(true)
+    }
+    expect(await probeDoor(origin, token, origin)).toMatchObject({ gate: false, public: false, server: null })
   })
 })

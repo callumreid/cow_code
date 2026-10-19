@@ -58,6 +58,12 @@ while :; do
     sleep "$interval"; continue
   fi
   origin=$(grep -o 'https://[a-z0-9-]*\.trycloudflare\.com' "$public_log" 2>/dev/null | tail -1)
+  if [ -f "$HOME/.config/cow/phone-origin" ]; then
+    origin=$(head -1 "$HOME/.config/cow/phone-origin")
+    # Only an HTTPS origin is valid; never fall back to a rotating URL on a config error.
+    [[ "$origin" =~ ^https://[a-zA-Z0-9.-]+(:[0-9]+)?/?$ ]] || origin=""
+    origin=${origin%/}
+  fi
   announced=$(get announced)
   fails=$(get fails); fails=${fails:-0}
   down_since=$(get down_since); down_since=${down_since:-0}
