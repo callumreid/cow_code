@@ -2819,6 +2819,12 @@
                       },
                       "content": {
                         "type": "string"
+                      },
+                      "slash": {
+                        "type": "boolean"
+                      },
+                      "requirements": {
+                        "type": "string"
                       }
                     },
                     "required": ["name", "location", "content"],
@@ -15254,6 +15260,1931 @@
           }
         ]
       }
+    },
+    "/global/office/spend": {
+      "post": {
+        "tags": ["office"],
+        "operationId": "office.spend",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "sessionID": {
+                      "type": "string",
+                      "pattern": "^ses"
+                    },
+                    "children": {
+                      "type": "number"
+                    },
+                    "budget": {
+                      "type": "number"
+                    },
+                    "task": {
+                      "type": "object",
+                      "properties": {
+                        "amount": {
+                          "type": "number"
+                        },
+                        "reported": {
+                          "type": "number"
+                        },
+                        "estimated": {
+                          "type": "number"
+                        },
+                        "unknown": {
+                          "type": "number"
+                        },
+                        "turns": {
+                          "type": "number"
+                        }
+                      },
+                      "required": ["amount", "reported", "estimated", "unknown", "turns"],
+                      "additionalProperties": false
+                    },
+                    "day": {
+                      "type": "object",
+                      "properties": {
+                        "amount": {
+                          "type": "number"
+                        },
+                        "reported": {
+                          "type": "number"
+                        },
+                        "estimated": {
+                          "type": "number"
+                        },
+                        "unknown": {
+                          "type": "number"
+                        },
+                        "turns": {
+                          "type": "number"
+                        }
+                      },
+                      "required": ["amount", "reported", "estimated", "unknown", "turns"],
+                      "additionalProperties": false
+                    },
+                    "providers": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "provider": {
+                            "type": "string"
+                          },
+                          "amount": {
+                            "type": "number"
+                          },
+                          "reported": {
+                            "type": "number"
+                          },
+                          "estimated": {
+                            "type": "number"
+                          },
+                          "unknown": {
+                            "type": "number"
+                          },
+                          "turns": {
+                            "type": "number"
+                          }
+                        },
+                        "required": ["provider", "amount", "reported", "estimated", "unknown", "turns"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "updated": {
+                      "type": "number"
+                    }
+                  },
+                  "required": ["sessionID", "children", "task", "day", "providers", "updated"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "ConflictError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConflictError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Read recorded task and daily provider usage",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "sessionID": {
+                    "type": "string",
+                    "pattern": "^ses"
+                  },
+                  "start": {
+                    "type": "number"
+                  },
+                  "end": {
+                    "type": "number"
+                  }
+                },
+                "required": ["sessionID", "start", "end"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@opencode-ai/sdk\n\nconst client = createOpencodeClient()\nawait client.office.spend({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/global/office/request": {
+      "post": {
+        "tags": ["office"],
+        "operationId": "office.request",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": ["accepted", "processing", "completed", "failed", "reconciliation_required", "rejected"]
+                    },
+                    "text": {
+                      "type": "string"
+                    },
+                    "sessionID": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["id", "status"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Admit a Farmer request without waiting for reasoning",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "text": {
+                    "type": "string"
+                  },
+                  "source": {
+                    "type": "string",
+                    "enum": ["text", "voice"]
+                  },
+                  "clientID": {
+                    "type": "string"
+                  },
+                  "generation": {
+                    "type": "number"
+                  },
+                  "decisionIDs": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": ["id", "text"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@opencode-ai/sdk\n\nconst client = createOpencodeClient()\nawait client.office.request({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/global/office/request/status": {
+      "post": {
+        "tags": ["office"],
+        "operationId": "office.request.status",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": ["accepted", "processing", "completed", "failed", "reconciliation_required", "rejected"]
+                    },
+                    "text": {
+                      "type": "string"
+                    },
+                    "sessionID": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["id", "status"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Read a durable request receipt",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  }
+                },
+                "required": ["id"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@opencode-ai/sdk\n\nconst client = createOpencodeClient()\nawait client.office.request.status({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/global/office/attention": {
+      "post": {
+        "tags": ["office"],
+        "operationId": "office.attention",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "clientID": {
+                      "type": "string"
+                    },
+                    "generation": {
+                      "type": "number"
+                    },
+                    "mode": {
+                      "type": "string",
+                      "enum": ["active", "paused", "off"]
+                    }
+                  },
+                  "required": ["clientID", "generation", "mode"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Set client voice attention and admission generation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "clientID": {
+                    "type": "string"
+                  },
+                  "generation": {
+                    "type": "number"
+                  },
+                  "mode": {
+                    "type": "string",
+                    "enum": ["active", "paused", "off"]
+                  }
+                },
+                "required": ["clientID", "generation", "mode"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@opencode-ai/sdk\n\nconst client = createOpencodeClient()\nawait client.office.attention({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/global/office/command": {
+      "post": {
+        "tags": ["office"],
+        "operationId": "office.command",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "commandID": {
+                      "type": "string"
+                    },
+                    "sessionID": {
+                      "type": "string"
+                    },
+                    "inputID": {
+                      "type": "string"
+                    },
+                    "phase": {
+                      "type": "string"
+                    },
+                    "outcome": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": ["accepted", "rejected", "reconciliation_required"]
+                    },
+                    "queued": {
+                      "type": "boolean"
+                    },
+                    "directory": {
+                      "type": "string"
+                    },
+                    "time": {
+                      "type": "number"
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["commandID", "sessionID", "status", "queued", "time"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Admit an exact worker command",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "intent": {
+                    "type": "string",
+                    "enum": ["new", "amend", "steer", "queue", "context", "cancel", "resume", "status"]
+                  },
+                  "hostID": {
+                    "type": "string"
+                  },
+                  "sessionID": {
+                    "type": "string"
+                  },
+                  "directory": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "text": {
+                    "type": "string"
+                  },
+                  "agent": {
+                    "type": "string"
+                  },
+                  "model": {
+                    "type": "object",
+                    "properties": {
+                      "providerID": {
+                        "type": "string"
+                      },
+                      "modelID": {
+                        "type": "string"
+                      },
+                      "variant": {
+                        "type": "string"
+                      }
+                    },
+                    "required": ["providerID", "modelID"],
+                    "additionalProperties": false
+                  },
+                  "executionID": {
+                    "type": "string"
+                  },
+                  "outputScope": {
+                    "type": "string"
+                  },
+                  "placement": {
+                    "type": "string",
+                    "enum": ["auto", "worktree", "shared"]
+                  }
+                },
+                "required": ["id", "intent", "text"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@opencode-ai/sdk\n\nconst client = createOpencodeClient()\nawait client.office.command({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/global/office/commands": {
+      "get": {
+        "tags": ["office"],
+        "operationId": "office.commands",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "state": {
+                        "type": "string"
+                      },
+                      "receipt": {
+                        "type": "object",
+                        "properties": {
+                          "commandID": {
+                            "type": "string"
+                          },
+                          "sessionID": {
+                            "type": "string"
+                          },
+                          "inputID": {
+                            "type": "string"
+                          },
+                          "phase": {
+                            "type": "string"
+                          },
+                          "outcome": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": ["accepted", "rejected", "reconciliation_required"]
+                          },
+                          "queued": {
+                            "type": "boolean"
+                          },
+                          "directory": {
+                            "type": "string"
+                          },
+                          "time": {
+                            "type": "number"
+                          },
+                          "reason": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["commandID", "sessionID", "status", "queued", "time"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "required": ["state", "receipt"],
+                    "additionalProperties": false
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Read worker command receipts and execution state",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@opencode-ai/sdk\n\nconst client = createOpencodeClient()\nawait client.office.commands({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/global/office/events": {
+      "post": {
+        "tags": ["office"],
+        "operationId": "office.events",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "epoch": {
+                      "type": "string"
+                    },
+                    "cursor": {
+                      "type": "number"
+                    },
+                    "checkpoint": {
+                      "type": "number"
+                    },
+                    "more": {
+                      "type": "boolean"
+                    },
+                    "events": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "cursor": {
+                            "type": "number"
+                          },
+                          "id": {
+                            "type": "string"
+                          },
+                          "kind": {
+                            "type": "string"
+                          },
+                          "sessionID": {
+                            "type": "string"
+                          },
+                          "value": {},
+                          "time": {
+                            "type": "number"
+                          }
+                        },
+                        "required": ["cursor", "id", "kind", "value", "time"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "delivered": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": ["epoch", "cursor", "checkpoint", "more", "events", "delivered"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Replay durable Office events",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "after": {
+                    "type": "number"
+                  },
+                  "checkpoint": {
+                    "type": "number"
+                  },
+                  "clientID": {
+                    "type": "string"
+                  }
+                },
+                "required": ["clientID"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@opencode-ai/sdk\n\nconst client = createOpencodeClient()\nawait client.office.events({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/global/office/acknowledge": {
+      "post": {
+        "tags": ["office"],
+        "operationId": "office.acknowledge",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [true]
+                    }
+                  },
+                  "required": ["ok"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "ConflictError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConflictError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Acknowledge display, speech or targeted navigation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "clientID": {
+                    "type": "string"
+                  },
+                  "eventID": {
+                    "type": "string"
+                  },
+                  "channel": {
+                    "type": "string",
+                    "enum": ["display", "spoken", "navigation"]
+                  },
+                  "sessionID": {
+                    "type": "string"
+                  },
+                  "directory": {
+                    "type": "string"
+                  }
+                },
+                "required": ["clientID", "eventID", "channel"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@opencode-ai/sdk\n\nconst client = createOpencodeClient()\nawait client.office.acknowledge({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/global/office/state": {
+      "get": {
+        "tags": ["office"],
+        "operationId": "office.state",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Farmer's Office state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OfficeState"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Get office state",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@opencode-ai/sdk\n\nconst client = createOpencodeClient()\nawait client.office.state({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/global/office/overseer": {
+      "post": {
+        "tags": ["office"],
+        "operationId": "office.overseer",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The farmer's session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OfficeOverseer"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Get or create the farmer's session",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@opencode-ai/sdk\n\nconst client = createOpencodeClient()\nawait client.office.overseer({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/global/office/ask": {
+      "post": {
+        "tags": ["office"],
+        "operationId": "office.ask",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The farmer's reply",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "text": {
+                      "type": "string"
+                    },
+                    "sessionID": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["text", "sessionID"],
+                  "additionalProperties": false,
+                  "description": "The farmer's reply"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Ask the farmer",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "text": {
+                    "type": "string"
+                  },
+                  "source": {
+                    "type": "string",
+                    "enum": ["text", "voice"]
+                  },
+                  "clientID": {
+                    "type": "string"
+                  },
+                  "generation": {
+                    "type": "number"
+                  },
+                  "decisionIDs": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": ["text"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@opencode-ai/sdk\n\nconst client = createOpencodeClient()\nawait client.office.ask({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/global/office/brief": {
+      "post": {
+        "tags": ["office"],
+        "operationId": "office.brief",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "What changed since Callum last looked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "text": {
+                      "type": "string"
+                    },
+                    "sessionID": {
+                      "type": "string"
+                    },
+                    "skipped": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": ["text", "sessionID", "skipped"],
+                  "additionalProperties": false,
+                  "description": "What changed since Callum last looked"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Brief on what changed since a time",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "since": {
+                    "type": "number"
+                  },
+                  "clientID": {
+                    "type": "string"
+                  }
+                },
+                "required": ["since"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@opencode-ai/sdk\n\nconst client = createOpencodeClient()\nawait client.office.brief({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/global/office/thread/prompt": {
+      "post": {
+        "tags": ["office"],
+        "operationId": "office.thread.prompt",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "commandID": {
+                      "type": "string"
+                    },
+                    "sessionID": {
+                      "type": "string"
+                    },
+                    "inputID": {
+                      "type": "string"
+                    },
+                    "phase": {
+                      "type": "string"
+                    },
+                    "outcome": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": ["accepted", "rejected", "reconciliation_required"]
+                    },
+                    "queued": {
+                      "type": "boolean"
+                    },
+                    "directory": {
+                      "type": "string"
+                    },
+                    "time": {
+                      "type": "number"
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["commandID", "sessionID", "status", "queued", "time"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Send text into a thread",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "sessionID": {
+                    "type": "string"
+                  },
+                  "text": {
+                    "type": "string"
+                  },
+                  "mode": {
+                    "type": "string",
+                    "enum": ["steer", "queue", "context", "amend", "cancel", "resume"]
+                  }
+                },
+                "required": ["sessionID", "text", "mode"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@opencode-ai/sdk\n\nconst client = createOpencodeClient()\nawait client.office.thread.prompt({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/global/office/thread/answer": {
+      "post": {
+        "tags": ["office"],
+        "operationId": "office.thread.answer",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [true]
+                    }
+                  },
+                  "required": ["ok"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "ConflictError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConflictError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Answer a thread's permission or question",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OfficeAnswerInput"
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@opencode-ai/sdk\n\nconst client = createOpencodeClient()\nawait client.office.thread.answer({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/global/office/thread/mark": {
+      "post": {
+        "tags": ["office"],
+        "operationId": "office.thread.mark",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [true]
+                    }
+                  },
+                  "required": ["ok"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Pin or mute a thread",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "sessionID": {
+                    "type": "string"
+                  },
+                  "pinned": {
+                    "type": "boolean"
+                  },
+                  "muted": {
+                    "type": "boolean"
+                  }
+                },
+                "required": ["sessionID"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@opencode-ai/sdk\n\nconst client = createOpencodeClient()\nawait client.office.thread.mark({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/global/office/autonomy": {
+      "post": {
+        "tags": ["office"],
+        "operationId": "office.autonomy",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [true]
+                    }
+                  },
+                  "required": ["ok"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Set the farmer's autonomy",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "mode": {
+                    "$ref": "#/components/schemas/OfficeAutonomy"
+                  }
+                },
+                "required": ["mode"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@opencode-ai/sdk\n\nconst client = createOpencodeClient()\nawait client.office.autonomy({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/global/office/voice/token": {
+      "post": {
+        "tags": ["office"],
+        "operationId": "office.voice.token",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Ephemeral Realtime client secret",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "value": {
+                          "type": "string"
+                        },
+                        "expiresAt": {
+                          "type": "number"
+                        },
+                        "model": {
+                          "type": "string"
+                        },
+                        "voice": {
+                          "type": "string"
+                        },
+                        "session": {
+                          "type": "object"
+                        }
+                      },
+                      "required": ["value", "expiresAt", "model", "voice", "session"],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "error": {
+                          "type": "string"
+                        }
+                      },
+                      "required": ["error"],
+                      "additionalProperties": false
+                    }
+                  ],
+                  "description": "Ephemeral Realtime client secret"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Mint a Realtime client secret for the office voice",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "model": {
+                    "type": "string"
+                  },
+                  "voice": {
+                    "type": "string"
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@opencode-ai/sdk\n\nconst client = createOpencodeClient()\nawait client.office.voice.token({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/global/office/voice/transcribe": {
+      "post": {
+        "tags": ["office"],
+        "operationId": "office.voice.transcribe",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Transcript of the clip",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "text": {
+                          "type": "string"
+                        }
+                      },
+                      "required": ["text"],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "error": {
+                          "type": "string"
+                        }
+                      },
+                      "required": ["error"],
+                      "additionalProperties": false
+                    }
+                  ],
+                  "description": "Transcript of the clip"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Transcribe a hold-to-talk clip",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "audio": {
+                    "type": "string",
+                    "description": "base64 audio clip"
+                  },
+                  "mime": {
+                    "type": "string",
+                    "description": "e.g. audio/webm, audio/mp4"
+                  }
+                },
+                "required": ["audio", "mime"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@opencode-ai/sdk\n\nconst client = createOpencodeClient()\nawait client.office.voice.transcribe({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/global/office/voice/speak": {
+      "post": {
+        "tags": ["office"],
+        "operationId": "office.voice.speak",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Spoken audio for a reply",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "audio": {
+                          "type": "string"
+                        },
+                        "mime": {
+                          "type": "string"
+                        }
+                      },
+                      "required": ["audio", "mime"],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "error": {
+                          "type": "string"
+                        }
+                      },
+                      "required": ["error"],
+                      "additionalProperties": false
+                    }
+                  ],
+                  "description": "Spoken audio for a reply"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Voice a farmer reply",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "text": {
+                    "type": "string"
+                  },
+                  "voice": {
+                    "type": "string"
+                  }
+                },
+                "required": ["text"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@opencode-ai/sdk\n\nconst client = createOpencodeClient()\nawait client.office.voice.speak({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/global/office/routines": {
+      "get": {
+        "tags": ["office"],
+        "operationId": "office.routines",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Scheduled jobs and always-on services on this machine",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoutinesSnapshot"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "List scheduled jobs and their runs",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@opencode-ai/sdk\n\nconst client = createOpencodeClient()\nawait client.office.routines({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/global/office/routines/run": {
+      "post": {
+        "tags": ["office"],
+        "operationId": "office.routines.run",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Whether launchd started the job",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "ok": {
+                          "type": "boolean",
+                          "enum": [true]
+                        }
+                      },
+                      "required": ["ok"],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "error": {
+                          "type": "string"
+                        }
+                      },
+                      "required": ["error"],
+                      "additionalProperties": false
+                    }
+                  ],
+                  "description": "Whether launchd started the job"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Start a scheduled job now",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "required": ["name"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@opencode-ai/sdk\n\nconst client = createOpencodeClient()\nawait client.office.routines.run({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/global/office/routines/log": {
+      "post": {
+        "tags": ["office"],
+        "operationId": "office.routines.log",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Tail of the job's log",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoutineLog"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Read the tail of a job's log",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "lines": {
+                    "type": "number"
+                  }
+                },
+                "required": ["name"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@opencode-ai/sdk\n\nconst client = createOpencodeClient()\nawait client.office.routines.log({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/global/office/phone": {
+      "get": {
+        "tags": ["office"],
+        "operationId": "office.phone",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The box's public phone link (the barn door); all null off the box",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PhoneDoor"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Get the public phone link",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@opencode-ai/sdk\n\nconst client = createOpencodeClient()\nawait client.office.phone({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/mcp/{name}/health": {
+      "post": {
+        "tags": ["mcp"],
+        "operationId": "mcp.health",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Read-only MCP connection and tool catalog check",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MCPHealth"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "McpServerNotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/McpServerNotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "description": "Ping an existing connection and list its tools without executing a tool or reconnecting.",
+        "summary": "Test MCP connection",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@opencode-ai/sdk\n\nconst client = createOpencodeClient()\nawait client.mcp.health({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/session/{sessionID}/recovery": {
+      "get": {
+        "tags": ["session"],
+        "operationId": "session.recovery",
+        "parameters": [
+          {
+            "name": "sessionID",
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "pattern": "^ses"
+            },
+            "required": true
+          },
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Durable execution checkpoint, or null for untracked work",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "state": {
+                      "type": "string",
+                      "enum": ["running", "retrying", "blocked", "completed", "canceled"]
+                    },
+                    "lastProgressAt": {
+                      "type": "number"
+                    },
+                    "deadline": {
+                      "type": "number"
+                    },
+                    "attempt": {
+                      "type": "number"
+                    },
+                    "next": {
+                      "type": "number"
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["state", "lastProgressAt", "deadline"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "description": "Inspect task progress, retry timing and recovery limits without changing execution.",
+        "summary": "Get task recovery status",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@opencode-ai/sdk\n\nconst client = createOpencodeClient()\nawait client.session.recovery({\n  ...\n})"
+          }
+        ]
+      }
     }
   },
   "components": {
@@ -15487,6 +17418,9 @@
           },
           {
             "$ref": "#/components/schemas/EventSessionIdle"
+          },
+          {
+            "$ref": "#/components/schemas/EventSessionInterrupted"
           },
           {
             "$ref": "#/components/schemas/EventQuestionAsked"
@@ -16362,6 +18296,10 @@
           },
           "finish": {
             "type": "string"
+          },
+          "costStatus": {
+            "type": "string",
+            "enum": ["estimated", "reported", "unknown"]
           }
         },
         "required": [
@@ -20073,6 +22011,32 @@
                   "type": {
                     "type": "string",
                     "enum": ["session.idle"]
+                  },
+                  "properties": {
+                    "type": "object",
+                    "properties": {
+                      "sessionID": {
+                        "type": "string",
+                        "pattern": "^ses"
+                      }
+                    },
+                    "required": ["sessionID"],
+                    "additionalProperties": false
+                  }
+                },
+                "required": ["id", "type", "properties"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "pattern": "^evt_"
+                  },
+                  "type": {
+                    "type": "string",
+                    "enum": ["session.interrupted"]
                   },
                   "properties": {
                     "type": "object",
@@ -24239,6 +26203,9 @@
           },
           {
             "$ref": "#/components/schemas/SessionIdle"
+          },
+          {
+            "$ref": "#/components/schemas/SessionInterrupted"
           },
           {
             "$ref": "#/components/schemas/QuestionAsked"
@@ -30701,6 +32668,9 @@
           },
           "content": {
             "type": "string"
+          },
+          "requirements": {
+            "type": "string"
           }
         },
         "required": ["name", "location", "content"],
@@ -36798,6 +38768,928 @@
             }
           }
         }
+      },
+      "OfficeOverseer": {
+        "type": "object",
+        "properties": {
+          "sessionID": {
+            "type": "string"
+          },
+          "directory": {
+            "type": "string"
+          }
+        },
+        "required": ["sessionID", "directory"],
+        "additionalProperties": false
+      },
+      "OfficeBucket": {
+        "type": "string",
+        "enum": ["needs_you", "failed", "review", "working", "done"]
+      },
+      "OfficeWaiting": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": ["permission"]
+              },
+              "id": {
+                "type": "string"
+              },
+              "permission": {
+                "type": "string"
+              },
+              "patterns": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "always": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "metadata": {
+                "type": "object"
+              },
+              "title": {
+                "type": "string"
+              },
+              "tier": {
+                "type": "string",
+                "enum": ["auto", "farmer", "callum"]
+              }
+            },
+            "required": ["kind", "id", "permission", "patterns", "always", "metadata", "tier"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": ["question"]
+              },
+              "id": {
+                "type": "string"
+              },
+              "questions": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "question": {
+                      "type": "string"
+                    },
+                    "header": {
+                      "type": "string"
+                    },
+                    "options": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "label": {
+                            "type": "string"
+                          },
+                          "description": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["label", "description"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "multiple": {
+                      "type": "boolean"
+                    },
+                    "custom": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": ["question", "header", "options"],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": ["kind", "id", "questions"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": ["error"]
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": ["kind", "message"],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "OfficeThread": {
+        "type": "object",
+        "properties": {
+          "sessionID": {
+            "type": "string"
+          },
+          "directory": {
+            "type": "string"
+          },
+          "projectID": {
+            "type": "string"
+          },
+          "projectName": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "agent": {
+            "type": "string"
+          },
+          "routine": {
+            "type": "string"
+          },
+          "bucket": {
+            "$ref": "#/components/schemas/OfficeBucket"
+          },
+          "waiting": {
+            "$ref": "#/components/schemas/OfficeWaiting"
+          },
+          "decisions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "sessionID": {
+                  "type": "string"
+                },
+                "rootSessionID": {
+                  "type": "string"
+                },
+                "runID": {
+                  "type": "string"
+                },
+                "waiting": {
+                  "$ref": "#/components/schemas/OfficeWaiting"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": ["pending", "answered", "reconciliation_required"]
+                },
+                "created": {
+                  "type": "number"
+                }
+              },
+              "required": ["id", "sessionID", "rootSessionID", "waiting", "status", "created"],
+              "additionalProperties": false
+            }
+          },
+          "lifecycle": {
+            "type": "object",
+            "properties": {
+              "phase": {
+                "type": "string",
+                "enum": ["accepted", "running", "waiting", "stopped", "failed", "canceled", "unknown"]
+              },
+              "runID": {
+                "type": "string"
+              },
+              "reason": {
+                "type": "string"
+              },
+              "observedAt": {
+                "type": "number"
+              },
+              "outcome": {
+                "type": "string",
+                "enum": ["unverified", "reported", "verified"]
+              },
+              "evidence": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": ["implementation", "check", "shipment", "runtime"]
+                    },
+                    "reference": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": ["reported", "verified"]
+                    }
+                  },
+                  "required": ["kind", "reference", "status"],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": ["phase", "observedAt", "outcome", "evidence"],
+            "additionalProperties": false
+          },
+          "hostID": {
+            "type": "string"
+          },
+          "availability": {
+            "type": "string",
+            "enum": ["available", "stale", "unavailable"]
+          },
+          "executionID": {
+            "type": "string"
+          },
+          "objective": {
+            "type": "string"
+          },
+          "capabilities": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "summary": {
+            "type": "string"
+          },
+          "lastText": {
+            "type": "string"
+          },
+          "lastTool": {
+            "type": "string"
+          },
+          "pr": {
+            "type": "string"
+          },
+          "pinned": {
+            "type": "boolean"
+          },
+          "muted": {
+            "type": "boolean"
+          },
+          "source": {
+            "type": "string",
+            "enum": ["cow", "claude", "codex"]
+          },
+          "time": {
+            "type": "object",
+            "properties": {
+              "created": {
+                "type": "number"
+              },
+              "updated": {
+                "type": "number"
+              },
+              "reported": {
+                "type": "number"
+              }
+            },
+            "required": ["created", "updated"],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "sessionID",
+          "directory",
+          "projectID",
+          "title",
+          "bucket",
+          "summary",
+          "pinned",
+          "muted",
+          "source",
+          "time"
+        ],
+        "additionalProperties": false
+      },
+      "OfficeReportKind": {
+        "type": "string",
+        "enum": ["started", "finished", "permission", "question", "error", "pr", "stalled", "auto_allowed"]
+      },
+      "OfficeReport": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "time": {
+            "type": "number"
+          },
+          "sessionID": {
+            "type": "string"
+          },
+          "directory": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/OfficeReportKind"
+          },
+          "title": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "requestID": {
+            "type": "string"
+          },
+          "runID": {
+            "type": "string"
+          }
+        },
+        "required": ["id", "time", "sessionID", "directory", "kind", "title", "summary"],
+        "additionalProperties": false
+      },
+      "OfficeReminder": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "due": {
+            "type": "number"
+          },
+          "note": {
+            "type": "string"
+          },
+          "sessionID": {
+            "type": "string"
+          }
+        },
+        "required": ["id", "due", "note"],
+        "additionalProperties": false
+      },
+      "OfficeAutonomy": {
+        "type": "string",
+        "enum": ["brief", "act"]
+      },
+      "OfficeState": {
+        "type": "object",
+        "properties": {
+          "outcomes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "requestID": {
+                  "type": "string"
+                },
+                "clientID": {
+                  "type": "string"
+                },
+                "generation": {
+                  "type": "number"
+                },
+                "sessionID": {
+                  "type": "string"
+                },
+                "text": {
+                  "type": "string"
+                },
+                "time": {
+                  "type": "number"
+                },
+                "reportIDs": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "urgent": {
+                  "type": "boolean"
+                },
+                "observations": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "sessionID": {
+                        "type": "string"
+                      },
+                      "runID": {
+                        "type": "string"
+                      },
+                      "updated": {
+                        "type": "number"
+                      }
+                    },
+                    "required": ["sessionID", "updated"],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": ["id", "sessionID", "text", "time", "reportIDs", "urgent", "observations"],
+              "additionalProperties": false
+            }
+          },
+          "host": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": ["id", "name"],
+            "additionalProperties": false
+          },
+          "recovery": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string"
+                },
+                "sessionID": {
+                  "type": "string"
+                }
+              },
+              "required": ["id", "kind"],
+              "additionalProperties": false
+            }
+          },
+          "sources": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "enum": ["loading", "available", "unavailable"]
+                },
+                "observedAt": {
+                  "type": "number"
+                }
+              },
+              "required": ["status", "observedAt"],
+              "additionalProperties": false
+            }
+          },
+          "epoch": {
+            "type": "string"
+          },
+          "cursor": {
+            "type": "number"
+          },
+          "seeded": {
+            "type": "boolean"
+          },
+          "overseer": {
+            "$ref": "#/components/schemas/OfficeOverseer"
+          },
+          "threads": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OfficeThread"
+            }
+          },
+          "reports": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OfficeReport"
+            }
+          },
+          "reminders": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OfficeReminder"
+            }
+          },
+          "counts": {
+            "type": "object",
+            "properties": {
+              "needs_you": {
+                "type": "number"
+              },
+              "failed": {
+                "type": "number"
+              },
+              "review": {
+                "type": "number"
+              },
+              "working": {
+                "type": "number"
+              },
+              "done": {
+                "type": "number"
+              }
+            },
+            "required": ["needs_you", "failed", "review", "working", "done"],
+            "additionalProperties": false
+          },
+          "autonomy": {
+            "$ref": "#/components/schemas/OfficeAutonomy"
+          },
+          "updated": {
+            "type": "number"
+          }
+        },
+        "required": ["overseer", "threads", "reports", "reminders", "counts", "autonomy", "updated"],
+        "additionalProperties": false
+      },
+      "OfficeAnswerInput": {
+        "type": "object",
+        "properties": {
+          "sessionID": {
+            "type": "string"
+          },
+          "hostID": {
+            "type": "string"
+          },
+          "runID": {
+            "type": "string"
+          },
+          "permission": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "reply": {
+                "type": "string",
+                "enum": ["once", "always", "reject"]
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": ["id", "reply"],
+            "additionalProperties": false
+          },
+          "question": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "answers": {
+                "type": "array",
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "required": ["id", "answers"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["sessionID"],
+        "additionalProperties": false
+      },
+      "RoutineRunStatus": {
+        "type": "string",
+        "enum": ["ok", "failed", "skipped", "locked", "running", "waiting", "canceled", "unknown"]
+      },
+      "RoutineRun": {
+        "type": "object",
+        "properties": {
+          "executionID": {
+            "type": "string"
+          },
+          "correlation": {
+            "type": "string",
+            "enum": ["exact", "heuristic", "unmatched"]
+          },
+          "processStatus": {
+            "$ref": "#/components/schemas/RoutineRunStatus"
+          },
+          "agentStatus": {
+            "type": "string"
+          },
+          "outcome": {
+            "type": "string",
+            "enum": ["unverified", "reported", "verified"]
+          },
+          "lastProgressAt": {
+            "type": "number"
+          },
+          "startedAt": {
+            "type": "number"
+          },
+          "endedAt": {
+            "type": "number"
+          },
+          "status": {
+            "$ref": "#/components/schemas/RoutineRunStatus"
+          },
+          "rc": {
+            "type": "number"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "sessionID": {
+            "type": "string"
+          },
+          "directory": {
+            "type": "string"
+          }
+        },
+        "required": ["startedAt", "status"],
+        "additionalProperties": false
+      },
+      "Routine": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": ["llm", "shell"]
+          },
+          "model": {
+            "type": "string"
+          },
+          "schedule": {
+            "type": "string"
+          },
+          "loaded": {
+            "type": "boolean"
+          },
+          "nextRunAt": {
+            "type": "number"
+          },
+          "previousRunAt": {
+            "type": "number"
+          },
+          "running": {
+            "$ref": "#/components/schemas/RoutineRun"
+          },
+          "last": {
+            "$ref": "#/components/schemas/RoutineRun"
+          },
+          "runs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RoutineRun"
+            }
+          },
+          "lastExitCode": {
+            "type": "number"
+          },
+          "log": {
+            "type": "string"
+          }
+        },
+        "required": ["name", "label", "title", "kind", "schedule", "loaded", "runs"],
+        "additionalProperties": false
+      },
+      "RoutineService": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "running": {
+            "type": "boolean"
+          },
+          "pid": {
+            "type": "number"
+          },
+          "lastExitCode": {
+            "type": "number"
+          }
+        },
+        "required": ["name", "label", "title", "running"],
+        "additionalProperties": false
+      },
+      "RoutinesSnapshot": {
+        "type": "object",
+        "properties": {
+          "available": {
+            "type": "boolean"
+          },
+          "host": {
+            "type": "string"
+          },
+          "now": {
+            "type": "number"
+          },
+          "routines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Routine"
+            }
+          },
+          "services": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RoutineService"
+            }
+          }
+        },
+        "required": ["available", "host", "now", "routines", "services"],
+        "additionalProperties": false
+      },
+      "RoutineLog": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "required": ["text"],
+        "additionalProperties": false
+      },
+      "PhoneDoor": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string"
+          },
+          "origin": {
+            "type": "string"
+          },
+          "since": {
+            "type": "number"
+          },
+          "address": {
+            "type": "string",
+            "enum": ["stable", "temporary"]
+          },
+          "health": {
+            "type": "object",
+            "properties": {
+              "checkedAt": {
+                "type": "number"
+              },
+              "gate": {
+                "type": "boolean"
+              },
+              "public": {
+                "type": "boolean"
+              },
+              "server": {
+                "type": "boolean"
+              }
+            },
+            "required": ["checkedAt", "gate", "public", "server"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["url", "origin", "since"],
+        "additionalProperties": false
+      },
+      "MCPHealth": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string"
+          },
+          "checkedAt": {
+            "type": "number"
+          },
+          "reachable": {
+            "type": "boolean"
+          },
+          "latencyMs": {
+            "type": "number"
+          },
+          "toolCount": {
+            "type": "number"
+          },
+          "capabilities": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "lastSuccess": {
+            "type": "object",
+            "properties": {
+              "at": {
+                "type": "number"
+              },
+              "tool": {
+                "type": "string"
+              }
+            },
+            "required": ["at", "tool"],
+            "additionalProperties": false
+          },
+          "error": {
+            "type": "string"
+          }
+        },
+        "required": ["status", "checkedAt", "reachable", "capabilities"],
+        "additionalProperties": false
+      },
+      "SessionInterrupted": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^evt_"
+          },
+          "metadata": {
+            "type": "object"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["session.interrupted"]
+          },
+          "durable": {
+            "type": "object",
+            "properties": {
+              "aggregateID": {
+                "type": "string"
+              },
+              "seq": {
+                "type": "integer"
+              },
+              "version": {
+                "type": "integer"
+              }
+            },
+            "required": ["aggregateID", "seq", "version"],
+            "additionalProperties": false
+          },
+          "location": {
+            "$ref": "#/components/schemas/LocationRef"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "sessionID": {
+                "type": "string",
+                "pattern": "^ses"
+              }
+            },
+            "required": ["sessionID"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["id", "type", "data"],
+        "additionalProperties": false
+      },
+      "EventSessionInterrupted": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^evt_"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["session.interrupted"]
+          },
+          "properties": {
+            "type": "object",
+            "properties": {
+              "sessionID": {
+                "type": "string",
+                "pattern": "^ses"
+              }
+            },
+            "required": ["sessionID"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["id", "type", "properties"],
+        "additionalProperties": false
       }
     }
   },
@@ -36814,6 +39706,10 @@
     {
       "name": "global",
       "description": "Global server routes."
+    },
+    {
+      "name": "office",
+      "description": "The Farmer's Office."
     },
     {
       "name": "event",

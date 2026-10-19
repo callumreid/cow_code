@@ -2240,6 +2240,7 @@ export type RoutineRun = {
   processStatus?: RoutineRunStatus
   agentStatus?: string
   outcome?: "unverified" | "reported" | "verified"
+  lastProgressAt?: number
   startedAt: number
   endedAt?: number
   status: RoutineRunStatus
@@ -2259,6 +2260,7 @@ export type Routine = {
   schedule: string
   loaded: boolean
   nextRunAt?: number
+  previousRunAt?: number
   running?: RoutineRun
   last?: RoutineRun
   runs: Array<RoutineRun>
@@ -2292,6 +2294,13 @@ export type PhoneDoor = {
   url: string
   origin: string
   since: number
+  address?: "stable" | "temporary"
+  health?: {
+    checkedAt: number
+    gate: boolean
+    public: boolean
+    server: boolean
+  }
 }
 
 export type Model = {
@@ -2676,14 +2685,28 @@ export type McpStatus =
   | McpStatusNeedsAuth
   | McpStatusNeedsClientRegistration
 
-export type McpUnsupportedOAuthError = {
-  error: string
+export type McpHealth = {
+  status: string
+  checkedAt: number
+  reachable: boolean
+  latencyMs?: number
+  toolCount?: number
+  capabilities: Array<string>
+  lastSuccess?: {
+    at: number
+    tool: string
+  }
+  error?: string
 }
 
 export type McpServerNotFoundError = {
   _tag: "McpServerNotFoundError"
   name: string
   message: string
+}
+
+export type McpUnsupportedOAuthError = {
+  error: string
 }
 
 export type Project = {
@@ -9589,6 +9612,40 @@ export type McpAddResponses = {
 
 export type McpAddResponse = McpAddResponses[keyof McpAddResponses]
 
+export type McpHealthData = {
+  body?: never
+  path: {
+    name: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/mcp/{name}/health"
+}
+
+export type McpHealthErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * McpServerNotFoundError
+   */
+  404: McpServerNotFoundError
+}
+
+export type McpHealthError = McpHealthErrors[keyof McpHealthErrors]
+
+export type McpHealthResponses = {
+  /**
+   * Read-only MCP connection and tool catalog check
+   */
+  200: McpHealth
+}
+
+export type McpHealthResponse = McpHealthResponses[keyof McpHealthResponses]
+
 export type McpAuthRemoveData = {
   body?: never
   path: {
@@ -10609,6 +10666,47 @@ export type SessionCreateResponses = {
 }
 
 export type SessionCreateResponse = SessionCreateResponses[keyof SessionCreateResponses]
+
+export type SessionRecoveryData = {
+  body?: never
+  path: {
+    sessionID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/session/{sessionID}/recovery"
+}
+
+export type SessionRecoveryErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
+}
+
+export type SessionRecoveryError = SessionRecoveryErrors[keyof SessionRecoveryErrors]
+
+export type SessionRecoveryResponses = {
+  /**
+   * Durable execution checkpoint, or null for untracked work
+   */
+  200: {
+    state: "running" | "retrying" | "blocked" | "completed" | "canceled"
+    lastProgressAt: number
+    deadline: number
+    attempt?: number
+    next?: number
+    reason?: string
+  }
+}
+
+export type SessionRecoveryResponse = SessionRecoveryResponses[keyof SessionRecoveryResponses]
 
 export type SessionStatusData = {
   body?: never

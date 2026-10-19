@@ -740,6 +740,8 @@ const layer: Layer.Layer<
         const parentID = msg.info.role === "assistant" && msg.info.parentID ? idMap.get(msg.info.parentID) : undefined
         const cloned = yield* updateMessage({
           ...msg.info,
+          // Forked history supplies context; copying it makes no provider call.
+          ...(msg.info.role === "assistant" ? { cost: 0, costStatus: "reported" as const } : {}),
           sessionID: session.id,
           id: newID,
           ...(parentID && { parentID }),
@@ -755,6 +757,7 @@ const layer: Layer.Layer<
           if (p.type === "compaction" && p.tail_start_id) {
             p.tail_start_id = idMap.get(p.tail_start_id)
           }
+          if (p.type === "step-finish") p.cost = 0
           yield* updatePart(p)
         }
       }

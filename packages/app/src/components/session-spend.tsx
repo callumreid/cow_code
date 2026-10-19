@@ -1,4 +1,4 @@
-import { createEffect, createResource, For, onCleanup, Show } from "solid-js"
+import { createEffect, For, onCleanup, Show } from "solid-js"
 import { createStore } from "solid-js/store"
 import { Popover } from "@kobalte/core/popover"
 import { Button } from "@opencode-ai/ui/button"
@@ -31,6 +31,7 @@ export function SessionSpend(props: { sessionID: string }) {
     dirty: false,
     saving: false,
     saveError: false,
+    record: undefined as (Spend & { scope: string }) | undefined,
   })
   const money = (amount: number) =>
     new Intl.NumberFormat(language.intl(), {
@@ -38,31 +39,65 @@ export function SessionSpend(props: { sessionID: string }) {
       currency: "USD",
       maximumFractionDigits: amount > 0 && amount < 0.01 ? 4 : 2,
     }).format(amount)
-  const [record, { refetch }] = createResource(
-    () => ({ id: props.sessionID, server: server() }),
-    async (target) => {
-      if ((await target.server.protocol) !== "v1") {
-        if (target.id === props.sessionID && target.server === server()) setStore("error", true)
-        return undefined
+  // This status read must never suspend the conversation or tab navigation.
+  let refetch = async () => {}
+  let budgetRevision = 0
+  createEffect(() => {
+    const target = { id: props.sessionID, server: server() }
+    const controller = new AbortController()
+    let inflight = false
+    let queued = false
+    setStore({ record: undefined, error: false })
+    const update = async () => {
+      if (controller.signal.aborted) return
+      if (inflight) {
+        queued = true
+        return
       }
-      const start = new Date()
-      start.setHours(0, 0, 0, 0)
-      const end = new Date(start)
-      end.setDate(end.getDate() + 1)
-      const result = await officeFetch(target.server, "/global/office/spend", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionID: target.id, start: start.getTime(), end: end.getTime() }),
-        fetch: platform.fetch,
-      })
-        .then((response) => response.json() as Promise<Spend>)
-        .catch(() => undefined)
-      if (target.id === props.sessionID && target.server === server()) setStore("error", !result)
-      return result && { ...result, scope: target.server.scope }
-    },
-  )
+      inflight = true
+      const revision = budgetRevision
+      try {
+        if ((await target.server.protocol) !== "v1") {
+          if (!controller.signal.aborted) setStore("error", true)
+          return
+        }
+        const start = new Date()
+        start.setHours(0, 0, 0, 0)
+        const end = new Date(start)
+        end.setDate(end.getDate() + 1)
+        const response = await officeFetch(target.server, "/global/office/spend", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sessionID: target.id, start: start.getTime(), end: end.getTime() }),
+          fetch: platform.fetch,
+          signal: AbortSignal.any([controller.signal, AbortSignal.timeout(10_000)]),
+        })
+        const result = (await response.json()) as Spend
+        if (!controller.signal.aborted)
+          setStore({
+            record: {
+              ...result,
+              budget: revision === budgetRevision ? result.budget : store.record?.budget,
+              scope: target.server.scope,
+            },
+            error: false,
+          })
+      } catch {
+        if (!controller.signal.aborted) setStore("error", true)
+      } finally {
+        inflight = false
+        if (queued && !controller.signal.aborted) {
+          queued = false
+          void update()
+        }
+      }
+    }
+    refetch = update
+    void update()
+    onCleanup(() => controller.abort())
+  })
   const spend = () => {
-    const current = record()
+    const current = store.record
     return current?.sessionID === props.sessionID && current.scope === server().scope ? current : undefined
   }
   createEffect(() => {
@@ -99,6 +134,10 @@ export function SessionSpend(props: { sessionID: string }) {
       })
       .catch(() => false)
     if (target.id !== props.sessionID || target.scope !== server().scope) return
+    if (saved) {
+      budgetRevision++
+      if (store.record) setStore("record", "budget", limit)
+    }
     setStore({ saving: false, saveError: !saved, dirty: !saved })
     if (saved) void refetch()
   }

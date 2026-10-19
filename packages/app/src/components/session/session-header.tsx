@@ -32,6 +32,7 @@ import { TooltipV2 } from "@opencode-ai/ui/v2/tooltip-v2"
 import { useTitlebarRightMount } from "../titlebar"
 import { A } from "@solidjs/router"
 import { base64Encode } from "@opencode-ai/core/util/encode"
+import { SessionSpend } from "../session-spend"
 
 const OPEN_APPS = [
   "vscode",
@@ -324,6 +325,9 @@ export function SessionHeader() {
       <Show when={rightMount()} keyed>
         {(mount) => (
           <Portal mount={mount}>
+            <Show when={params.id} keyed>
+              {(id) => <SessionSpend sessionID={id} />}
+            </Show>
             <Show when={parentID()} keyed>
               {(parent) => (
                 <Tooltip placement="bottom" value={language.t("sidebar.session.parent")}>

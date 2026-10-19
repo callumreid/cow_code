@@ -8,6 +8,8 @@ Model choices show **Images**, **No images**, or **Image support unknown** from 
 
 A task budget is saved on that task and applies to descendants. The runtime checks ancestor budgets before additional model turns. Zero pauses immediately; clearing the field removes the limit. Requests already in flight may finish above the amount. This is a recorded-spend pause threshold, not a hard provider billing cap. Increase/remove a reached threshold and resume the task to continue.
 
+New thread forks preserve conversation context and token counts, but copied messages have zero new cost. This avoids charging the same recorded usage twice or consuming the new fork's budget before it runs. Historical forks created before this change may still contain copied costs; those records are not rewritten without reliable provenance.
+
 ## Validation
 
 Focused tests cover exact-provider image detection and draft preservation, v1/v2 slash discovery, canonical Codex skills, ancestor budgets, missing usage, OpenRouter reported charges, and the real SQLite task/day queries. App, core and opencode typechecks pass. Current and legacy clients were regenerated.

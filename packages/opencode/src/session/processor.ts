@@ -17,6 +17,7 @@ import { PartID } from "./schema"
 import type { SessionID } from "./schema"
 import { SessionRetry } from "./retry"
 import { SessionRecovery } from "./recovery"
+import { checkBudget } from "./budget"
 import { SessionStatus } from "./status"
 import { SessionSummary } from "./summary"
 import type { Provider } from "@/provider/provider"
@@ -116,6 +117,7 @@ const layer = Layer.effect(
       }
       let aborted = false
       let toolsStarted = false
+      let providerAttempted = false
       let continueFromHistory = false
       let lastProgressAt = 0
 
@@ -690,10 +692,24 @@ const layer = Layer.effect(
 
         return yield* Effect.gen(function* () {
           yield* Effect.gen(function* () {
+            // A sibling can consume the parent's allowance or the user can lower
+            // it during retry backoff. Recheck before every provider attempt.
+            const budget = yield* checkBudget(session, ctx.sessionID).pipe(Effect.orDie)
+            if (budget) {
+              if (!providerAttempted && ctx.assistantMessage.cost === 0 && !ctx.assistantMessage.costStatus)
+                ctx.assistantMessage.costStatus = "reported"
+              yield* halt(
+                new Error(
+                  `Task budget reached ($${budget.spent.toFixed(2)} of $${budget.limit.toFixed(2)}). Increase the budget to resume.`,
+                ),
+              )
+              return
+            }
             ctx.currentText = undefined
             ctx.reasoningMap = {}
             yield* recovery.update(ctx.sessionID, "running", { next: undefined })
             yield* status.set(ctx.sessionID, { type: "busy" })
+            providerAttempted = true
             const stream = llm.stream(streamInput)
 
             yield* stream.pipe(

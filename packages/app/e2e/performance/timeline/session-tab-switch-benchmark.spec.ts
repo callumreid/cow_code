@@ -131,7 +131,8 @@ async function switchSession(page: Page, sessionID: string, title: string) {
 }
 
 async function openReviewPane(page: Page) {
-  await page.getByRole("button", { name: "Toggle review" }).click()
+  const modifier = await page.evaluate(() => (/(Mac|iPod|iPhone|iPad)/.test(navigator.platform) ? "Meta" : "Control"))
+  await page.keyboard.press(`${modifier}+Shift+r`)
   const panel = page.locator("#review-panel")
   await expect(panel).toBeVisible()
   // Text-based readiness works across review implementations; the legacy list mounts

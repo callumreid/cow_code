@@ -24,6 +24,8 @@ what each feature is, and the films, live in the [feature reel](docs/features/RE
 
 ### Fixed
 
+- spend and recovery controls stay visible without holding up chat navigation; saved budgets survive background refreshes, provider retries honor the latest budget, and new forks do not count copied charges twice
+
 - opening the app no longer waits for the entire provider catalog before showing navigation, and each workspace loads its recent sessions only once during startup
 - background inspection by other browser agents no longer pulls the visible browser away from the tab receiving navigation or input
 - browser reconnects preserve the shared tab and human control; clipboard copy, drag release and localhost previews behave consistently, and stalled browser commands no longer wait forever

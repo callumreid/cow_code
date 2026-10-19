@@ -107,6 +107,8 @@ import type {
   McpConnectResponses,
   McpDisconnectErrors,
   McpDisconnectResponses,
+  McpHealthErrors,
+  McpHealthResponses,
   McpLocalConfig,
   McpRemoteConfig,
   McpStatusErrors,
@@ -253,6 +255,8 @@ import type {
   SessionPromptAsyncResponses,
   SessionPromptErrors,
   SessionPromptResponses,
+  SessionRecoveryErrors,
+  SessionRecoveryResponses,
   SessionRevertErrors,
   SessionRevertResponses,
   SessionShareErrors,
@@ -3202,6 +3206,38 @@ export class Mcp extends HeyApiClient {
   }
 
   /**
+   * Test MCP connection
+   *
+   * Ping an existing connection and list its tools without executing a tool or reconnecting.
+   */
+  public health<ThrowOnError extends boolean = false>(
+    parameters: {
+      name: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "name" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<McpHealthResponses, McpHealthErrors, ThrowOnError>({
+      url: "/mcp/{name}/health",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
    * Connect an MCP server.
    */
   public connect<ThrowOnError extends boolean = false>(
@@ -4194,6 +4230,38 @@ export class Session2 extends HeyApiClient {
         ...options?.headers,
         ...params.headers,
       },
+    })
+  }
+
+  /**
+   * Get task recovery status
+   *
+   * Inspect task progress, retry timing and recovery limits without changing execution.
+   */
+  public recovery<ThrowOnError extends boolean = false>(
+    parameters: {
+      sessionID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "sessionID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<SessionRecoveryResponses, SessionRecoveryErrors, ThrowOnError>({
+      url: "/session/{sessionID}/recovery",
+      ...options,
+      ...params,
     })
   }
 

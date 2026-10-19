@@ -5,17 +5,21 @@ page once it has footage; until then it gets a paragraph and a promise.
 
 links on this page are public. hand them out.
 
-| feature | what it does | film |
-| --- | --- | --- |
-| [🐄 the pasture](pasture.md) | every one of your pull requests is a cow in a pen. merged cows out back. the hand of god moves them when a PR changes stage. | ▶️ [17 s](https://cdn.jsdelivr.net/gh/callumreid/cow_code@dev/docs/features/pasture/pasture-pens.mp4) |
-| [🚦 pull requests, ranked](#-pull-requests-ranked) | every open PR you wrote, one badge each, worst thing first. three switches per PR: keep updated, auto-fix review comments, merge when ready. | 📹 soon |
-| [🧑‍🌾 the farmer's office](#-the-farmers-office) | tell the farmer what to do. the farmer sends cows out to do it in their own worktrees and reports back. | 📹 soon |
-| [🗓️ scheduled](#️-scheduled) | everything the barn runs on a clock, with the last run, the next run, and a run-now button. | 📹 soon |
-| [📱 the barn door](phone.md) | scan a square, or open the link from the cow's DM: the whole barn on your phone, live sessions included, from anywhere. | 🎬 in the [hype film](../../artifacts/hype-video/README.md) |
-| [🎨 the wardrobe](#-the-wardrobe) | eighteen cow-breed themes, light and dark pelts. | 📹 soon |
-| [🏠 the pen](#-the-pen) | the remodeled sidebar: always out, pinned threads, inline rename. | 📹 soon |
-| [🏆 the big dog census](#-the-big-dog-census) | counts every big dog, yours and the agent's. | 📹 soon |
-| [🔊 tab](#-tab) | press tab. it mooos. | 🎬 in the [hype film](../../artifacts/hype-video/README.md) |
+| feature                                               | what it does                                                                                                                                 | film                                                                                                  |
+| ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| [Task recovery and connection health](reliability.md) | durable task checkpoints, explicit retry and resume, integration tests, and scheduled-run evidence.                                          | —                                                                                                     |
+| [Browser workspace](browser.md)                       | follow the agent's tab, take control, attach screenshots and save recordings.                                                                | —                                                                                                     |
+| [Skills, vision and spend](skills-vision-spend.md)    | slash skills, exact model image support, task spend and budgets.                                                                             | —                                                                                                     |
+| [Native Codex experiment](native-codex-experiment.md) | an isolated opt-in runtime adapter prototype with resume, steering and interruption.                                                         | —                                                                                                     |
+| [🐄 the pasture](pasture.md)                          | every one of your pull requests is a cow in a pen. merged cows out back. the hand of god moves them when a PR changes stage.                 | ▶️ [17 s](https://cdn.jsdelivr.net/gh/callumreid/cow_code@dev/docs/features/pasture/pasture-pens.mp4) |
+| [🚦 pull requests, ranked](#-pull-requests-ranked)    | every open PR you wrote, one badge each, worst thing first. three switches per PR: keep updated, auto-fix review comments, merge when ready. | 📹 soon                                                                                               |
+| [🧑‍🌾 the farmer's office](#-the-farmers-office)        | tell the farmer what to do. the farmer sends cows out to do it in their own worktrees and reports back.                                      | 📹 soon                                                                                               |
+| [🗓️ scheduled](#️-scheduled)                          | everything the barn runs on a clock, with the last run, the next run, and a run-now button.                                                  | 📹 soon                                                                                               |
+| [📱 the barn door](phone.md)                          | scan a square, or open the link from the cow's DM: the whole barn on your phone, live sessions included, from anywhere.                      | 🎬 in the [hype film](../../artifacts/hype-video/README.md)                                           |
+| [🎨 the wardrobe](#-the-wardrobe)                     | eighteen cow-breed themes, light and dark pelts.                                                                                             | 📹 soon                                                                                               |
+| [🏠 the pen](#-the-pen)                               | the remodeled sidebar: always out, pinned threads, inline rename.                                                                            | 📹 soon                                                                                               |
+| [🏆 the big dog census](#-the-big-dog-census)         | counts every big dog, yours and the agent's.                                                                                                 | 📹 soon                                                                                               |
+| [🔊 tab](#-tab)                                       | press tab. it mooos.                                                                                                                         | 🎬 in the [hype film](../../artifacts/hype-video/README.md)                                           |
 
 ---
 
