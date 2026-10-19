@@ -1,11 +1,16 @@
 """Exercise deployment decisions through fake OS commands, never a live server."""
+from contextlib import closing
 import json
 import os
 from pathlib import Path
+import queue
 import sqlite3
 import subprocess
+import sys
 import tempfile
+import threading
 import unittest
+from unittest import mock
 
 SCRIPT = Path(__file__).with_name("cow-deploy-server.sh")
 FAKE = r'''#!/usr/bin/env python3
@@ -129,6 +134,80 @@ class CowDeployServerTest(unittest.TestCase):
         self.assertIn("old", (backups[0].parent / "opencode").read_text())
         self.assertFalse((self.root / ".coval/cow-deploy.lock").exists())
         self.assertNotIn("fixture-secret", (self.root / ".coval/logs/cow-deploy-server.log").read_text())
+
+    def test_snapshot_pins_read_transaction_during_concurrent_wal_writes(self):
+        source_path = self.root / "opencode-feat-cow-ui.db"
+        target_path = self.root / "concurrent-snapshot.sqlite"
+        self.database.execute("CREATE TABLE marker(version INTEGER)")
+        self.database.execute("INSERT INTO marker VALUES (0)")
+        self.database.execute("CREATE TABLE payload(value BLOB)")
+        self.database.executemany("INSERT INTO payload VALUES (zeroblob(4096))", [()] * 4096)
+        self.database.commit()
+        connect = sqlite3.connect
+        requests = queue.Queue()
+        completed = queue.Queue()
+        remaining_pages = []
+        read_transactions = []
+        opened = []
+
+        def writer():
+            with closing(connect(source_path, timeout=5)) as connection:
+                while True:
+                    version = requests.get()
+                    if version is None:
+                        return
+                    try:
+                        connection.execute("UPDATE marker SET version = ?", (version,))
+                        connection.commit()
+                        completed.put(None)
+                    except Exception as error:
+                        completed.put(error)
+
+        class ObservedSource(sqlite3.Connection):
+            def backup(self, target, **options):
+                read_transactions.append(self.in_transaction)
+                progress = options["progress"]
+
+                def observe(status, remaining, total):
+                    remaining_pages.append(remaining)
+                    # Commit on another real connection between the actual
+                    # backup's page batches, when an unpinned backup restarts.
+                    if len(remaining_pages) <= 3 and remaining:
+                        requests.put(len(remaining_pages))
+                        error = completed.get(timeout=5)
+                        if error:
+                            raise error
+                    progress(status, remaining, total)
+
+                return super().backup(target, **{**options, "progress": observe})
+
+        def observed_connect(database, *args, **options):
+            if "mode=ro" in str(database):
+                options["factory"] = ObservedSource
+            connection = connect(database, *args, **options)
+            opened.append(connection)
+            return connection
+
+        thread = threading.Thread(target=writer, daemon=True)
+        thread.start()
+        snapshot = SCRIPT.read_text().split("<<'PY'\n", 1)[1].split("\nPY\n", 1)[0]
+        try:
+            with mock.patch.object(sqlite3, "connect", side_effect=observed_connect), mock.patch.object(sys, "argv", ["snapshot", str(source_path), str(target_path)]):
+                exec(compile(snapshot, str(SCRIPT) + ":snapshot", "exec"), {})
+        finally:
+            requests.put(None)
+            thread.join(timeout=5)
+            for connection in opened:
+                connection.close()
+        self.assertFalse(thread.is_alive())
+        self.assertEqual(self.database.execute("SELECT version FROM marker").fetchone(), (3,))
+        with closing(connect(target_path)) as snapshot:
+            self.assertEqual(snapshot.execute("SELECT version FROM marker").fetchone(), (0,))
+            self.assertEqual(snapshot.execute("SELECT count(*) FROM payload").fetchone(), (4096,))
+            self.assertEqual(snapshot.execute("PRAGMA quick_check").fetchall(), [("ok",)])
+        self.assertEqual(read_transactions, [True])
+        self.assertGreater(len(remaining_pages), 3)
+        self.assertTrue(all(after < before for before, after in zip(remaining_pages, remaining_pages[1:])))
 
     def test_failed_preflight_never_swaps_or_restarts(self):
         for scenario in ["empty_status", "http_status", "invalid_status", "null_session", "unknown_status", "busy", "retry", "second_busy", "second_unknown", "second_http", "job_running", "job_unknown", "job_unknown_nested", "job_ambiguous", "job_error", "bad_before", "db_unknown_before", "db_ambiguous", "busy_after_snapshot", "unknown_after_snapshot"]:

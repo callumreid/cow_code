@@ -150,6 +150,10 @@ def progress(status, remaining, total):
     if time.monotonic() > deadline:
         raise TimeoutError("database snapshot exceeded 60 seconds")
 with sqlite3.connect(pathlib.Path(sys.argv[1]).as_uri() + "?mode=ro", uri=True, timeout=10) as source:
+    # Pin the WAL snapshot before copying pages. Otherwise each concurrent
+    # commit can restart the backup and exhaust the deadline on a busy server.
+    source.execute("BEGIN")
+    source.execute("SELECT name FROM sqlite_schema LIMIT 1").fetchone()
     with sqlite3.connect(sys.argv[2]) as target:
         source.backup(target, pages=1024, progress=progress)
         if target.execute("PRAGMA quick_check").fetchall() != [("ok",)]:

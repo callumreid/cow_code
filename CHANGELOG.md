@@ -27,6 +27,8 @@ what each feature is, and the films, live in the [feature reel](docs/features/RE
 
 ### Fixed
 
+- box deployments pin one read-only database snapshot so active task writes cannot keep restarting the backup until it times out
+
 - saving a task budget reports a connection failure after a bounded wait instead of leaving the Save control busy forever
 
 - custom CowCode builds install the matching published plugin SDK, so fresh local plugins and custom tools can load without requesting a nonexistent build version
