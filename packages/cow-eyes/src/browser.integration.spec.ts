@@ -161,6 +161,17 @@ test("screenshots are PNG artifacts and a reconnect keeps the shared tab and tak
   expect((await wait("attached", reconnect))?.target.id).toBe(target)
   send({ type: "control", owner: "agent" })
 })
+test("background page inspection cannot steal the visible tab", async () => {
+  const current = messages.findLast((item) => item.type === "attached")!.target.id
+  const background = browser.contexts()[0]!.pages()[0]!
+  await background.evaluate(() => document.title)
+  // A second MCP client can inspect its own page while the foreground action settles.
+  await setTimeout(150)
+  const health = await fetch(`http://127.0.0.1:${eyesPort}/api/health`, {
+    headers: { authorization: `Basic ${Buffer.from("cow:test-password-only").toString("base64")}` },
+  }).then((response) => response.json())
+  expect(health.target).toBe(current)
+})
 test("health checks the browser and unauthenticated viewers are refused", async () => {
   expect((await fetch(`http://127.0.0.1:${eyesPort}/api/health`)).status).toBe(401)
   const health = await fetch(`http://127.0.0.1:${eyesPort}/api/health`, {

@@ -104,11 +104,9 @@ export function startAgentProxy(input: {
           client.data.attaches.set(message.id, message.params.targetId)
         }
         const target = message.sessionId ? client.data.sessions.get(message.sessionId) : client.data.target
-        if (
-          target &&
-          !input.human() &&
-          /^(Input\.|Page\.(navigate|bringToFront)|Runtime\.(evaluate|callFunctionOn))/.test(message.method)
-        )
+        // Playwright evaluates in every attached page during setup and snapshots. Those
+        // background reads must not steal the visible tab from a navigation or input.
+        if (target && !input.human() && /^(Input\.|Page\.(navigate|bringToFront)$)/.test(message.method))
           input.select(target)
         if (client.data.socket?.readyState === WebSocket.OPEN) client.data.socket.send(String(raw))
         else if (client.data.queued.length < 100) client.data.queued.push(String(raw))
