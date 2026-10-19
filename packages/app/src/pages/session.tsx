@@ -91,6 +91,7 @@ import { createReviewPanelV2State } from "@/pages/session/v2/review-panel-v2-sta
 import { reviewDiffDirectory, reviewDiffNeedsLoad, reviewRootDirectory } from "@/pages/session/v2/review-diff-kinds"
 import { TerminalPanel } from "@/pages/session/terminal-panel"
 import { TerminalPanelV2 } from "@/pages/session/terminal-panel-v2"
+import { BrowserPanel } from "@/pages/session/browser-panel"
 import { useComposerCommands } from "@/pages/session/use-composer-commands"
 import { useSessionCommands } from "@/pages/session/use-session-commands"
 import { useSessionHashScroll } from "@/pages/session/use-session-hash-scroll"
@@ -448,11 +449,12 @@ export default function Page() {
   const isDesktop = createMediaQuery("(min-width: 768px)")
   const size = createSizing()
   const desktopReviewOpen = createMemo(() => isDesktop() && view().reviewPanel.opened())
+  const desktopBrowserOpen = createMemo(() => isDesktop() && view().browser.opened())
   const desktopV2ReviewOpen = createMemo(() => newSessionDesign() && desktopReviewOpen() && !!params.id)
   const terminalOpen = createMemo(() => view().terminal.opened())
   const desktopTerminalOpen = createMemo(() => isDesktop() && terminalOpen())
   const desktopInlineTerminalOnlyOpen = createMemo(
-    () => newSessionDesign() && desktopTerminalOpen() && !desktopV2ReviewOpen(),
+    () => newSessionDesign() && desktopTerminalOpen() && !desktopV2ReviewOpen() && !desktopBrowserOpen(),
   )
   const desktopFileTreeOpen = createMemo(
     () =>
@@ -463,7 +465,9 @@ export default function Page() {
       }),
   )
   const desktopSessionResizeOpen = createMemo(() =>
-    newSessionDesign() ? desktopV2ReviewOpen() || desktopTerminalOpen() : desktopReviewOpen(),
+    newSessionDesign()
+      ? desktopV2ReviewOpen() || desktopBrowserOpen() || desktopTerminalOpen()
+      : desktopReviewOpen() || desktopBrowserOpen(),
   )
   const desktopSidePanelOpen = createMemo(() => desktopSessionResizeOpen() || desktopFileTreeOpen())
   let panelRow: HTMLDivElement | undefined
@@ -501,10 +505,13 @@ export default function Page() {
     if (desktopSessionResizeOpen()) return `${sessionPanelResizedWidth()}px`
     return `calc(100% - ${layout.fileTree.width()}px)`
   })
-  const centered = createMemo(() => isDesktop() && (newSessionDesign() || !desktopReviewOpen()))
+  const centered = createMemo(
+    () => isDesktop() && (newSessionDesign() || (!desktopReviewOpen() && !desktopBrowserOpen())),
+  )
   const desktopV2PanelLayout = createMemo(() =>
     sessionPanelLayout({
       review: desktopV2ReviewOpen(),
+      browser: desktopBrowserOpen(),
       terminal: desktopTerminalOpen(),
       files: desktopFileTreeOpen(),
     }),
@@ -2313,7 +2320,10 @@ export default function Page() {
           </Show>
         </div>
 
-        <Show when={!newSessionDesign() && desktopSidePanelOpen()}>
+        <Show when={!newSessionDesign() && desktopBrowserOpen()}>
+          <BrowserPanel />
+        </Show>
+        <Show when={!newSessionDesign() && !desktopBrowserOpen() && desktopSidePanelOpen()}>
           <Suspense>
             <SessionSidePanel
               canReview={canReview}
@@ -2334,7 +2344,12 @@ export default function Page() {
         <Show when={newSessionDesign()}>
           <Show when={isDesktop() ? desktopV2PanelLayout().visible : terminalOpen()}>
             <div class="min-w-0 h-full flex flex-1 flex-col">
-              <Show when={isDesktop() && (desktopV2ReviewOpen() || desktopFileTreeOpen())}>
+              <Show when={isDesktop() && desktopBrowserOpen()}>
+                <div class="min-h-0 flex-1 flex">
+                  <BrowserPanel stacked={desktopV2PanelLayout().stacked} />
+                </div>
+              </Show>
+              <Show when={isDesktop() && !desktopBrowserOpen() && (desktopV2ReviewOpen() || desktopFileTreeOpen())}>
                 <div class="min-h-0 flex-1">
                   <Suspense>
                     <SessionSidePanel

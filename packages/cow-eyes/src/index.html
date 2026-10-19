@@ -12,7 +12,7 @@
   #tabs { max-width: 200px; }
   #status { color: #98a79b; white-space: nowrap; }
   #stage { position: absolute; top: 44px; left: 0; right: 0; bottom: 0; display: flex; align-items: flex-start; justify-content: center; background: #0d110f; touch-action: none; }
-  #v { max-width: 100%; max-height: 100%; outline: none; cursor: default; user-select: none; -webkit-user-select: none; }
+  #v { display: none; max-width: 100%; max-height: 100%; outline: none; cursor: default; user-select: none; -webkit-user-select: none; }
   #mobile { display: none; position: fixed; bottom: 0; left: 0; right: 0; gap: 6px; padding: 6px; background: #1a221c; border-top: 1px solid #2c382f; }
   #mobile input { flex: 1; font: inherit; color: inherit; background: #222c25; border: 1px solid #2c382f; border-radius: 4px; padding: 8px; }
   #mobile button { font: inherit; color: inherit; background: #222c25; border: 1px solid #2c382f; border-radius: 4px; padding: 8px 10px; }
@@ -25,9 +25,10 @@
   <button id="newtab" title="new tab">+</button>
   <input id="url" placeholder="url or search" autocomplete="off" autocapitalize="off" spellcheck="false">
   <button id="go">go</button>
+  <button id="paste" title="paste clipboard">paste</button>
   <span id="status">connecting…</span>
 </div>
-<div id="stage"><img id="v" tabindex="0" alt="the box's browser"></div>
+<div id="stage"><img id="v" tabindex="0" alt=""></div>
 <div id="mobile"><input id="mtext" placeholder="type here, then send" autocapitalize="off"><button id="msend">send</button><button id="menter">⏎</button></div>
 <script>
 (() => {
@@ -37,16 +38,16 @@
   let ws, meta = { deviceWidth: 1440, deviceHeight: 900 }, buttons = 0, lastMove = 0
   const send = (o) => { if (ws && ws.readyState === 1) ws.send(JSON.stringify(o)) }
   function connect() {
-    ws = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + location.host + base + "/ws")
+    ws = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + location.host + base + "/ws" + location.search)
     ws.onopen = () => { status.textContent = "attaching…"; send({ type: "tabs" }) }
     ws.onclose = () => { status.textContent = "disconnected, retrying…"; setTimeout(connect, 2000) }
     ws.onmessage = (e) => {
       const m = JSON.parse(e.data)
-      if (m.type === "frame") { v.src = "data:image/jpeg;base64," + m.data; if (m.meta) meta = m.meta; status.textContent = meta.deviceWidth + "×" + meta.deviceHeight }
+      if (m.type === "frame") { v.style.display = "block"; v.src = "data:image/jpeg;base64," + m.data; if (m.meta) meta = m.meta; status.textContent = meta.deviceWidth + "×" + meta.deviceHeight }
       else if (m.type === "url") { if (document.activeElement !== url) url.value = m.url; send({ type: "tabs" }) }
       else if (m.type === "attached") { url.value = m.target.url; status.textContent = "attached"; send({ type: "tabs" }) }
       else if (m.type === "tabs") { tabs.innerHTML = ""; for (const t of m.tabs) { const o = document.createElement("option"); o.value = t.id; o.textContent = (t.title || t.url || "tab").slice(0, 40); o.selected = t.id === m.current; tabs.appendChild(o) } }
-      else if (m.type === "detached") { status.textContent = "tab closed"; send({ type: "tabs" }) }
+      else if (m.type === "detached") { status.textContent = "reattaching…"; send({ type: "tabs" }) }
       else if (m.type === "error") { status.textContent = m.message }
     }
   }
@@ -63,24 +64,41 @@
   v.addEventListener("touchstart", (e) => { e.preventDefault(); const t = e.touches[0]; touch = pos(t); send({ type: "mouse", kind: "mousePressed", ...touch, button: "left", clickCount: 1, buttons: 1 }) }, { passive: false })
   v.addEventListener("touchmove", (e) => { e.preventDefault(); const t = e.touches[0]; touch = pos(t); send({ type: "mouse", kind: "mouseMoved", ...touch, buttons: 1 }) }, { passive: false })
   v.addEventListener("touchend", (e) => { e.preventDefault(); if (touch) send({ type: "mouse", kind: "mouseReleased", ...touch, button: "left", clickCount: 1, buttons: 0 }); touch = null }, { passive: false })
-  const commands = { a: "selectAll", c: "copy", v: "paste", x: "cut", z: "undo" }
+  const commands = { a: "selectAll", c: "copy", x: "cut", z: "undo" }
   function keyEvent(e, type) {
-    const ev = { type, key: e.key, code: e.code, windowsVirtualKeyCode: e.keyCode, nativeVirtualKeyCode: e.keyCode, modifiers: mods(e), location: e.location }
-    if (type === "keyDown" && e.key.length === 1 && !e.metaKey && !e.ctrlKey) { ev.text = e.key; ev.unmodifiedText = e.key }
+    const text = type === "keyDown" ? (e.key === "Enter" ? "\r" : e.key.length === 1 && !e.metaKey && !e.ctrlKey ? e.key : undefined) : undefined
+    const ev = { type: type === "keyDown" ? (text ? "keyDown" : "rawKeyDown") : "keyUp", key: e.key, code: e.code, windowsVirtualKeyCode: e.keyCode, modifiers: mods(e), location: e.location }
+    if (text) { ev.text = text; ev.unmodifiedText = text }
     if (type === "keyDown" && e.metaKey && commands[e.key.toLowerCase()]) ev.commands = [commands[e.key.toLowerCase()]]
     return ev
   }
-  const keyTarget = (e) => document.activeElement === v || document.activeElement === document.body
-  document.addEventListener("keydown", (e) => { if (!keyTarget(e)) return; e.preventDefault(); send({ type: "key", event: keyEvent(e, "keyDown") }) })
-  document.addEventListener("keyup", (e) => { if (!keyTarget(e)) return; e.preventDefault(); send({ type: "key", event: keyEvent(e, "keyUp") }) })
+  const keyTarget = () => document.activeElement === v || document.activeElement === document.body
+  document.addEventListener("keydown", (e) => {
+    if (!keyTarget()) return
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "v") return
+    e.preventDefault()
+    send({ type: "key", event: keyEvent(e, "keyDown") })
+  })
+  document.addEventListener("keyup", (e) => {
+    if (!keyTarget()) return
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "v") return
+    e.preventDefault()
+    send({ type: "key", event: keyEvent(e, "keyUp") })
+  })
+  document.addEventListener("paste", (e) => {
+    if (!keyTarget()) return
+    const text = e.clipboardData && e.clipboardData.getData("text/plain")
+    if (text) { e.preventDefault(); send({ type: "text", text }) }
+  })
   $("go").onclick = () => { send({ type: "navigate", url: url.value }); v.focus() }
   url.addEventListener("keydown", (e) => { if (e.key === "Enter") { send({ type: "navigate", url: url.value }); v.focus() } })
   $("back").onclick = () => send({ type: "back" })
   $("reload").onclick = () => send({ type: "reload" })
   $("newtab").onclick = () => send({ type: "newtab", url: "about:blank" })
+  $("paste").onclick = async () => { try { const t = await navigator.clipboard.readText(); if (t) { send({ type: "text", text: t }); v.focus() } } catch {} }
   tabs.onchange = () => send({ type: "tab", id: tabs.value })
   $("msend").onclick = () => { const t = $("mtext"); if (t.value) send({ type: "text", text: t.value }); t.value = "" }
-  $("menter").onclick = () => { send({ type: "key", event: { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13 } }); send({ type: "key", event: { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13 } }) }
+  $("menter").onclick = () => { send({ type: "key", event: { type: "keyDown", key: "Enter", code: "Enter", text: "\r", unmodifiedText: "\r", windowsVirtualKeyCode: 13 } }); send({ type: "key", event: { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 } }) }
   setInterval(() => send({ type: "tabs" }), 15000)
 })()
 </script>

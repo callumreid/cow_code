@@ -1,4 +1,4 @@
-import { Config as EffectConfig, Context, Effect, Layer } from "effect"
+import { Config as EffectConfig, Context, Effect, Layer, Option } from "effect"
 import { HttpApiBuilder, OpenApi } from "effect/unstable/httpapi"
 import { HttpClient, HttpMiddleware, HttpRouter, HttpServer, HttpServerResponse } from "effect/unstable/http"
 import * as Socket from "effect/unstable/socket/Socket"
@@ -114,6 +114,7 @@ import { PtyEnvironment } from "@opencode-ai/server/pty-environment"
 import { schemaErrorLayer as v2SchemaErrorLayer } from "@opencode-ai/server/middleware/schema-error"
 import { workspaceHandlers } from "./handlers/workspace"
 import { instanceContextLayer } from "./middleware/instance-context"
+import { HttpApiProxy } from "./middleware/proxy"
 import { workspaceRoutingLayer } from "./middleware/workspace-routing"
 import { disposeMiddleware } from "./lifecycle"
 import { memoMap } from "@opencode-ai/core/effect/memo-map"
@@ -203,11 +204,38 @@ const uiRoute = HttpRouter.use((router) =>
     const fs = yield* FSUtil.Service
     const client = yield* HttpClient.HttpClient
     const flags = yield* RuntimeFlags.Service
-    yield* router.add("*", "/*", (request) =>
-      serveUIEffect(request, { fs, client, disableEmbeddedWebUi: flags.disableEmbeddedWebUi }),
-    )
+    const auth = yield* ServerAuth.Config
+    const makeWebSocket = yield* Socket.WebSocketConstructor
+    yield* router.add("*", "/*", (request) => {
+      const incoming = new URL(request.url, "http://localhost")
+      if (incoming.pathname === "/computer" || incoming.pathname.startsWith("/computer/")) {
+        const port = Number(process.env.COW_EYES_PORT || 4099)
+        const subpath = incoming.pathname.replace(/^\/computer/, "") || "/"
+        const target = new URL(`http://127.0.0.1:${port}${subpath}${incoming.search}`)
+        const token = Option.isSome(auth.password)
+          ? Buffer.from(`${auth.username}:${auth.password.value}`).toString("base64")
+          : undefined
+        if (token) target.searchParams.set("auth_token", token)
+        const headers = request.headers as Record<string, string>
+        if (headers["upgrade"]?.toLowerCase() === "websocket") {
+          return HttpApiProxy.websocket(request, target).pipe(
+            Effect.provideService(Socket.WebSocketConstructor, makeWebSocket),
+          )
+        }
+        return HttpApiProxy.http(
+          client,
+          target,
+          {
+            host: `127.0.0.1:${port}`,
+            ...(token ? { authorization: `Basic ${token}` } : {}),
+          },
+          request,
+        )
+      }
+      return serveUIEffect(request, { fs, client, disableEmbeddedWebUi: flags.disableEmbeddedWebUi })
+    })
   }),
-).pipe(Layer.provide(authOnlyRouterLayer))
+).pipe(Layer.provide([authOnlyRouterLayer, ServerAuth.Config.layer, Socket.layerWebSocketConstructorGlobal]))
 
 type RouteRequirements =
   | HttpRouter.HttpRouter

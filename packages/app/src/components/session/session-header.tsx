@@ -10,7 +10,6 @@ import { Tooltip, TooltipKeybind } from "@opencode-ai/ui/tooltip"
 import { getFilename } from "@opencode-ai/core/util/path"
 import { createEffect, createMemo, createSignal, For, onMount, Show } from "solid-js"
 import { createStore } from "solid-js/store"
-import { createMediaQuery } from "@solid-primitives/media"
 import { Portal } from "solid-js/web"
 import { useCommand } from "@/context/command"
 import { useLanguage } from "@/context/language"
@@ -28,10 +27,8 @@ import { fileManagerApp } from "@/utils/file-manager"
 import { Persist, persisted } from "@/utils/persist"
 import { StatusPopover, StatusPopoverV2 } from "../status-popover"
 import { IconButtonV2 } from "@opencode-ai/ui/v2/icon-button-v2"
-import { Icon as IconV2 } from "@opencode-ai/ui/v2/icon"
 import { KeybindV2 } from "@opencode-ai/ui/v2/keybind-v2"
 import { TooltipV2 } from "@opencode-ai/ui/v2/tooltip-v2"
-import { reviewTooltipKeybind } from "../command-tooltip-keybind"
 import { useTitlebarRightMount } from "../titlebar"
 
 const OPEN_APPS = [
@@ -164,7 +161,6 @@ export function SessionHeader() {
   const isV2 = settings.general.newLayoutDesigns
   const search = settings.visibility.search
   const status = settings.visibility.status
-  const isDesktop = createMediaQuery("(min-width: 768px)")
 
   const [exists, setExists] = createStore<Partial<Record<OpenApp, boolean>>>({
     finder: true,
@@ -237,11 +233,14 @@ export function SessionHeader() {
   const v2ActionsState = createMemo<SessionHeaderV2ActionsState>(() => ({
     statusVisible: status(),
     statusLabel: language.t("status.popover.trigger"),
-    reviewLabel: language.t("command.review.toggle"),
-    reviewKeybind: reviewTooltipKeybind(command),
-    reviewVisible: isDesktop(),
-    reviewOpened: view().reviewPanel.opened(),
-    onReviewToggle: () => view().reviewPanel.toggle(),
+    browserLabel: language.t("command.browser.toggle"),
+    browserKeybind: command.keybindParts("browser.toggle"),
+    browserOpened: view().browser.opened(),
+    onBrowserToggle: () => view().browser.toggle(),
+    terminalLabel: language.t("command.terminal.toggle"),
+    terminalKeybind: command.keybindParts("terminal.toggle"),
+    terminalOpened: view().terminal.opened(),
+    onTerminalToggle: toggleTerminal,
   }))
 
   const selectApp = (app: OpenApp) => {
@@ -323,7 +322,7 @@ export function SessionHeader() {
         {(mount) => (
           <Portal mount={mount}>
             <Show
-              when={isV2}
+              when={isV2()}
               fallback={
                 <div class="flex items-center gap-2">
                   <Show when={projectDirectory()}>
@@ -446,6 +445,29 @@ export function SessionHeader() {
                       </Tooltip>
                     </Show>
                     <TooltipKeybind
+                      title={language.t("command.browser.toggle")}
+                      keybind={command.keybind("browser.toggle")}
+                    >
+                      <Button
+                        variant="ghost"
+                        class="group/browser-toggle titlebar-icon w-8 h-6 p-0 box-border shrink-0"
+                        onClick={() => view().browser.toggle()}
+                        aria-label={language.t("command.browser.toggle")}
+                        aria-expanded={view().browser.opened()}
+                        aria-controls="browser-panel"
+                      >
+                        <Icon
+                          size="small"
+                          name="window-cursor"
+                          classList={{
+                            "text-icon-strong": view().browser.opened(),
+                            "text-icon-weak": !view().browser.opened(),
+                          }}
+                        />
+                      </Button>
+                    </TooltipKeybind>
+
+                    <TooltipKeybind
                       title={language.t("command.terminal.toggle")}
                       keybind={command.keybind("terminal.toggle")}
                     >
@@ -462,22 +484,6 @@ export function SessionHeader() {
                     </TooltipKeybind>
 
                     <div class="hidden md:flex items-center gap-1 shrink-0">
-                      <TooltipKeybind
-                        title={language.t("command.review.toggle")}
-                        keybind={command.keybind("review.toggle")}
-                      >
-                        <Button
-                          variant="ghost"
-                          class="group/review-toggle titlebar-icon w-8 h-6 p-0 box-border"
-                          onClick={() => view().reviewPanel.toggle()}
-                          aria-label={language.t("command.review.toggle")}
-                          aria-expanded={view().reviewPanel.opened()}
-                          aria-controls="review-panel"
-                        >
-                          <Icon size="small" name={view().reviewPanel.opened() ? "review-active" : "review"} />
-                        </Button>
-                      </TooltipKeybind>
-
                       <TooltipKeybind
                         title={language.t("command.fileTree.toggle")}
                         keybind={command.keybind("fileTree.toggle")}
@@ -519,50 +525,74 @@ export function SessionHeader() {
 type SessionHeaderV2ActionsState = {
   statusVisible: boolean
   statusLabel: string
-  reviewLabel: string
-  reviewKeybind: string[]
-  reviewVisible: boolean
-  reviewOpened: boolean
-  onReviewToggle: () => void
+  browserLabel: string
+  browserKeybind: string[]
+  browserOpened: boolean
+  onBrowserToggle: () => void
+  terminalLabel: string
+  terminalKeybind: string[]
+  terminalOpened: boolean
+  onTerminalToggle: () => void
 }
 
 function SessionHeaderV2Actions(props: { state: SessionHeaderV2ActionsState }) {
-  const language = useLanguage()
-
   return (
-    <div class="flex items-center gap-2">
+    <div class="flex items-center gap-1">
       <Show when={props.state.statusVisible}>
         <Tooltip placement="bottom" value={props.state.statusLabel}>
           <StatusPopoverV2 />
         </Tooltip>
       </Show>
-      <Show when={props.state.reviewVisible}>
-        <TooltipV2
-          class="shrink-0"
-          placement="bottom"
-          value={
-            <>
-              {props.state.reviewLabel}
-              <Show when={props.state.reviewKeybind.length > 0}>
-                <KeybindV2 keys={props.state.reviewKeybind} variant="neutral" />
-              </Show>
-            </>
-          }
-        >
-          <IconButtonV2
-            type="button"
-            variant="ghost-muted"
-            size="large"
-            class="!w-9 shrink-0"
-            state={props.state.reviewOpened ? "pressed" : undefined}
-            onClick={props.state.onReviewToggle}
-            aria-label={props.state.reviewLabel}
-            aria-expanded={props.state.reviewOpened}
-            aria-controls="review-panel"
-            icon={<IconV2 name="sidebar-right" />}
-          />
-        </TooltipV2>
-      </Show>
+      <TooltipV2
+        class="shrink-0"
+        placement="bottom"
+        value={
+          <>
+            {props.state.browserLabel}
+            <Show when={props.state.browserKeybind.length > 0}>
+              <KeybindV2 keys={props.state.browserKeybind} variant="neutral" />
+            </Show>
+          </>
+        }
+      >
+        <IconButtonV2
+          type="button"
+          variant="ghost-muted"
+          size="large"
+          class="!w-9 shrink-0"
+          state={props.state.browserOpened ? "pressed" : undefined}
+          onClick={props.state.onBrowserToggle}
+          aria-label={props.state.browserLabel}
+          aria-expanded={props.state.browserOpened}
+          aria-controls="browser-panel"
+          icon={<Icon name="window-cursor" size="small" />}
+        />
+      </TooltipV2>
+      <TooltipV2
+        class="shrink-0"
+        placement="bottom"
+        value={
+          <>
+            {props.state.terminalLabel}
+            <Show when={props.state.terminalKeybind.length > 0}>
+              <KeybindV2 keys={props.state.terminalKeybind} variant="neutral" />
+            </Show>
+          </>
+        }
+      >
+        <IconButtonV2
+          type="button"
+          variant="ghost-muted"
+          size="large"
+          class="!w-9 shrink-0"
+          state={props.state.terminalOpened ? "pressed" : undefined}
+          onClick={props.state.onTerminalToggle}
+          aria-label={props.state.terminalLabel}
+          aria-expanded={props.state.terminalOpened}
+          aria-controls="terminal-panel"
+          icon={<Icon name={props.state.terminalOpened ? "terminal-active" : "terminal"} size="small" />}
+        />
+      </TooltipV2>
     </div>
   )
 }
