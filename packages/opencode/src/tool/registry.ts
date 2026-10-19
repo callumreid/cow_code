@@ -1,3 +1,5 @@
+import { SessionRecovery } from "@/session/recovery"
+import { TaskDelivery } from "@/background/task-delivery"
 import { LayerNode } from "@opencode-ai/core/effect/layer-node"
 import { httpClient } from "@opencode-ai/core/effect/app-node-platform"
 import { Ripgrep } from "@opencode-ai/core/ripgrep"
@@ -474,6 +476,8 @@ export const node = LayerNode.make({
     Skill.node,
     Session.node,
     BackgroundJob.node,
+    TaskDelivery.node,
+    SessionRecovery.node,
     Provider.node,
     LSP.node,
     Instruction.node,

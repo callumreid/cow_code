@@ -7,6 +7,8 @@ what each feature is, and the films, live in the [feature reel](docs/features/RE
 
 ### Added
 
+- parallel cows keep durable result receipts through restart, show interrupted queued updates, and deliver each update once; a finishing child can leave its result in a stopped parent without waking it
+
 - expandable subagent trees show every child task, its live status and nested work; scheduled activity folds away so your own chats have room
 - an opt-in native Codex app-server experiment can start, resume, stream, steer and interrupt its own test thread without changing the cow's default runtime
 - slash skills are searchable by name and description, show their source and requirements, and tell you what was selected; the cow ships planning, investigation and verification skills and reads your existing Codex, Claude and Agents skill folders

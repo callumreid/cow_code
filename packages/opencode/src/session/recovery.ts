@@ -1,7 +1,7 @@
 import { EffectFlock } from "@opencode-ai/core/util/effect-flock"
 import { LayerNode } from "@opencode-ai/core/effect/layer-node"
 import { SessionV1 } from "@opencode-ai/core/v1/session"
-import { Context, Effect, Layer, Schema } from "effect"
+import { Context, Effect, Layer, Schema, Semaphore } from "effect"
 import { OfficeLedger } from "@/office/ledger"
 import { SessionID } from "./schema"
 
@@ -31,7 +31,7 @@ export const Snapshot = Schema.NullOr(
 )
 
 /** A second local server must never mistake another live process for a crashed owner. */
-export function ownerAlive(checkpoint: Checkpoint) {
+export function ownerAlive(checkpoint: Pick<Checkpoint, "ownerPID">) {
   if (!Number.isSafeInteger(checkpoint.ownerPID) || checkpoint.ownerPID <= 0) return true
   try {
     process.kill(checkpoint.ownerPID, 0)
@@ -90,6 +90,11 @@ export function reconcile(messages: readonly SessionV1.WithParts[], startedAt: n
 
 export interface Interface {
   readonly start: (sessionID: SessionID, directory: string, startedAt: number) => Effect.Effect<Checkpoint>
+  readonly startAutomatic: (
+    sessionID: SessionID,
+    directory: string,
+    startedAt: number,
+  ) => Effect.Effect<Checkpoint | undefined>
   readonly get: (sessionID: SessionID) => Effect.Effect<OfficeLedger.Record<Checkpoint> | undefined>
   readonly update: (sessionID: SessionID, state: State, update?: Partial<Checkpoint>) => Effect.Effect<void>
   readonly claim: (sessionID: SessionID) => Effect.Effect<Checkpoint | undefined>
@@ -102,30 +107,40 @@ const layer = Layer.effect(
   Effect.gen(function* () {
     const ledger = yield* OfficeLedger.Service
     const flock = yield* EffectFlock.Service
+    const journal = Semaphore.makeUnsafe(1)
     const update: Interface["update"] = Effect.fn("SessionRecovery.update")(function* (sessionID, state, update) {
       const saved = yield* ledger.get<Checkpoint>("recovery:" + sessionID)
       if (!saved || (saved.state === "canceled" && state !== "canceled")) return
       yield* ledger.put({ ...saved, state, value: { ...saved.value, ...update } })
-    })
+    }, journal.withPermit)
+    const begin = Effect.fn("SessionRecovery.start")(function* (
+      sessionID: SessionID,
+      directory: string,
+      startedAt: number,
+      automatic: boolean,
+    ) {
+      const saved = yield* ledger.get<Checkpoint>("recovery:" + sessionID)
+      if (automatic && saved && ["canceled", "blocked"].includes(saved.state)) return
+      const active = saved && ["running", "retrying"].includes(saved.state)
+      const value: Checkpoint = active
+        ? { ...saved.value, ownerPID: process.pid, lastProgressAt: Date.now(), next: undefined }
+        : {
+            sessionID,
+            ownerPID: process.pid,
+            directory,
+            startedAt,
+            deadline: Date.now() + MAX_RECOVERY_AGE,
+            lastProgressAt: Date.now(),
+          }
+      yield* ledger.put({ id: "recovery:" + sessionID, kind: "recovery", state: "running", sessionID, value })
+      return value
+    }, journal.withPermit)
     return Service.of({
       update,
       get: (sessionID) => ledger.get<Checkpoint>("recovery:" + sessionID),
-      start: Effect.fn("SessionRecovery.start")(function* (sessionID, directory, startedAt) {
-        const saved = yield* ledger.get<Checkpoint>("recovery:" + sessionID)
-        const active = saved && ["running", "retrying"].includes(saved.state)
-        const value: Checkpoint = active
-          ? { ...saved.value, ownerPID: process.pid, lastProgressAt: Date.now(), next: undefined }
-          : {
-              sessionID,
-              ownerPID: process.pid,
-              directory,
-              startedAt,
-              deadline: Date.now() + MAX_RECOVERY_AGE,
-              lastProgressAt: Date.now(),
-            }
-        yield* ledger.put({ id: "recovery:" + sessionID, kind: "recovery", state: "running", sessionID, value })
-        return value
-      }),
+      start: (sessionID, directory, startedAt) =>
+        begin(sessionID, directory, startedAt, false).pipe(Effect.map((value) => value!)),
+      startAutomatic: (sessionID, directory, startedAt) => begin(sessionID, directory, startedAt, true),
       claim: (sessionID) =>
         Effect.gen(function* () {
           const saved = yield* ledger.get<Checkpoint>("recovery:" + sessionID)

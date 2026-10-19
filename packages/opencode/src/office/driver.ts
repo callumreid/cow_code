@@ -13,6 +13,8 @@ import { randomUUID } from "crypto"
 import { Office } from "./office"
 import { OfficeControl } from "./control"
 import { OfficeLedger } from "./ledger"
+import { TaskDelivery } from "@/background/task-delivery"
+import type { TaskPromptOps } from "@/tool/task"
 
 export const Attention = Schema.Struct({
   clientID: Schema.String,
@@ -80,6 +82,7 @@ const layer = Layer.effect(
     const sessions = yield* Session.Service
     const prompt = yield* SessionPrompt.Service
     const recovery = yield* SessionRecovery.Service
+    const delivery = yield* TaskDelivery.Service
     const instances = yield* InstanceStore.Service
     const ledger = yield* OfficeLedger.Service
     const control = yield* OfficeControl.Service
@@ -401,6 +404,44 @@ const layer = Layer.effect(
       Effect.forkIn(scope),
     )
 
+    const deliveryOps: TaskPromptOps = {
+      resolvePromptParts: prompt.resolvePromptParts,
+      prompt: (input) =>
+        Effect.gen(function* () {
+          const parent = yield* sessions.get(input.sessionID).pipe(Effect.orDie)
+          return yield* instances.provide({ directory: parent.directory }, prompt.prompt(input).pipe(Effect.orDie))
+        }),
+      admit: (input) =>
+        Effect.gen(function* () {
+          const parent = yield* sessions.get(input.sessionID).pipe(Effect.orDie)
+          return yield* instances.provide(
+            { directory: parent.directory },
+            prompt.admit({ ...input, noReply: true }).pipe(Effect.orDie),
+          )
+        }),
+      resume: (input) =>
+        Effect.gen(function* () {
+          const parent = yield* sessions.get(input.sessionID).pipe(Effect.orDie)
+          return yield* instances.provide({ directory: parent.directory }, prompt.resumeBackground(input))
+        }),
+      cancel: (sessionID) =>
+        Effect.gen(function* () {
+          const parent = yield* sessions.get(sessionID).pipe(Effect.orDie)
+          yield* instances.provide({ directory: parent.directory }, prompt.cancel(sessionID))
+        }),
+    }
+    // Stable notification IDs reconcile results after startup without redispatching children.
+    yield* Effect.forever(
+      delivery.reconcile(deliveryOps).pipe(
+        Effect.catchCause((cause) =>
+          Cause.hasInterruptsOnly(cause)
+            ? Effect.void
+            : Effect.logWarning("background delivery reconciliation failed", { cause }),
+        ),
+        Effect.andThen(Effect.sleep("5 seconds")),
+      ),
+    ).pipe(Effect.forkIn(scope))
+
     const currentReport = (report: Office.Report) =>
       Effect.gen(function* () {
         const thread = yield* office.thread(report.sessionID)
@@ -596,6 +637,7 @@ export const node = LayerNode.make({
   layer,
   deps: [
     SessionRecovery.node,
+    TaskDelivery.node,
     Office.node,
     OfficeLedger.node,
     OfficeControl.node,

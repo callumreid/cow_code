@@ -5,6 +5,10 @@ import { LayerNode } from "@opencode-ai/core/effect/layer-node"
 import { SessionProjector } from "@opencode-ai/core/session/projector"
 import { Cause, Deferred, Effect, Exit, Fiber, Layer } from "effect"
 import { Agent } from "../../src/agent/agent"
+import { SessionRecovery } from "@/session/recovery"
+import { TaskDelivery } from "@/background/task-delivery"
+import { InstanceStore } from "@/project/instance-store"
+import { InstanceBootstrap } from "@/project/bootstrap-service"
 import { BackgroundJob } from "@/background/job"
 import { EventV2Bridge } from "@/event-v2-bridge"
 import { Config } from "@/config/config"
@@ -38,6 +42,8 @@ const layer = (flags: Partial<RuntimeFlags.Info> = {}) =>
   LayerNode.compile(
     LayerNode.group([
       Agent.node,
+      TaskDelivery.node,
+      SessionRecovery.node,
       BackgroundJob.node,
       EventV2Bridge.node,
       Config.node,
@@ -52,7 +58,10 @@ const layer = (flags: Partial<RuntimeFlags.Info> = {}) =>
       RuntimeFlags.node,
       Ripgrep.node,
     ]),
-    [[RuntimeFlags.node, RuntimeFlags.layer(flags)]],
+    [
+      [RuntimeFlags.node, RuntimeFlags.layer(flags)],
+      [InstanceStore.bootstrapNode, Layer.succeed(InstanceBootstrap.Service, { run: Effect.void })],
+    ],
   )
 
 const it = testEffect(layer())
@@ -109,6 +118,43 @@ function stubOps(opts?: {
       Effect.sync(() => {
         opts?.onPrompt?.(input)
         return reply(input, opts?.text ?? "done", opts?.error, opts?.toolError)
+      }),
+  }
+}
+
+function persistentAdmission(sessions: Session.Interface, onAdmit?: (input: SessionPrompt.PromptInput) => void) {
+  return {
+    admit: (input: SessionPrompt.PromptInput) =>
+      Effect.gen(function* () {
+        const info = yield* sessions.updateMessage({
+          id: input.messageID ?? MessageID.ascending(),
+          sessionID: input.sessionID,
+          role: "user",
+          agent: input.agent ?? "build",
+          model: ref,
+          time: { created: Date.now() },
+        })
+        const parts = [] as SessionV1.Part[]
+        for (const part of input.parts)
+          parts.push(
+            yield* sessions.updatePart({
+              ...part,
+              id: part.id ?? PartID.ascending(),
+              messageID: info.id,
+              sessionID: input.sessionID,
+            }),
+          )
+        onAdmit?.(input)
+        return { info, parts }
+      }),
+    resume: (input: SessionPrompt.LoopInput) =>
+      Effect.gen(function* () {
+        const messages = yield* sessions.messages({ sessionID: input.sessionID }).pipe(Effect.orDie)
+        const last = messages.findLast((message) => message.info.role === "user")!
+        const result = reply({ sessionID: input.sessionID, messageID: last.info.id, parts: [] }, "acknowledged")
+        yield* sessions.updateMessage(result.info)
+        for (const part of result.parts) yield* sessions.updatePart(part)
+        return result
       }),
   }
 }
@@ -467,7 +513,7 @@ describe("tool.task", () => {
     }),
   )
 
-  it.instance("execute creates a child when task_id does not exist", () =>
+  it.instance("execute rejects a missing task_id without silently starting a different child", () =>
     Effect.gen(function* () {
       const sessions = yield* Session.Service
       const { chat, assistant } = yield* seed()
@@ -476,31 +522,31 @@ describe("tool.task", () => {
       let seen: SessionPrompt.PromptInput | undefined
       const promptOps = stubOps({ text: "created", onPrompt: (input) => (seen = input) })
 
-      const result = yield* def.execute(
-        {
-          description: "inspect bug",
-          prompt: "look into the cache key path",
-          subagent_type: "general",
-          task_id: "ses_missing",
-        },
-        {
-          sessionID: chat.id,
-          messageID: assistant.id,
-          agent: "build",
-          abort: new AbortController().signal,
-          extra: { promptOps },
-          messages: [],
-          metadata: () => Effect.void,
-          ask: () => Effect.void,
-        },
-      )
+      const result = yield* def
+        .execute(
+          {
+            description: "inspect bug",
+            prompt: "look into the cache key path",
+            subagent_type: "general",
+            task_id: "ses_missing",
+          },
+          {
+            sessionID: chat.id,
+            messageID: assistant.id,
+            agent: "build",
+            abort: new AbortController().signal,
+            extra: { promptOps },
+            messages: [],
+            metadata: () => Effect.void,
+            ask: () => Effect.void,
+          },
+        )
+        .pipe(Effect.exit)
 
       const kids = yield* sessions.children(chat.id)
-      expect(kids).toHaveLength(1)
-      expect(kids[0]?.id).toBe(result.metadata.sessionId)
-      expect(result.metadata.sessionId).not.toBe("ses_missing")
-      expect(result.output).toContain(`<task id="${result.metadata.sessionId}" state="completed">`)
-      expect(seen?.sessionID).toBe(result.metadata.sessionId)
+      expect(Exit.isFailure(result)).toBe(true)
+      expect(kids).toHaveLength(0)
+      expect(seen).toBeUndefined()
     }),
   )
 
@@ -692,8 +738,10 @@ describe("tool.task", () => {
       const ready = yield* Deferred.make<void>()
       const done = yield* Deferred.make<void>()
       const injected = yield* Deferred.make<SessionPrompt.PromptInput>()
+      const sessions = yield* Session.Service
       let runs = 0
       const promptOps: TaskPromptOps = {
+        ...persistentAdmission(sessions, (input) => Deferred.doneUnsafe(injected, Exit.succeed(input))),
         cancel: () => Effect.void,
         resolvePromptParts: (template) => Effect.succeed([{ type: "text" as const, text: template }]),
         prompt: (input) => {
@@ -797,9 +845,15 @@ describe("tool.task", () => {
       const second = defer<void>()
       const updated = defer<SessionPrompt.PromptInput>()
       const injected = defer<SessionPrompt.PromptInput>()
+      const notifications: SessionPrompt.PromptInput[] = []
+      const sessions = yield* Session.Service
       let prompts = 0
       const promptOps: TaskPromptOps = {
         ...stubOps(),
+        ...persistentAdmission(sessions, (input) => {
+          notifications.push(input)
+          if (notifications.length === 2) injected.resolve(input)
+        }),
         prompt: (input) => {
           if (input.sessionID === chat.id) {
             injected.resolve(input)
@@ -857,7 +911,14 @@ describe("tool.task", () => {
       const notification = yield* Effect.promise(() => injected.promise)
       expect(notification.variant).toBe("xhigh")
       expect(notification.parts[0]?.type).toBe("text")
-      if (notification.parts[0]?.type === "text") expect(notification.parts[0].text).toContain("second done")
+      expect(notifications).toHaveLength(2)
+      expect(new Set(notifications.map((input) => input.messageID)).size).toBe(2)
+      const text = notifications
+        .flatMap((input) => input.parts)
+        .filter((part) => part.type === "text")
+        .map((part) => part.text)
+      expect(text.filter((part) => part.includes("first done"))).toHaveLength(1)
+      expect(text.filter((part) => part.includes("second done"))).toHaveLength(1)
     }),
   )
 
@@ -1099,3 +1160,56 @@ describe("tool.task", () => {
     }),
   )
 })
+
+it.instance("teardown of a foreground waiter preserves the child checkpoint until an explicit stop", () =>
+  Effect.gen(function* () {
+    const { chat, assistant } = yield* seed()
+    const recovery = yield* SessionRecovery.Service
+    const jobs = yield* BackgroundJob.Service
+    const tool = yield* TaskTool
+    const def = yield* tool.init()
+    const ready = yield* Deferred.make<SessionID>()
+    const abort = new AbortController()
+    let canceled = 0
+    yield* recovery.start(chat.id, chat.directory, assistant.time.created)
+    const fiber = yield* def
+      .execute(
+        { description: "work", prompt: "continue", subagent_type: "general" },
+        {
+          sessionID: chat.id,
+          messageID: assistant.id,
+          agent: "build",
+          abort: abort.signal,
+          messages: [],
+          metadata: () => Effect.void,
+          ask: () => Effect.void,
+          extra: {
+            promptOps: {
+              ...stubOps(),
+              prompt: (input: SessionPrompt.PromptInput) =>
+                Effect.gen(function* () {
+                  yield* recovery.start(input.sessionID, chat.directory, Date.now())
+                  yield* Deferred.succeed(ready, input.sessionID)
+                  return yield* Effect.never
+                }),
+              cancel: (id: SessionID) =>
+                Effect.gen(function* () {
+                  canceled++
+                  yield* recovery.update(id, "canceled")
+                }),
+            } satisfies TaskPromptOps,
+          },
+        },
+      )
+      .pipe(Effect.forkChild)
+    const child = yield* Deferred.await(ready)
+    abort.abort()
+    yield* Fiber.interrupt(fiber)
+    expect(canceled).toBe(0)
+    expect((yield* recovery.get(child))?.state).toBe("running")
+    expect((yield* jobs.get(child))?.status).toBe("running")
+    yield* jobs.cancel(child)
+    expect(canceled).toBe(1)
+    expect((yield* recovery.get(child))?.state).toBe("canceled")
+  }),
+)

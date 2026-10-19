@@ -21,3 +21,9 @@ Schedules preserve the existing distinction between process status, correlated a
 The app gives routine requests 30 seconds, discards responses from a previously selected server and refreshes when it returns online or visible. Missing receipts and quiet workers are evidence to investigate, not proof that a job failed.
 
 These recovery and connection-test APIs target the installed v1 runtime. The v2 session engine is preserved; the app does not present a successful v1 health test for a v2 server.
+
+## Parallel task delivery
+
+When background subagents are enabled, dispatches and result receipts persist in the same ledger. A child update gets one stable parent message and part ID. Restart after saving a notification reconciles that existing message instead of injecting a duplicate; every queued update keeps its own result, rather than repeating the background job's final aggregate result.
+
+A queued update interrupted before admission becomes an explicit task error asking for inspection and resend. An explicit task ID that no longer exists fails rather than silently starting a different child. Parent Stop and blocked-tool inspection permit the result to appear in history but prevent automatic provider continuation, with the guard repeated at the runner's actual start. Shutdown of a foreground waiter preserves the child's recovery checkpoint; an explicit Stop still cancels descendants.

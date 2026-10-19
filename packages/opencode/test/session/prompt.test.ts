@@ -2613,3 +2613,37 @@ it.instance("a model without vision blocks attached images before a provider cal
     expect(yield* llm.hits).toHaveLength(0)
   }),
 )
+
+it.instance("automatic parent continuation honors Stop and inspection after notification admission", () =>
+  Effect.gen(function* () {
+    const { dir, llm } = yield* useServerConfig(providerCfg)
+    const prompt = yield* SessionPrompt.Service
+    const sessions = yield* Session.Service
+    const recovery = yield* SessionRecovery.Service
+    for (const state of ["blocked", "canceled"] as const) {
+      const chat = yield* sessions.create({ title: "Pinned" })
+      const seeded = yield* seed(chat.id)
+      yield* recovery.start(chat.id, dir, seeded.user.time.created)
+      yield* recovery.update(chat.id, state)
+      yield* prompt.admit({ sessionID: chat.id, parts: [{ type: "text", synthetic: true, text: "Child result" }] })
+      yield* prompt.resumeBackground({ sessionID: chat.id })
+      expect((yield* recovery.get(chat.id))?.state).toBe(state)
+    }
+    expect(yield* llm.hits).toHaveLength(0)
+  }),
+)
+
+it.instance("zero budget blocks title generation too and records known zero cost", () =>
+  Effect.gen(function* () {
+    const { llm } = yield* useServerConfig(providerCfg)
+    const prompt = yield* SessionPrompt.Service
+    const sessions = yield* Session.Service
+    const chat = yield* sessions.create({})
+    yield* seed(chat.id)
+    yield* sessions.setMetadata({ sessionID: chat.id, metadata: { costBudgetUsd: 0 } })
+    const result = yield* prompt.loop({ sessionID: chat.id })
+    yield* Effect.sleep("20 millis")
+    expect(result.info.role === "assistant" && result.info.costStatus).toBe("reported")
+    expect(yield* llm.hits).toHaveLength(0)
+  }),
+)

@@ -1254,6 +1254,7 @@ const layer = Layer.effect(
             ledger.list(kind, "reconciliation_required"),
           )).flat(),
           ...(yield* ledger.list("recovery", "blocked")),
+          ...(yield* ledger.list("task-delivery", "attention")),
         ].map((row) => ({ id: row.id, kind: row.kind, sessionID: row.sessionID })),
         overseer: settings.overseer ?? null,
         threads: list,
