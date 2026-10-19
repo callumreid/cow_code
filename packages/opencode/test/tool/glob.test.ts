@@ -129,4 +129,23 @@ describe("tool.glob", () => {
       }
     }),
   )
+
+  it.instance("honors the caller abort signal", () =>
+    Effect.gen(function* () {
+      const test = yield* TestInstance
+      yield* Effect.promise(() => Bun.write(path.join(test.directory, "a.ts"), "export const a = 1\n"))
+      const info = yield* GlobTool
+      const glob = yield* info.init()
+      const exit = yield* glob
+        .execute(
+          { pattern: "*.ts", path: test.directory },
+          { ...ctx, abort: AbortSignal.abort(new Error("File search canceled")) },
+        )
+        .pipe(Effect.exit)
+      expect(Exit.isFailure(exit)).toBe(true)
+      if (Exit.isFailure(exit)) {
+        expect(Cause.pretty(exit.cause)).toContain("File search canceled")
+      }
+    }),
+  )
 })

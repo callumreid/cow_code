@@ -107,7 +107,12 @@ const layer = Layer.effect(
       const program = Effect.scoped(
         Effect.gen(function* () {
           const handle = yield* process.spawn(
-            ChildProcess.make(yield* binary.filepath, input.args, { cwd: input.cwd, extendEnv: true, stdin: "ignore" }),
+            ChildProcess.make(yield* binary.filepath, input.args, {
+              cwd: input.cwd,
+              extendEnv: true,
+              stdin: "ignore",
+              forceKillAfter: "2 seconds",
+            }),
           )
           const stderrFiber = yield* collectStream(handle.stderr, ERROR_BYTES).pipe(
             Effect.map((output) => output.buffer.toString("utf8")),
@@ -174,6 +179,15 @@ const layer = Layer.effect(
                 .replaceAll("\\", "/"),
             ),
         }).pipe(
+          Effect.timeoutOrElse({
+            duration: "1 minute",
+            orElse: () =>
+              Effect.fail(
+                failure(
+                  "File search timed out after 60 seconds. Narrow the search directory or glob pattern and retry.",
+                ),
+              ),
+          }),
           Effect.map((result) =>
             result.items.map((relative) =>
               Entry.make({
