@@ -1,11 +1,12 @@
 import { test, expect, chromium, type Browser } from "@playwright/test"
-import { spawn, type ChildProcess } from "node:child_process"
+import { execFileSync, spawn, type ChildProcess } from "node:child_process"
 import { createServer, type Server } from "node:http"
 import { createInterface } from "node:readline"
 import { setTimeout } from "node:timers/promises"
 import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
+import { fileURLToPath } from "node:url"
 let directory = ""
 const processes: ChildProcess[] = []
 let browser: Browser
@@ -187,6 +188,8 @@ test("managed Playwright tools report human takeover explicitly and preserve the
     env: {
       ...process.env,
       COW_AGENT_CDP_PORT: String(proxyPort),
+      COW_EYES_PORT: String(eyesPort),
+      COW_SERVER_PASSWORD_FILE: join(directory, "password"),
       COW_BROWSER_OUTPUT_DIR: join(directory, "artifacts"),
     },
     stdio: ["pipe", "pipe", "inherit"],
@@ -208,6 +211,7 @@ test("managed Playwright tools report human takeover explicitly and preserve the
   child.stdin!.write(JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" }) + "\n")
   const tools = await call(2, "tools/list", {})
   expect(tools?.result.tools.some((tool: { name: string }) => tool.name === "browser_snapshot")).toBe(true)
+  expect(tools?.result.tools.some((tool: { name: string }) => tool.name === "browser_recording_start")).toBe(true)
   const after = messages.length
   send({ type: "control", owner: "human" })
   await wait("control", after)
@@ -229,5 +233,60 @@ test("managed Playwright tools report human takeover explicitly and preserve the
   const files = (await readdir(join(directory, "artifacts"))).filter((file) => file.endsWith(".yml"))
   expect(files.length).toBeGreaterThan(0)
   expect(await readFile(join(directory, "artifacts", files.at(-1)!), "utf8")).toContain("Name")
+  const started = await call(5, "tools/call", { name: "browser_recording_start", arguments: {} })
+  expect(started?.result.isError).not.toBe(true)
+  await setTimeout(350)
+  const changed = await call(6, "tools/call", {
+    name: "browser_evaluate",
+    arguments: {
+      function:
+        "() => { document.body.style.background = 'lightblue'; document.querySelector('button').textContent = 'Recorded action'; }",
+    },
+  })
+  expect(changed?.result.isError).not.toBe(true)
+  await setTimeout(500)
+  const take = messages.length
+  send({ type: "control", owner: "human" })
+  await wait("control", take)
+  const stopped = await call(7, "tools/call", { name: "browser_recording_stop", arguments: {} })
+  expect(stopped?.result.isError).not.toBe(true)
+  const resource = stopped?.result.content.find((item: { type: string }) => item.type === "resource_link")
+  expect(resource.mimeType).toBe("video/webm")
+  const saved = fileURLToPath(resource.uri)
+  expect(saved.startsWith(join(directory, "artifacts"))).toBe(true)
+  const probe = JSON.parse(
+    execFileSync(
+      process.env.COW_TEST_FFPROBE ?? "ffprobe",
+      [
+        "-v",
+        "error",
+        "-count_frames",
+        "-show_entries",
+        "stream=codec_name,width,height,nb_read_frames",
+        "-of",
+        "json",
+        saved,
+      ],
+      { encoding: "utf8" },
+    ),
+  )
+  expect(probe.streams[0].codec_name).toBe("vp9")
+  expect(Number(probe.streams[0].nb_read_frames)).toBeGreaterThan(3)
+  expect((await readdir(join(directory, "artifacts"))).some((name) => name.endsWith(".partial"))).toBe(false)
+  console.log(JSON.stringify({ scenario: "agent-video-artifact", ...probe.streams[0] }))
+  const returnToAgent = messages.length
+  send({ type: "control", owner: "agent" })
+  await wait("control", returnToAgent)
+  const interrupted = await call(8, "tools/call", { name: "browser_recording_start", arguments: {} })
+  expect(interrupted?.result.isError).not.toBe(true)
+  processes[1]!.kill() // Only this suite's isolated stream server, never the running CowCode browser.
+  await until(
+    () => viewer.readyState,
+    (value) => value === WebSocket.CLOSED,
+  )
+  const failed = await call(9, "tools/call", { name: "browser_recording_stop", arguments: {} })
+  expect(failed?.result.isError).toBe(true)
+  expect(JSON.stringify(failed)).toContain("disconnected")
+  expect((await readdir(join(directory, "artifacts"))).some((name) => name.endsWith(".partial"))).toBe(false)
   child.stdin!.end()
 })

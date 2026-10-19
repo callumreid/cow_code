@@ -17,6 +17,7 @@ what each feature is, and the films, live in the [feature reel](docs/features/RE
 - long tasks keep their place through a barn restart, show last progress and provider retry times, and pause for inspection when a tool may already have changed something; Stop stays stopped, and Resume starts a new recovery window
 - connections have a read-only test and a separate reconnect action, with tool count, response time and the last successful tool call observed on that connection
 - scheduled routines show missing attempts, quiet workers, stale snapshots and the last verified success separately from an agent saying it finished
+- agents can start and stop recordings of the shared visible browser, returning a real WebM artifact with bounded duration and size
 - the browser follows the agent’s active tab, has a real take-control/return boundary for managed Playwright tools, attaches screenshots to the task draft, and downloads recordings of the visible browser
 - phone connection checks show the local gate, public address and task server separately; named tunnels can keep one authenticated address when a domain and tunnel credential are configured
 

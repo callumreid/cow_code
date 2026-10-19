@@ -24,6 +24,17 @@ before closing the panel. Recordings contain browser video only, not audio, and
 are downloaded when they stop. Model image compatibility is checked by the
 composer when the screenshot is submitted.
 
+Agents can call **browser_recording_start** and **browser_recording_stop** to
+record the same visible stream without keeping the app open. This records only
+the shared visible tab as it changes, not all open tabs. The encoder needs
+`ffmpeg` on the machine running the managed wrapper. It saves a VP9 WebM under
+`~/.config/cow/browser-output` and returns the exact server file path plus an MCP
+resource link. On Barn connections the file lives on the Barn; the agent can use
+that file as its video artifact. This tool does not automatically download it to
+the laptop. Stop remains available during human takeover. Recordings end after
+five minutes or about 50 MB; a dropped stream stops the encoder and removes its
+incomplete temporary file. No audio or other desktop applications are recorded.
+
 The stream reconnects after a network loss and keeps the shared target. Localhost
 URLs are treated as HTTP preview addresses rather than web searches. They refer
 to the machine running Chrome: with Barn Chrome, that is the Barn, not the laptop.
@@ -56,5 +67,7 @@ From `packages/cow-eyes`, run `bun run test:integration`. Tests run a separate
 Chrome profile and local fixture servers. They verify navigation follows the
 agent, DOM input, takeover rejection, human input, resuming, screenshot bytes,
 reconnect ownership, authentication and actual managed Playwright tool calls.
+The agent-video check uses `ffmpeg` and `ffprobe` to verify decoded frames in the
+returned WebM, and disconnects only its isolated fixture to verify cleanup.
 Set `COW_TEST_CHROME` if Chrome is installed elsewhere. Playwright runs under Node;
 Bun runs the bridge. No production browser or session is used.
