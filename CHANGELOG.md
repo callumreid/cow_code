@@ -27,6 +27,7 @@ what each feature is, and the films, live in the [feature reel](docs/features/RE
 
 ### Fixed
 
+- the status panel opens even when another saved server is offline, so connection health and test controls stay available
 - box deployments pin one read-only database snapshot so active task writes cannot keep restarting the backup until it times out
 
 - saving a task budget reports a connection failure after a bounded wait instead of leaving the Save control busy forever

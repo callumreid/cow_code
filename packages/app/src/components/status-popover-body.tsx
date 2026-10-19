@@ -18,6 +18,7 @@ import { useGlobal } from "@/context/global"
 import { useSettings } from "@/context/settings"
 import { useMcpToggle } from "@/context/mcp"
 import { useServerProtocol } from "@/context/server-sdk"
+import type { ServerProtocol } from "@/utils/server-protocol"
 
 const pluginEmptyMessage = (value: string, file: string): JSXElement => {
   const parts = value.split(file)
@@ -279,10 +280,28 @@ export function StatusPopoverBody(props: { shown: Accessor<boolean> }) {
     dialogDead = true
     dialogRun += 1
   })
+  const [protocols, setProtocols] = createStore<Record<ServerConnection.Key, ServerProtocol | undefined>>({})
+  createEffect(() => {
+    if (settings.general.newLayoutDesigns()) return
+    let dead = false
+    // Reading protocolKind() suspends the whole popover while any saved server is offline.
+    // Keep unknown servers visible and filter resolved V2 servers without blocking rendering.
+    for (const conn of global.servers.list()) {
+      void global.ensureServerCtx(conn).sdk.protocol.then(
+        (kind) => {
+          if (!dead) setProtocols(ServerConnection.key(conn), kind)
+        },
+        () => {},
+      )
+    }
+    onCleanup(() => {
+      dead = true
+    })
+  })
   const sortedServers = createMemo(() => {
     const list = settings.general.newLayoutDesigns()
       ? global.servers.list()
-      : global.servers.list().filter((x) => global.ensureServerCtx(x).sdk.protocolKind() !== "v2")
+      : global.servers.list().filter((x) => protocols[ServerConnection.key(x)] !== "v2")
     return listServersByHealth(list, server.key, global.servers.health)
   })
   const toggleMcp = useMcpToggle()
