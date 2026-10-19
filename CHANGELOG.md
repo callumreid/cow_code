@@ -8,6 +8,7 @@ what each feature is, and the films, live in the [feature reel](docs/features/RE
 ### Added
 
 - expandable subagent trees show every child task, its live status and nested work; scheduled activity folds away so your own chats have room
+- an opt-in native Codex app-server experiment can start, resume, stream, steer and interrupt its own test thread without changing the cow's default runtime
 - slash skills are searchable by name and description, show their source and requirements, and tell you what was selected; the cow ships planning, investigation and verification skills and reads your existing Codex, Claude and Agents skill folders
 - model choices show image support, and pasted images stay in the composer with compatible model choices when the selected provider cannot read them
 - task spend includes descendants, with daily provider totals, reported versus estimated charges, explicit missing accounting, and a persistent task budget checked before further model turns
