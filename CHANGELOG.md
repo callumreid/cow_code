@@ -27,6 +27,8 @@ what each feature is, and the films, live in the [feature reel](docs/features/RE
 
 ### Fixed
 
+- saving a task budget reports a connection failure after a bounded wait instead of leaving the Save control busy forever
+
 - custom CowCode builds install the matching published plugin SDK, so fresh local plugins and custom tools can load without requesting a nonexistent build version
 - budget and image compatibility stops stay visible under Needs you without triggering another paid Farmer error-reporting turn
 - image model suggestions prefer your current provider and recent coding models, excluding video generators and models without tool support

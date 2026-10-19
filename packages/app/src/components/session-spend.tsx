@@ -122,14 +122,15 @@ export function SessionSpend(props: { sessionID: string }) {
     }
     const target = { id: props.sessionID, client: sdk().client, scope: server().scope }
     setStore({ saving: true, saveError: false })
+    const signal = AbortSignal.timeout(15_000)
     const saved = await target.client.session
-      .get({ sessionID: target.id }, { throwOnError: true })
+      .get({ sessionID: target.id }, { throwOnError: true, signal })
       .then(async (result) => {
         if (!result.data) return false
         const metadata = { ...result.data?.metadata }
         if (limit === undefined) delete metadata.costBudgetUsd
         else metadata.costBudgetUsd = limit
-        await target.client.session.update({ sessionID: target.id, metadata }, { throwOnError: true })
+        await target.client.session.update({ sessionID: target.id, metadata }, { throwOnError: true, signal })
         return true
       })
       .catch(() => false)
