@@ -58,6 +58,8 @@ while :; do
     sleep "$interval"; continue
   fi
   origin=$(grep -o 'https://[a-z0-9-]*\.trycloudflare\.com' "$public_log" 2>/dev/null | tail -1)
+  transport=cloudflare
+  [ ! -f "$HOME/.config/cow/phone-transport" ] || transport=$(head -1 "$HOME/.config/cow/phone-transport")
   if [ -f "$HOME/.config/cow/phone-origin" ]; then
     origin=$(head -1 "$HOME/.config/cow/phone-origin")
     # Only an HTTPS origin is valid; never fall back to a rotating URL on a config error.
@@ -99,8 +101,10 @@ while :; do
     fails=$((fails + 1)); [ "$down_since" = 0 ] && down_since=$now
     down_for=$((now - down_since))
     wan=down; [ "$(code https://www.cloudflare.com/cdn-cgi/trace 10)" = 200 ] && wan=ok
-    port=$(grep -o 'metrics server on 127.0.0.1:[0-9]*' "$public_log" 2>/dev/null | tail -1 | grep -o '[0-9]*$')
-    [ -n "$port" ] && ready=$(code "http://127.0.0.1:$port/ready" 3)
+    if [ "$transport" = cloudflare ]; then
+      port=$(grep -o 'metrics server on 127.0.0.1:[0-9]*' "$public_log" 2>/dev/null | tail -1 | grep -o '[0-9]*$')
+      [ -n "$port" ] && ready=$(code "http://127.0.0.1:$port/ready" 3)
+    fi
     restart_note="never restarted"
     [ "$last_restart" != 0 ] && restart_note="restarted $(((now - last_restart) / 60)) min ago"
     [ -e "$no_restart" ] && restart_note="restart off ($no_restart)"

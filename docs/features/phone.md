@@ -33,10 +33,48 @@ The phone service, gate and watchdog all use the configured stable origin. Gate
 authentication is unchanged: the public hostname never bypasses the pairing key.
 Existing home-screen links need re-pairing once when moving to the stable hostname.
 
-On October 19 the Barn had no named-tunnel credentials or stable-origin config,
-and direct HTTP over its tailnet address did not answer. Stable public access
-therefore remains a setup dependency; do not advertise the tailnet as a working
-alternative without verifying its ACL and reachability.
+### Tailscale Funnel transport
+
+An already authorized Tailscale device can serve the same protected gate through
+Funnel without a separate domain. The launcher supports this alternative with
+`~/.config/cow/phone-transport` containing `funnel` and `phone-origin` containing
+the device's exact `https://<device>.<tailnet>.ts.net:8443` origin. No `tunnel.yml`
+is needed. Other supported HTTPS ports are 443 and 10000; use a port that is not
+already serving another application. The launcher checks that the hostname
+belongs to the running local Tailscale device before opening the protected gate.
+
+Install the current `cow-public.sh` and `cow-phone-watch.sh` and the repository's
+public launchd definition together. The public job owns a **foreground** Funnel
+process, so launchd can restart the helper with the same hostname. Before moving
+an operator-created background Funnel to this job, remove only that owned port
+with `tailscale funnel --https=8443 off`; never reset the full Serve configuration.
+Keep the current quick tunnel running separately until the replacement has
+passed anonymous denial, authenticated gate/server health and a helper restart.
+Do not arm phone notifications as part of this setup.
+
+Funnel authorization does not prove reachability. Public DNS can take up to ten
+minutes to propagate. Verify public DNS and TLS through the public edge, then
+verify the same hostname with Tailscale enabled: MagicDNS can select a private
+tailnet route whose policy still blocks the port. Do not switch the advertised
+pairing address until both paths work. The helper does not change tailnet policy.
+See [Tailscale's Funnel guide](https://tailscale.com/docs/features/tailscale-funnel)
+and [CLI reference](https://tailscale.com/docs/reference/tailscale-cli/funnel).
+
+The October 19 activation check found no personal Cloudflare domain and no
+named-tunnel credentials. Tailscale 1.98.2 accepted a protected Funnel on 8443,
+and the Barn's own HTTPS request passed both anonymous denial and authenticated
+gate/server health. However, Google and Cloudflare still returned NXDOMAIN for
+both public A and AAAA records after 613 seconds, and the laptop's private route
+timed out. The available Tailscale identity cannot administer the work tailnet.
+
+The experiment was removed, the original Serve routes restored, and the existing
+quick tunnel verified healthy with its pairing address unchanged. Funnel helper
+support is prepared in source; it is **not an activated permanent connection**.
+Completion needs a tailnet administrator to resolve public Funnel DNS and allow
+the intended phone/laptop access to Barn TCP 8443, or an authorized personal DNS
+hostname for a named Cloudflare tunnel. Neither the tailnet policy nor a company
+domain was changed. A helper-restart and physical-phone check remain required
+after a viable stable route is available.
 
 ## two ways in
 

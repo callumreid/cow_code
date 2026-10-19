@@ -7,6 +7,8 @@ what each feature is, and the films, live in the [feature reel](docs/features/RE
 
 ### Added
 
+- phone helpers can explicitly select an authorized Tailscale Funnel and retain its hostname through helper restarts, while checking that the address belongs to the running device
+
 - box server deployments check both Coval and Office work by default, and can explicitly allow interrupting busy work with `--allow-busy` while keeping health, snapshot and rollback checks
 
 - parallel cows keep durable result receipts through restart, show interrupted queued updates, and deliver each update once; a finishing child can leave its result in a stopped parent without waking it
