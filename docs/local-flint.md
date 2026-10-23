@@ -18,9 +18,16 @@ Allow the download to finish; failed downloads resume on the next invocation.
 The LaunchAgent is `~/Library/LaunchAgents/dev.cowcode.flint.plist`; it starts at login and unloads
 the model after five idle minutes. The next request wakes it. Logs are at
 `~/.local/share/cowcode/flint-server.log`. It uses one inference slot and a practical 32K context,
-with an 8K output limit. These are local resource limits, below the model's advertised 256K maximum.
+with a 4K output limit. These are local resource limits, below the model's advertised 256K maximum.
 Requests use temperature 1, top-p 0.95, top-k 20, and preserve `reasoning_content` for tool continuations.
 The runtime follows the bundled GGUF chat template. It does not add image support.
+
+CowCode compacts when a turn's total usage reaches context minus the output limit:
+28,672 tokens with these settings. A project with many instructions and tools can use about
+24K tokens before conversation history. The former 8K output budget left almost no room and
+could repeatedly compact even a greeting, because summaries cannot shrink fixed instructions.
+Keep automatic compaction enabled. The smaller output budget adds conversation headroom within the existing allocation;
+raising the advertised context alone does not increase the runtime's actual 32K allocation.
 
 ## Thread speed
 

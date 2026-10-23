@@ -51,7 +51,7 @@ config.provider["flint-local"] = {
   models: {
     flint: {
       name: "Flint 40B-A2.5B Q3 (local)",
-      limit: { context: 32768, output: 8192 },
+      limit: { context: 32768, output: 4096 },
       tool_call: true,
       reasoning: true,
       interleaved: { field: "reasoning_content" },

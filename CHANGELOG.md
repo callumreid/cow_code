@@ -5,6 +5,10 @@ what each feature is, and the films, live in the [feature reel](docs/features/RE
 
 ## 2026-10-23
 
+### Fixed
+
+- Flint reserves 4K for each response so instruction-heavy projects have room to finish a greeting without repeatedly compacting
+
 ### Added
 
 - Flint can graze on this Mac: a checked local installer adds the Q3 model to the picker, keeps existing model defaults, and unloads it after five idle minutes
