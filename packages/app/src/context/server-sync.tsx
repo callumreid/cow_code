@@ -13,6 +13,7 @@ import { createStore, produce, reconcile } from "solid-js/store"
 import { useLanguage } from "@/context/language"
 import type { InitError } from "../pages/error"
 import { ServerSDK } from "./server-sdk"
+import { createGenerationTracker } from "./server-generation"
 import {
   bootstrapDirectory,
   bootstrapGlobal,
@@ -209,6 +210,8 @@ export type QueryOptionsApi = ReturnType<typeof makeQueryOptionsApi>
 
 export function createServerSyncContextInner(serverSDK: ServerSDK) {
   const language = useLanguage()
+  const generation = createGenerationTracker()
+  onCleanup(serverSDK.event.onDisconnect(generation.disconnect))
   const owner = getOwner()
   if (!owner) throw new Error("ServerSync must be created within owner")
 
@@ -553,6 +556,7 @@ export function createServerSyncContextInner(serverSDK: ServerSDK) {
     const key = directoryKey(directory)
     const event = e.details
     const eventType: string = event.type
+    generation.apply(event)
     const recent = bootingRoot || Date.now() - bootedAt < 1500
 
     if (event.current) session.applyV2(event.current)
@@ -734,6 +738,7 @@ export function createServerSyncContextInner(serverSDK: ServerSDK) {
     updateConfig: updateConfigMutation.mutateAsync,
     project: projectApi,
     session,
+    generation,
     homeSessions,
     mcp: {
       toggle: async (directory: string, name: string) => {

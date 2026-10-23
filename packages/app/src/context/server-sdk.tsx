@@ -175,6 +175,7 @@ type ServerSDKBase = {
   api: CompatibleApi
   currentApi: ServerApi
   event: {
+    onDisconnect: (callback: () => void) => () => void
     on: ServerEventEmitter["on"]
     listen: ServerEventEmitter["listen"]
     start: () => Promise<void> | undefined
@@ -213,6 +214,7 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
   const emitter = createGlobalEmitter<{
     [key: string]: ServerEvent
   }>()
+  const disconnects = new Set<() => void>()
 
   type Queued = QueuedServerEvent
   const FLUSH_FRAME_MS = 16
@@ -305,6 +307,8 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
             })
           }
         } finally {
+          flush()
+          disconnects.forEach((notify) => notify())
           abort.signal.removeEventListener("abort", onAbort)
           attempt = undefined
         }
@@ -364,6 +368,10 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
     api,
     currentApi,
     event: {
+      onDisconnect(callback: () => void) {
+        disconnects.add(callback)
+        return () => disconnects.delete(callback)
+      },
       on: emitter.on.bind(emitter),
       listen: emitter.listen.bind(emitter),
       start,

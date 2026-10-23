@@ -3,6 +3,13 @@
 every change to the cow lands here, newest first, one line per thing you would notice.
 what each feature is, and the films, live in the [feature reel](docs/features/README.md).
 
+## 2026-10-23
+
+### Added
+
+- Flint can graze on this Mac: a checked local installer adds the Q3 model to the picker, keeps existing model defaults, and unloads it after five idle minutes
+- each thread shows live model output speed beside its title, with marked estimates while streaming and provider token counts when available; reasoning counts, tool waits do not
+
 ## 2026-10-19 🌐
 
 ### Added

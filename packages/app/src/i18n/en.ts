@@ -1,6 +1,13 @@
 import { DESKTOP_NATIVE_ENGLISH } from "./desktop-native"
 
 export const dict = {
+  "model.speed.waiting": "— tok/s",
+  "model.speed.estimated": "~{{rate}} tok/s",
+  "model.speed.measured": "{{rate}} tok/s",
+  "model.speed.estimatedHelp":
+    "Live output speed for this thread's latest model turn, including reasoning and tool input. Estimated at 4 characters per token until provider usage arrives. Prompt processing and tool execution are excluded. Available for turns observed while CowCode is open.",
+  "model.speed.measuredHelp":
+    "Latest model turn: provider-reported output and reasoning tokens divided by observed streaming time. Prompt processing and tool execution are excluded. Transport buffering can affect the measurement.",
   "spend.open": "Spend and budget",
   "spend.header": "Spend {{amount}}",
   "spend.unknown": "Spend unknown",
