@@ -3,6 +3,12 @@
 every change to the cow lands here, newest first, one line per thing you would notice.
 what each feature is, and the films, live in the [feature reel](docs/features/README.md).
 
+## 2026-11-02
+
+### Changed
+
+- keep-updated runs hourly and waits until a pull request has been inactive for four hours before updating its branch, while skipping pull requests already in the merge queue, armed for auto-merge, or green and approved
+
 ## 2026-10-23
 
 ### Fixed

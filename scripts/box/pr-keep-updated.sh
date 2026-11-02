@@ -1,7 +1,9 @@
 #!/bin/bash
-# Keep Callum's open PRs current with their base branch. Runs every 30 minutes on the box.
-# Drafts are updated too. Skips PRs labeled cow:no-update and closed/merged PRs. A conflict (DIRTY,
-# or a failed update) is DM'd, never resolved automatically.
+# Keep Callum's open PRs current with their base branch. Runs hourly on the box.
+# Drafts are updated too. Skips PRs labeled cow:no-update, closed/merged PRs, PRs in the merge queue
+# or with auto-merge armed, PRs that are already green + approved + conflict-free (CLEAN), and PRs
+# that have been active within PR_KEEP_UPDATED_IDLE_SECONDS (default 4h). A conflict (DIRTY, or a
+# failed update) is DM'd, never resolved automatically.
 #
 # TRIGGER: the real commit distance from the base branch (compare.behind_by) - NOT mergeStateStatus.
 # GitHub only reports mergeStateStatus BEHIND when the repo enforces "require branches to be up to
@@ -14,10 +16,12 @@
 #   --dry-run  report what would be updated, make no writes.
 #
 # Env:
-#   PR_KEEP_UPDATED_MAX  max branches to update per run (default 5). Keeps a backlog from firing
-#                        CI on every PR at once; the next run picks up the remainder.
-export HOME=/Users/bronson
-export PATH=$HOME/.local/bin:/opt/homebrew/bin:/usr/bin:/bin
+#   PR_KEEP_UPDATED_MAX           max branches to update per run (default 5). Keeps a backlog from
+#                                 firing CI on every PR at once; the next run picks up the remainder.
+#   PR_KEEP_UPDATED_IDLE_SECONDS  minimum seconds since a PR's last commit or activity before
+#                                 updating it (default 14400 = 4 hours).
+export HOME="${COW_KEEP_UPDATED_HOME:-/Users/bronson}"
+export PATH="${COW_KEEP_UPDATED_PATH:-$HOME/.local/bin:/opt/homebrew/bin:/usr/bin:/bin}"
 
 DRY_RUN=0
 case "${1:-}" in
@@ -27,8 +31,9 @@ case "${1:-}" in
 esac
 
 MAX_UPDATES=${PR_KEEP_UPDATED_MAX:-5}
+IDLE_SECONDS=${PR_KEEP_UPDATED_IDLE_SECONDS:-14400}
 
-LOG_DIR="$HOME/.coval/logs"; mkdir -p "$LOG_DIR"; LOG="$LOG_DIR/pr-keep-updated.log"
+LOG_DIR="${COW_KEEP_UPDATED_LOG_DIR:-$HOME/.coval/logs}"; mkdir -p "$LOG_DIR"; LOG="$LOG_DIR/pr-keep-updated.log"
 LOCK="$LOG_DIR/pr-keep-updated.lock"
 
 # gh is the only thing this script does; without it every query below fails and the run would
@@ -63,7 +68,15 @@ repo_is_archived() {  # usage: repo_is_archived <name>  -> exit 0 when archived
 }
 
 echo "=== $(date -Iseconds) ===$([ "$DRY_RUN" -eq 1 ] && echo ' (DRY RUN)')" >> "$LOG"
-[ "$DRY_RUN" -eq 1 ] && echo "=== DRY RUN - no writes, max/run would be $MAX_UPDATES ==="
+[ "$DRY_RUN" -eq 1 ] && echo "=== DRY RUN - no writes, max/run would be $MAX_UPDATES, min idle ${IDLE_SECONDS}s ==="
+
+PR_QUERY='query($owner:String!,$name:String!,$number:Int!){ repository(owner:$owner,name:$name){ pullRequest(number:$number){
+  state isDraft updatedAt mergeable mergeStateStatus reviewDecision baseRefName headRefOid
+  isInMergeQueue autoMergeRequest{enabledAt} mergeQueueEntry{state position}
+  labels(first:30){nodes{name}}
+  reviewThreads(first:100){nodes{isResolved}}
+  commits(last:1){nodes{commit{committedDate statusCheckRollup{state}}}}
+} } }'
 
 prs=$(gh search prs --author=callumreid --state=open --owner=coval-ai --archived=false --limit 100 \
   --json repository,number --jq '.[] | "\(.repository.name) \(.number)"' 2>>"$LOG")
@@ -71,28 +84,73 @@ if [ -z "$prs" ]; then
   say "no open PRs returned by search - nothing to do (if this is unexpected, check gh auth)"
 fi
 
-updated=0; conflicts=(); skipped=0; current=0; errors=0; unknown=0; deferred=0
+updated=0; conflicts=(); skipped=0; current=0; errors=0; unknown=0; deferred=0; active=0; ready=0
 while IFS= read -r line; do
   [ -z "$line" ] && continue
   repo=${line%% *}; number=${line##* }
   repo_is_archived "$repo" && { skipped=$((skipped+1)); continue; }
 
-  info=$(gh pr view "$number" -R "coval-ai/$repo" --json mergeStateStatus,labels,state,baseRefName,headRefOid 2>>"$LOG")
+  info=$(gh api graphql -f query="$PR_QUERY" -F owner=coval-ai -F name="$repo" -F number="$number" 2>>"$LOG")
   if [ -z "$info" ]; then
     # Previously a bare `|| continue`, which dropped the PR from every counter - the run looked
     # complete while silently having skipped it.
     errors=$((errors+1)); say "ERROR could not read $repo#$number"; continue
   fi
 
-  parsed=$(printf '%s' "$info" | python3 -c 'import json,sys
-d=json.load(sys.stdin)
-labels=[l["name"] for l in d.get("labels",[])]
-skip = "cow:no-update" in labels or d.get("state") != "OPEN"
-print(("skip" if skip else d.get("mergeStateStatus","")), d.get("baseRefName",""), d.get("headRefOid",""))' 2>>"$LOG")
-  read -r status base head <<< "$parsed"
+  parsed=$(python3 - "$info" "$IDLE_SECONDS" "${PR_KEEP_UPDATED_NOW:-}" <<'PY' 2>>"$LOG"
+import datetime, json, sys
+info_raw, idle_req_str, now_override = sys.argv[1:4]
+idle_req = int(idle_req_str)
+now = datetime.datetime.fromisoformat(now_override.replace("Z", "+00:00")).timestamp() if now_override else datetime.datetime.now(datetime.timezone.utc).timestamp()
+d = (json.loads(info_raw).get("data") or {}).get("repository", {}).get("pullRequest") or {}
+if not d:
+    print("error\t\t\tmissing PR payload")
+    sys.exit(0)
+labels = [l["name"] for l in (d.get("labels") or {}).get("nodes") or [] if l and l.get("name")]
+state = d.get("state") or ""
+merge_state = d.get("mergeStateStatus") or ""
+mergeable = d.get("mergeable") or ""
+base = d.get("baseRefName") or ""
+head = d.get("headRefOid") or ""
+if "cow:no-update" in labels or state != "OPEN":
+    print(f"skip\t{base}\t{head}\tlabeled or closed")
+    sys.exit(0)
+if merge_state == "DIRTY" or mergeable == "CONFLICTING":
+    print(f"dirty\t{base}\t{head}\tmerge conflicts")
+    sys.exit(0)
+if d.get("isInMergeQueue") or d.get("mergeQueueEntry"):
+    print(f"ready\t{base}\t{head}\tin merge queue")
+    sys.exit(0)
+if d.get("autoMergeRequest"):
+    print(f"ready\t{base}\t{head}\tauto-merge armed")
+    sys.exit(0)
+commits = (d.get("commits") or {}).get("nodes") or []
+commit = (commits[0].get("commit") if commits and commits[0] else None) or {}
+checks = ((commit.get("statusCheckRollup") or {}).get("state")) or "NONE"
+unresolved = sum(1 for t in ((d.get("reviewThreads") or {}).get("nodes") or []) if t and not t.get("isResolved"))
+if not d.get("isDraft") and d.get("reviewDecision") == "APPROVED" and unresolved == 0 and checks == "SUCCESS" and merge_state == "CLEAN":
+    print(f"ready\t{base}\t{head}\tgreen and approved")
+    sys.exit(0)
+def parse_ts(s):
+    if not s: return 0.0
+    try: return datetime.datetime.fromisoformat(s.replace("Z", "+00:00")).timestamp()
+    except Exception: return 0.0
+last_touch = max(parse_ts(d.get("updatedAt")), parse_ts(commit.get("committedDate")))
+if idle_req > 0 and last_touch > 0:
+    age = int(max(0.0, now - last_touch))
+    if age < idle_req:
+        print(f"active\t{base}\t{head}\tactive {age // 60}m ago (<{idle_req // 60}m)")
+        sys.exit(0)
+print(f"check\t{base}\t{head}\t{merge_state}")
+PY
+)
+  IFS=$'\t' read -r status base head detail <<< "$parsed"
 
+  if [ "$status" = "error" ] || [ -z "$status" ]; then
+    errors=$((errors+1)); say "ERROR could not parse $repo#$number (${detail:-empty})"; continue
+  fi
   if [ "$status" = "skip" ]; then skipped=$((skipped+1)); continue; fi
-  if [ "$status" = "DIRTY" ]; then
+  if [ "$status" = "dirty" ]; then
     conflicts+=("https://github.com/coval-ai/$repo/pull/$number")
     say "$repo#$number has merge conflicts"
     continue
@@ -110,6 +168,14 @@ print(("skip" if skip else d.get("mergeStateStatus","")), d.get("baseRefName",""
     0)
       current=$((current+1)) ;;
     *)
+      if [ "$status" = "ready" ]; then
+        ready=$((ready+1)); say "skipping $repo#$number ($behind behind $base) - $detail"
+        continue
+      fi
+      if [ "$status" = "active" ]; then
+        active=$((active+1)); say "skipping $repo#$number ($behind behind $base) - $detail"
+        continue
+      fi
       if [ "$updated" -ge "$MAX_UPDATES" ]; then
         deferred=$((deferred+1)); say "deferred $repo#$number ($behind behind $base) - per-run cap $MAX_UPDATES reached"
         continue
@@ -127,13 +193,15 @@ print(("skip" if skip else d.get("mergeStateStatus","")), d.get("baseRefName",""
         updated=$((updated+1)); say "updated $repo#$number ($behind commits behind $base)"
       elif printf '%s' "$out" | grep -q -i 'conflict'; then
         conflicts+=("https://github.com/coval-ai/$repo/pull/$number"); say "conflict on $repo#$number"
+      elif printf '%s' "$out" | grep -q -i 'merge queue'; then
+        ready=$((ready+1)); say "skipping $repo#$number ($behind behind $base) - in merge queue"
       else
         errors=$((errors+1)); say "update failed for $repo#$number: $(printf '%s' "$out" | head -1 | cut -c1-140)"
       fi ;;
   esac
 done <<< "$prs"
 
-summary="done — updated $updated, current $current, skipped $skipped, conflicts ${#conflicts[@]}, deferred $deferred, unknown $unknown, errors $errors"
+summary="done — updated $updated, current $current, active $active, ready $ready, skipped $skipped, conflicts ${#conflicts[@]}, deferred $deferred, unknown $unknown, errors $errors"
 echo "$(date -Iseconds): $summary" >> "$LOG"
 [ "$DRY_RUN" -eq 1 ] && echo "$summary"
 [ "$DRY_RUN" -eq 1 ] && exit 0
