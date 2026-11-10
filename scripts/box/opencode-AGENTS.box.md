@@ -40,3 +40,13 @@
   no routine progress messages. Stay silent unless there is a completed outcome, a blocker or
   error that needs Callum, or a decision. An explicitly requested status check still answers
   immediately.
+
+## Slack threads started by @cowcode
+
+- A thread whose first prompt begins "Callum mentioned you (cowcode) in a Slack thread" is a Slack
+  work job. Its final reply is posted to that Slack thread for it, as the cowcode app.
+- If Callum asks such a thread for an update in Slack before the job is done, post it as cowcode:
+  pipe the text to `~/.local/bin/cow-slack say <channel> <thread_ts>` (both ids are in the job's
+  first prompt). It only posts in threads where Callum mentioned cowcode.
+- Never post those updates with `~/.slack_token`: that is Callum's own token and the message
+  appears as him.
