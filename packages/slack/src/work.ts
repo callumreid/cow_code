@@ -22,7 +22,8 @@ export function parseOutcome(raw: string): Outcome {
     const minutes = Number(last[2].match(/\d+/)?.[0] ?? 10)
     return { status: "waiting", text, minutes: Math.min(60, Math.max(1, minutes)) }
   }
-  if (status === "failed") return { status: "failed", text: text || "the session reported a failure without saying why" }
+  if (status === "failed")
+    return { status: "failed", text: text || "the session reported a failure without saying why" }
   return { status: "done", text: text || "done" }
 }
 
@@ -50,10 +51,16 @@ export function blockText(blocks: Block[] | undefined): string {
   return out.join("\n")
 }
 
-export function messageText(m: { text?: string; blocks?: Block[]; attachments?: { text?: string; title?: string; fallback?: string }[] }) {
+export function messageText(m: {
+  text?: string
+  blocks?: Block[]
+  attachments?: { text?: string; title?: string; fallback?: string }[]
+}) {
   const fromBlocks = blockText(m.blocks)
   const body = fromBlocks.length > (m.text?.length ?? 0) ? fromBlocks : (m.text ?? "")
-  const extra = (m.attachments ?? []).map((a) => [a.title, a.text].filter(Boolean).join("\n") || a.fallback || "").filter(Boolean)
+  const extra = (m.attachments ?? [])
+    .map((a) => [a.title, a.text].filter(Boolean).join("\n") || a.fallback || "")
+    .filter(Boolean)
   return [body, ...extra].filter(Boolean).join("\n")
 }
 
@@ -152,7 +159,8 @@ export function createWorker(options: WorkerOptions) {
   })()
   function save() {
     const keys = Object.keys(state.threads)
-    for (const key of keys.slice(0, Math.max(0, keys.length - 500))) if (!state.threads[key].job) delete state.threads[key]
+    for (const key of keys.slice(0, Math.max(0, keys.length - 500)))
+      if (!state.threads[key].job) delete state.threads[key]
     mkdirSync(dirname(options.stateFile), { recursive: true })
     writeFileSync(`${options.stateFile}.tmp`, JSON.stringify(state, null, 1))
     renameSync(`${options.stateFile}.tmp`, options.stateFile)
@@ -171,12 +179,23 @@ export function createWorker(options: WorkerOptions) {
   }
 
   type Entry = {
-    info: { id: string; role: string; error?: { name?: string; data?: { message?: string } }; time?: { completed?: number }; finish?: string }
+    info: {
+      id: string
+      role: string
+      error?: { name?: string; data?: { message?: string } }
+      time?: { completed?: number }
+      finish?: string
+    }
     parts: { type: string; text?: string; synthetic?: boolean; ignored?: boolean }[]
   }
-  const latest = async (sessionID: string) => (await call<Entry[]>("GET", `/session/${sessionID}/message?limit=4`)).at(-1)
+  const latest = async (sessionID: string) =>
+    (await call<Entry[]>("GET", `/session/${sessionID}/message?limit=4`)).at(-1)
   const send = (sessionID: string, text: string) =>
-    call("POST", `/session/${sessionID}/prompt_async`, { model, variant: options.variant, parts: [{ type: "text", text }] })
+    call("POST", `/session/${sessionID}/prompt_async`, {
+      model,
+      variant: options.variant,
+      parts: [{ type: "text", text }],
+    })
 
   // A turn is over when the session is idle and its newest message is a finished assistant message
   // that was not there before the prompt, seen twice in a row (the loop is briefly idle between steps).
@@ -186,7 +205,8 @@ export function createWorker(options: WorkerOptions) {
     let settled = ""
     for (;;) {
       await sleep(poll)
-      if (Date.now() > deadline) return { status: "failed", text: "the session ran past its time limit; it may still be working in CowCode" }
+      if (Date.now() > deadline)
+        return { status: "failed", text: "the session ran past its time limit; it may still be working in CowCode" }
       const status = (await call<Record<string, { type: string }>>("GET", "/session/status"))[job.sessionID]
       if (status && status.type !== "idle") {
         settled = ""
@@ -198,13 +218,21 @@ export function createWorker(options: WorkerOptions) {
         if (Date.now() - begun > 120_000) return { status: "failed", text: "the session never started on the request" }
         continue
       }
-      if (last.info.error) return { status: "failed", text: `the session stopped on an error: ${last.info.error.data?.message ?? last.info.error.name ?? "unknown"}` }
+      if (last.info.error)
+        return {
+          status: "failed",
+          text: `the session stopped on an error: ${last.info.error.data?.message ?? last.info.error.name ?? "unknown"}`,
+        }
       if (!last.info.time?.completed || last.info.finish === "tool-calls") continue
       if (settled !== last.info.id) {
         settled = last.info.id
         continue
       }
-      const text = last.parts.filter((p) => p.type === "text" && !p.synthetic && !p.ignored).map((p) => p.text ?? "").join("\n").trim()
+      const text = last.parts
+        .filter((p) => p.type === "text" && !p.synthetic && !p.ignored)
+        .map((p) => p.text ?? "")
+        .join("\n")
+        .trim()
       return parseOutcome(text)
     }
   }
@@ -222,7 +250,11 @@ export function createWorker(options: WorkerOptions) {
           }
           const result = await turn(job)
           if (result.status !== "waiting") return result
-          if (Date.now() - job.started > jobTimeout) return { status: "failed", text: `${result.text}\n\nStill waiting after a day, so I stopped checking.`.trim() }
+          if (Date.now() - job.started > jobTimeout)
+            return {
+              status: "failed",
+              text: `${result.text}\n\nStill waiting after a day, so I stopped checking.`.trim(),
+            }
           log(`${key} waiting ${result.minutes}m: ${result.text.slice(0, 120)}`)
           job.wake = Date.now() + result.minutes * 60_000
           save()
@@ -237,7 +269,9 @@ export function createWorker(options: WorkerOptions) {
       thread.job = undefined
       save()
     }
-    await slack.post(job.channel, job.thread, outcome.text).catch((error) => log(`${key} post failed: ${message(error)}`))
+    await slack
+      .post(job.channel, job.thread, outcome.text)
+      .catch((error) => log(`${key} post failed: ${message(error)}`))
     await slack.unreact(job.channel, job.ts, emoji.working).catch(() => {})
     await slack.react(job.channel, job.ts, outcome.status === "done" ? emoji.done : emoji.failed).catch(() => {})
   }
@@ -245,7 +279,9 @@ export function createWorker(options: WorkerOptions) {
   // One job at a time per thread: a second mention waits for the first to finish.
   const tails = new Map<string, Promise<void>>()
   function chain(key: string, run: () => Promise<void>) {
-    const next = (tails.get(key) ?? Promise.resolve()).then(run).catch((error) => log(`${key} crashed: ${message(error)}`))
+    const next = (tails.get(key) ?? Promise.resolve())
+      .then(run)
+      .catch((error) => log(`${key} crashed: ${message(error)}`))
     tails.set(key, next)
     void next.then(() => {
       if (tails.get(key) === next) tails.delete(key)
@@ -265,14 +301,34 @@ export function createWorker(options: WorkerOptions) {
       const known = await (async () => {
         const thread = state.threads[key]
         if (!thread) return undefined
-        const gone = await latest(thread.sessionID).then(() => false, (error) => / 404:/.test(message(error)))
+        const gone = await latest(thread.sessionID).then(
+          () => false,
+          (error) => / 404:/.test(message(error)),
+        )
         if (gone) delete state.threads[key]
         return gone ? undefined : thread
       })()
-      const context = await slack.context(input.channel, input.thread, { after: known?.seen, skip: input.ts }).catch((error) => `(the thread could not be read: ${message(error)})`)
-      const thread = known ?? { sessionID: (await call<{ id: string }>("POST", "/session", { title: `slack · ${input.text.slice(0, 60)}` })).id }
-      const prompt = known ? nextPrompt({ context, request: input.text }) : firstPrompt({ channel: input.channel, thread: input.thread, context, request: input.text })
-      const created: Job = { ...input, sessionID: thread.sessionID, before: (await latest(thread.sessionID))?.info.id, started: Date.now() }
+      const context = await slack
+        .context(input.channel, input.thread, { after: known?.seen, skip: input.ts })
+        .catch((error) => `(the thread could not be read: ${message(error)})`)
+      const thread = known ?? {
+        sessionID: (
+          await call<{ id: string }>("POST", "/session", {
+            title: `slack · ${input.text.slice(0, 60)}`,
+            // The app's sidebar lists threads carrying slackThread in its Slack group.
+            metadata: { slackChannel: input.channel, slackThread: input.thread },
+          })
+        ).id,
+      }
+      const prompt = known
+        ? nextPrompt({ context, request: input.text })
+        : firstPrompt({ channel: input.channel, thread: input.thread, context, request: input.text })
+      const created: Job = {
+        ...input,
+        sessionID: thread.sessionID,
+        before: (await latest(thread.sessionID))?.info.id,
+        started: Date.now(),
+      }
       await send(thread.sessionID, prompt)
       thread.job = created
       thread.seen = input.ts

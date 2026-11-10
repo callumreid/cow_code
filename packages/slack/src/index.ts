@@ -1,13 +1,14 @@
 // cow_code Slack door: a Bolt bot (Socket Mode, no inbound port) on the always-on cow server.
 // DM it and the farmer answers. Mention it in a channel and it does the work: one cow session per
 // Slack thread on the headless worker model, with a reaction on the mention for its state and the
-// result posted to the thread (see work.ts). Only Callum's mentions start work.
+// result posted to the thread (see work.ts). It answers Callum and nobody else: DMs and mentions
+// from anyone not in COW_SLACK_WORK_USERS, and from other bots, are dropped without a reply.
 // Threads that need Callum (permission, question, failure) are pushed to a channel as they happen.
 //
 // env: COW_SLACK_BOT_TOKEN (xoxb), COW_SLACK_APP_TOKEN (xapp, connections:write), optional
 //      COW_SLACK_NOTIFY_CHANNEL (channel/DM id for pushes), COW_SERVER_URL (default
 //      http://127.0.0.1:4096), COW_SERVER_PASSWORD_FILE (default ~/.config/opencode/server-password),
-//      COW_SLACK_WORK_USERS (comma-separated Slack user ids allowed to start work; default Callum),
+//      COW_SLACK_WORK_USERS (comma-separated Slack user ids the bot answers; default Callum),
 //      COW_SLACK_WORK_MODEL (default cloudflare-workers-ai/@cf/zai-org/glm-5.3),
 //      COW_SLACK_WORK_VARIANT (default medium), COW_SLACK_WORK_DIR (default ~/coval).
 import { App, LogLevel, SocketModeReceiver, type Logger } from "@slack/bolt"
@@ -116,6 +117,8 @@ function slackify(text: string) {
     .slice(0, 39000)
 }
 
+// The bot acts with Callum's credentials on the box, so it answers only him.
+const workers = new Set((process.env.COW_SLACK_WORK_USERS ?? "U0A71JFNCAZ").split(",").map((id) => id.trim()).filter(Boolean))
 let botUserId: string | undefined
 async function handle(text: string, channel: string, thread: string, say: (m: { text: string; thread_ts: string }) => Promise<unknown>) {
   const clean = text.replace(/<@[A-Z0-9]+>/g, "").trim()
@@ -129,9 +132,7 @@ async function handle(text: string, channel: string, thread: string, say: (m: { 
   }
 }
 
-// Channel mentions are work. The bot acts with Callum's credentials on the box, so only his
-// mentions count; anyone else's (and other bots') are dropped without a reply.
-const workers = new Set((process.env.COW_SLACK_WORK_USERS ?? "U0A71JFNCAZ").split(",").map((id) => id.trim()).filter(Boolean))
+// Channel mentions are work.
 const names = new Map<string, string>()
 async function nameOf(user: string) {
   const known = names.get(user)
@@ -191,6 +192,10 @@ app.message(async ({ message, say }) => {
   if (m.subtype || !m.text) return
   if (m.channel_type !== "im") return // channels only respond to mentions
   if (botUserId && m.user === botUserId) return
+  if (!m.user || !workers.has(m.user)) {
+    console.log(`${stamp()} cow-slack: ignored a DM from ${m.user ?? "unknown"}`)
+    return
+  }
   await handle(m.text, m.channel, m.thread_ts ?? m.ts, say)
 })
 
