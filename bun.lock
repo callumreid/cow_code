@@ -854,6 +854,7 @@
         "@slack/bolt": "^3.17.1",
       },
       "devDependencies": {
+        "@types/bun": "catalog:",
         "@types/node": "catalog:",
         "@typescript/native-preview": "catalog:",
         "typescript": "catalog:",

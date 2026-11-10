@@ -1,14 +1,20 @@
-// cow_code Slack door: a Bolt bot (Socket Mode, no inbound port) that talks to the Farmer's Office
-// on the always-on cow server. Mention the bot or DM it and the farmer answers in the thread.
+// cow_code Slack door: a Bolt bot (Socket Mode, no inbound port) on the always-on cow server.
+// DM it and the farmer answers. Mention it in a channel and it does the work: one cow session per
+// Slack thread on the headless worker model, with a reaction on the mention for its state and the
+// result posted to the thread (see work.ts). Only Callum's mentions start work.
 // Threads that need Callum (permission, question, failure) are pushed to a channel as they happen.
 //
 // env: COW_SLACK_BOT_TOKEN (xoxb), COW_SLACK_APP_TOKEN (xapp, connections:write), optional
 //      COW_SLACK_NOTIFY_CHANNEL (channel/DM id for pushes), COW_SERVER_URL (default
-//      http://127.0.0.1:4096), COW_SERVER_PASSWORD_FILE (default ~/.config/opencode/server-password).
+//      http://127.0.0.1:4096), COW_SERVER_PASSWORD_FILE (default ~/.config/opencode/server-password),
+//      COW_SLACK_WORK_USERS (comma-separated Slack user ids allowed to start work; default Callum),
+//      COW_SLACK_WORK_MODEL (default cloudflare-workers-ai/@cf/zai-org/glm-5.3),
+//      COW_SLACK_WORK_VARIANT (default medium), COW_SLACK_WORK_DIR (default ~/coval).
 import { App, LogLevel, SocketModeReceiver, type Logger } from "@slack/bolt"
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { homedir } from "node:os"
 import { join } from "node:path"
+import { createWorker, messageText } from "./work"
 
 const bot = process.env.COW_SLACK_BOT_TOKEN
 const appToken = process.env.COW_SLACK_APP_TOKEN
@@ -104,6 +110,7 @@ async function ask(text: string): Promise<AskResult> {
 function slackify(text: string) {
   // Slack mrkdwn: bold is *x* not **x**, headings become bold lines, keep it under the 40k limit.
   return text
+    .replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g, "<$2|$1>")
     .replace(/\*\*(.+?)\*\*/g, "*$1*")
     .replace(/^#{1,6}\s+(.+)$/gm, "*$1*")
     .slice(0, 39000)
@@ -122,8 +129,61 @@ async function handle(text: string, channel: string, thread: string, say: (m: { 
   }
 }
 
-app.event("app_mention", async ({ event, say }) => {
-  await handle(event.text ?? "", event.channel, (event as { thread_ts?: string }).thread_ts ?? event.ts, say)
+// Channel mentions are work. The bot acts with Callum's credentials on the box, so only his
+// mentions count; anyone else's (and other bots') are dropped without a reply.
+const workers = new Set((process.env.COW_SLACK_WORK_USERS ?? "U0A71JFNCAZ").split(",").map((id) => id.trim()).filter(Boolean))
+const names = new Map<string, string>()
+async function nameOf(user: string) {
+  const known = names.get(user)
+  if (known) return known
+  const info = await app.client.users.info({ user }).catch(() => undefined)
+  const name = info?.user?.profile?.display_name || info?.user?.real_name || info?.user?.name || user
+  names.set(user, name)
+  return name
+}
+const clock = new Intl.DateTimeFormat("en-US", { timeZone: "America/Los_Angeles", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })
+type ThreadMessage = Parameters<typeof messageText>[0] & { ts?: string; user?: string; bot_id?: string; username?: string; bot_profile?: { name?: string } }
+async function threadContext(channel: string, thread: string, range: { after?: string; skip: string }) {
+  const lines: string[] = []
+  let cursor: string | undefined
+  for (let page = 0; page < 5; page++) {
+    const res = await app.client.conversations.replies({ channel, ts: thread, oldest: range.after, limit: 200, cursor })
+    for (const m of (res.messages ?? []) as ThreadMessage[]) {
+      if (!m.ts || m.ts === range.skip || m.user === botUserId) continue
+      if (range.after && Number(m.ts) <= Number(range.after)) continue
+      const who = m.user ? await nameOf(m.user) : (m.bot_profile?.name ?? m.username ?? "a bot")
+      const text = messageText(m).replaceAll(`<@${botUserId}>`, "@cowcode")
+      lines.push(`[${clock.format(new Date(Number(m.ts) * 1000))} PT] ${who}${m.bot_id ? " (bot)" : ""}: ${text}`)
+    }
+    cursor = res.response_metadata?.next_cursor || undefined
+    if (!cursor) break
+  }
+  return lines.join("\n\n").slice(-60_000)
+}
+const worker = createWorker({
+  server,
+  auth,
+  directory: process.env.COW_SLACK_WORK_DIR ?? join(homedir(), "coval"),
+  model: process.env.COW_SLACK_WORK_MODEL ?? "cloudflare-workers-ai/@cf/zai-org/glm-5.3",
+  variant: process.env.COW_SLACK_WORK_VARIANT ?? "medium",
+  stateFile: process.env.COW_SLACK_WORK_STATE ?? join(homedir(), ".coval/state/cow-slack-work.json"),
+  slack: {
+    react: async (channel, timestamp, name) => void (await app.client.reactions.add({ channel, timestamp, name })),
+    unreact: async (channel, timestamp, name) => void (await app.client.reactions.remove({ channel, timestamp, name })),
+    post: async (channel, thread_ts, text) => void (await app.client.chat.postMessage({ channel, thread_ts, text: slackify(text) || "(no reply)", unfurl_links: false })),
+    context: threadContext,
+  },
+})
+
+app.event("app_mention", async ({ event }) => {
+  const e = event as { user?: string; bot_id?: string; text?: string; channel: string; ts: string; thread_ts?: string }
+  if (e.bot_id || !e.user || !workers.has(e.user)) {
+    console.log(`${stamp()} cow-slack: ignored a mention from ${e.user ?? e.bot_id ?? "unknown"} in ${e.channel}`)
+    return
+  }
+  const text = (e.text ?? "").replace(/<@[A-Z0-9]+>/g, "").trim()
+  if (!text) return
+  void worker.submit({ channel: e.channel, thread: e.thread_ts ?? e.ts, ts: e.ts, text })
 })
 
 app.message(async ({ message, say }) => {
@@ -207,4 +267,5 @@ async function onEvent(raw: unknown) {
 await app.start()
 botUserId = (await app.client.auth.test()).user_id
 console.log(`cow-slack: connected as ${botUserId}; farmer at ${server}; pushes ${notify ? "on" : "off"}`)
+worker.resume()
 void watch()

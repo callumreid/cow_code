@@ -1,7 +1,7 @@
 {
-  "display_information": { "name": "cow", "description": "the farmer's office, in slack", "background_color": "#2a7a4b" },
+  "display_information": { "name": "cowcode", "description": "mention it in a channel to hand it work; DM it for the farmer", "background_color": "#2a7a4b" },
   "features": {
-    "bot_user": { "display_name": "cow", "always_online": true },
+    "bot_user": { "display_name": "cowcode", "always_online": true },
     "app_home": { "messages_tab_enabled": true, "messages_tab_read_only_enabled": false }
   },
   "oauth_config": {
