@@ -21,6 +21,8 @@ import {
   homeSessionServerStatus,
   isOfficeOverseerSession,
   latestRoutineSessions,
+  recentSlackSessions,
+  routineDirectories,
   scheduledActivity,
   routineSessionName,
   latestRootSession,
@@ -452,6 +454,42 @@ describe("layout workspace helpers", () => {
     const picked = latestRoutineSessions([sweepOld, eod, subagent, sweepNew, archived, retired, ordinary], jobs)
 
     expect(picked.map((item) => item.id)).toEqual(["sweep-new", "eod"])
+  })
+  test("slack threads: recent roots the Slack door started, newest first", () => {
+    const day = 24 * 60 * 60_000
+    const now = 10 * day
+    const at = (id: string, updated: number, extra: Partial<Session> = {}) =>
+      session({
+        id,
+        directory: "/Users/bronson/coval",
+        title: "fix the finding",
+        metadata: { slackChannel: "C1", slackThread: "1.2" },
+        time: { created: updated, updated },
+        ...extra,
+      })
+    const fresh = at("fresh", now - 1000)
+    const older = at("older", now - day)
+    // Threads from before the metadata existed are recognised by their title.
+    const titled = at("titled", now - 2 * day, { title: "slack · can you speak", metadata: undefined })
+    const stale = at("stale", now - 4 * day)
+    const subagent = at("sub", now - 500, { parentID: "fresh" })
+    const archived = at("arch", now - 500, { time: { created: now - 500, updated: now - 500, archived: now } })
+    const routine = at("routine", now - 500, { title: "routine: eod-review", metadata: { routineName: "eod-review" } })
+
+    const picked = recentSlackSessions([older, stale, titled, subagent, fresh, archived, routine], now)
+
+    expect(picked.map((item) => item.id)).toEqual(["fresh", "older", "titled"])
+  })
+  test("routine directories come from agent jobs that left a thread", () => {
+    const job = (kind: "llm" | "shell", runs: { sessionID?: string; directory?: string }[]) =>
+      ({ name: "job", kind, runs, running: undefined }) as unknown as Parameters<typeof routineDirectories>[0][number]
+    expect(
+      routineDirectories([
+        job("llm", [{ sessionID: "ses_1", directory: "/Users/bronson/coval" }, { directory: "/skipped" }]),
+        job("llm", [{ sessionID: "ses_2", directory: "/Users/bronson/coval" }]),
+        job("shell", [{ sessionID: "ses_3", directory: "/elsewhere" }]),
+      ]),
+    ).toEqual(["/Users/bronson/coval"])
   })
   test("scheduled activity lists every enabled job: its thread, or the job itself", () => {
     const job = (name: string, kind: "llm" | "shell", lastAt?: number, loaded = true) =>

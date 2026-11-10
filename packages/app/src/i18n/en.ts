@@ -251,6 +251,7 @@ export const dict = {
   "sidebar.session.children.retry": "Could not load subagents · Retry",
   "sidebar.session.parent": "Back to parent task",
   "sidebar.scheduledRuns": "Scheduled activity",
+  "sidebar.slackThreads": "Slack",
 
   "dialog.phone.title": "Connect phone",
   "dialog.phone.loading": "Preparing a network address...",

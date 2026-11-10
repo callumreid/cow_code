@@ -49,6 +49,44 @@ export const latestRoutineSessions = (sessions: Iterable<Session>, jobs: Readonl
   return [...byJob.values()].sort(compareSessionTime)
 }
 
+/**
+ * Where the routine runner files its threads on this server (the box's ~/coval), read off the job
+ * feed. The Slack door starts its work threads in the same place.
+ */
+export const routineDirectories = (routines: readonly Routine[]): string[] => {
+  const seen = new Set<string>()
+  for (const routine of routines) {
+    if (routine.kind !== "llm") continue
+    for (const run of [routine.running, ...routine.runs]) {
+      if (run?.sessionID && run.directory) seen.add(run.directory)
+    }
+  }
+  return [...seen]
+}
+
+/**
+ * A thread the Slack door started for a channel mention. cow-slack stamps `slackThread` into
+ * metadata; threads from its first day only have the "slack · <request>" title.
+ */
+export const isSlackSession = (session: Session) =>
+  typeof session.metadata?.slackThread === "string" || /^slack · /.test(session.title ?? "")
+
+const SLACK_RECENT_MS = 3 * 24 * 60 * 60_000
+const SLACK_MAX = 8
+
+/** Slack-started root threads touched in the last three days, newest first, at most eight. */
+export const recentSlackSessions = (sessions: Iterable<Session>, now: number): Session[] =>
+  [...sessions]
+    .filter(
+      (session) =>
+        !session.parentID &&
+        !session.time?.archived &&
+        isSlackSession(session) &&
+        now - (session.time.updated ?? session.time.created) < SLACK_RECENT_MS,
+    )
+    .sort(compareSessionTime)
+    .slice(0, SLACK_MAX)
+
 export type ScheduledActivityItem =
   | { type: "thread"; name: string; session: Session; at: number }
   | { type: "job"; name: string; routine: Routine; at: number }

@@ -3,6 +3,17 @@
 every change to the cow lands here, newest first, one line per thing you would notice.
 what each feature is, and the films, live in the [feature reel](docs/features/README.md).
 
+## 2026-11-10
+
+### Added
+
+- mention @cowcode in a Slack channel and it does the work on the box: one GLM thread per Slack thread, a cow on your message while it works and when it finishes, the result posted back, and follow-up mentions carry on in the same thread
+- the sidebar has a Slack group listing the threads @cowcode started, on any project, so the work can be followed live
+
+### Changed
+
+- cowcode in Slack answers only Callum, in channels and in DMs
+
 ## 2026-11-02
 
 ### Changed
