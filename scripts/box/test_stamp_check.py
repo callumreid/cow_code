@@ -112,6 +112,49 @@ class DecisionTest(unittest.TestCase):
         )
 
 
+class ModelVerdictTest(unittest.TestCase):
+    def test_parse_verdict(self):
+        self.assertEqual(
+            stamp.parse_verdict("Clear ask.\nVERDICT: APPROVE"), ("approve", "")
+        )
+        self.assertEqual(
+            stamp.parse_verdict("They said wait.\nVERDICT: SKIP - not ready yet"),
+            ("skip", "not ready yet"),
+        )
+        self.assertEqual(
+            stamp.parse_verdict("VERDICT: SKIP"), ("skip", "model said skip")
+        )
+        self.assertIsNone(stamp.parse_verdict("I think you should approve it"))
+        # the last verdict wins, e.g. when the model quotes the format first
+        self.assertEqual(
+            stamp.parse_verdict(
+                "VERDICT: APPROVE or VERDICT: SKIP\nVERDICT: SKIP - unclear"
+            )[0],
+            "skip",
+        )
+
+    def test_final_reply_reads_last_assistant_turn(self):
+        msgs = [
+            {"info": {"role": "user"}, "parts": [{"type": "text", "text": "prompt"}]},
+            {
+                "info": {"role": "assistant"},
+                "parts": [
+                    {"type": "reasoning", "text": "hmm"},
+                    {"type": "text", "text": "VERDICT: APPROVE"},
+                ],
+            },
+        ]
+        self.assertEqual(stamp.final_reply(msgs), "VERDICT: APPROVE")
+        self.assertEqual(stamp.final_reply(msgs[:1]), "")
+
+    def test_prompt_fences_the_message(self):
+        prompt = stamp.judge_prompt(
+            "coval-ai/backend#1", "Jake", "stamp pls", pull(title="Fix it")
+        )
+        self.assertIn("<<<\nstamp pls\n>>>", prompt)
+        self.assertIn('"Fix it" by jakelevi', prompt)
+
+
 class StateTest(unittest.TestCase):
     def test_migrates_old_cursor_map(self):
         with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:

@@ -77,8 +77,9 @@
     },
     "dev.coval.stamp-check": {
       "title": "Stamp DMs → approve PR",
-      "description": "Every five minutes, around the clock: reads Callum's 1:1 Slack DMs and approves the coval-ai PR linked in any message that says \"stamp\" (as callumreid, pinned to the PR's current head). Each message is handled once; skips PRs he already approved at their head, drafts, closed PRs, his own PRs, bots and people outside the Coval Slack, and robyoungsf PRs outside frontend (logged for him to check by hand). No merges, comments or Slack replies.",
-      "kind": "shell",
+      "description": "Every five minutes, around the clock: reads Callum's 1:1 Slack DMs for messages that say \"stamp\" with a coval-ai PR link, has DeepSeek V4.1 Flash confirm in a CowCode thread that the message really asks him to approve that PR now, then approves it as callumreid, pinned to the PR's current head. Each message is handled once; skips PRs he already approved at their head, drafts, closed PRs, his own PRs, bots and people outside the Coval Slack, and robyoungsf PRs outside frontend (logged for him to check by hand). No merges, comments or Slack replies.",
+      "kind": "llm",
+      "model": "cloudflare-workers-ai/@cf/deepseek-ai/deepseek-v4.1-flash-1017",
       "log": "~/.coval/logs/stamp-check.log"
     }
   },
