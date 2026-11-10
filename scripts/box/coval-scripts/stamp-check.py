@@ -21,6 +21,7 @@ import re
 import subprocess
 import sys
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 from datetime import datetime
@@ -55,8 +56,15 @@ def slack(token, method, params=None):
     if params:
         url += "?" + urllib.parse.urlencode(params)
     req = urllib.request.Request(url, headers={"Authorization": "Bearer " + token})
-    with urllib.request.urlopen(req, timeout=30) as r:
-        return json.load(r)
+    for attempt in range(4):
+        try:
+            with urllib.request.urlopen(req, timeout=30) as r:
+                return json.load(r)
+        except urllib.error.HTTPError as e:
+            # Rate limited (e.g. "Run now" right after a scheduled run): wait as told, then retry.
+            if e.code != 429 or attempt == 3:
+                raise
+            time.sleep(min(int(e.headers.get("Retry-After") or 5), 30))
 
 
 def gh(args, timeout=60):
@@ -246,11 +254,14 @@ def main():
     for ch in list_ims(token):
         cid = ch["id"]
         oldest = cursors.get(cid, now - FIRST_RUN_LOOKBACK)
-        hist = slack(
-            token,
-            "conversations.history",
-            {"channel": cid, "oldest": oldest, "limit": 200, "inclusive": "false"},
-        )
+        try:
+            hist = slack(
+                token,
+                "conversations.history",
+                {"channel": cid, "oldest": oldest, "limit": 200, "inclusive": "false"},
+            )
+        except (OSError, ValueError) as e:  # cursor stays put, so the next run reads it
+            hist = {"ok": False, "error": str(e)[:120]}
         if not hist.get("ok"):
             log(f"history for {cid} failed: {hist.get('error')}")
             continue
@@ -317,4 +328,10 @@ def main():
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        sys.exit(main())
+    except (
+        Exception
+    ) as e:  # one readable FAILED line for the Scheduled view, not a traceback
+        log(f"FAILED: {type(e).__name__}: {str(e)[:200]}")
+        sys.exit(1)
