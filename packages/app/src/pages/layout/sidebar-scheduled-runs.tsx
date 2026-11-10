@@ -1,5 +1,5 @@
 import { base64Encode } from "@opencode-ai/core/util/encode"
-import { createEffect, createMemo, For, type JSX, Match, Show, Switch } from "solid-js"
+import { createEffect, createMemo, For, type JSX, Match, Show, Switch, untrack } from "solid-js"
 import { createStore } from "solid-js/store"
 import { Icon } from "@opencode-ai/ui/icon"
 import { useLanguage } from "@/context/language"
@@ -60,7 +60,10 @@ export const SidebarScheduledRuns = (props: {
   // ~/coval gains about 9 root threads a day, so 100 still reaches a job idle for ten days or so.
   // The limit is remembered per directory and live events trim to it, so this sticks.
   createEffect(() => {
-    for (const directory of directories()) void serverSync().project.loadSessions(directory, { limit: RETAINED_ROOTS })
+    const current = directories()
+    untrack(() => {
+      for (const directory of current) void serverSync().project.loadSessions(directory, { limit: RETAINED_ROOTS })
+    })
   })
 
   const items = createMemo(() =>
@@ -89,38 +92,55 @@ export const SidebarScheduledRuns = (props: {
           </Show>
         </button>
         <Show when={state.expanded}>
-          <For each={items()}>
-            {(item) => (
-              <Switch>
-                <Match when={item.type === "thread" && item}>
-                  {(thread) => (
-                    <SessionItem
-                      session={thread().session}
-                      list={threads()}
-                      navList={props.ctx.navList}
-                      slug={base64Encode(thread().session.directory)}
-                      mobile={props.mobile}
-                      showChild
-                      sidebarExpanded={props.ctx.sidebarExpanded}
-                      clearHoverProjectSoon={props.ctx.clearHoverProjectSoon}
-                      prefetchSession={props.ctx.prefetchSession}
-                      archiveSession={props.ctx.archiveSession}
-                    />
-                  )}
-                </Match>
-                <Match when={item.type === "job" && item}>
-                  {(job) => (
-                    <ScheduledJobRow
-                      routine={job().routine}
-                      onOpen={() => {
-                        focusScheduledRoutine(job().name)
-                        props.onOpenScheduled?.()
-                      }}
-                    />
-                  )}
-                </Match>
-              </Switch>
-            )}
+          <For each={items().map((item) => item.name)}>
+            {(name) => {
+              const item = () => items().find((entry) => entry.name === name)
+              const thread = () => {
+                const value = item()
+                return value?.type === "thread" ? value : undefined
+              }
+              const job = () => {
+                const value = item()
+                return value?.type === "job" ? value : undefined
+              }
+              return (
+                <Switch>
+                  <Match when={thread()}>
+                    {(thread) => (
+                      <Show when={thread().session.id} keyed>
+                        {(id) =>
+                          id && (
+                            <SessionItem
+                              session={thread().session}
+                              list={threads()}
+                              navList={props.ctx.navList}
+                              slug={base64Encode(thread().session.directory)}
+                              mobile={props.mobile}
+                              showChild
+                              sidebarExpanded={props.ctx.sidebarExpanded}
+                              clearHoverProjectSoon={props.ctx.clearHoverProjectSoon}
+                              prefetchSession={props.ctx.prefetchSession}
+                              archiveSession={props.ctx.archiveSession}
+                            />
+                          )
+                        }
+                      </Show>
+                    )}
+                  </Match>
+                  <Match when={job()}>
+                    {(job) => (
+                      <ScheduledJobRow
+                        routine={job().routine}
+                        onOpen={() => {
+                          focusScheduledRoutine(job().name)
+                          props.onOpenScheduled?.()
+                        }}
+                      />
+                    )}
+                  </Match>
+                </Switch>
+              )
+            }}
           </For>
         </Show>
       </div>

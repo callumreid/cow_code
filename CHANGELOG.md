@@ -15,6 +15,10 @@ what each feature is, and the films, live in the [feature reel](docs/features/RE
 - cowcode in Slack answers only Callum, in channels and in DMs
 - a cowcode thread asked for a mid-job update posts it to Slack as the cowcode app, not with Callum's own Slack token
 
+### Fixed
+
+- keep scheduled activity rows stable while threads update to avoid repeatedly rebuilding the sidebar
+
 ## 2026-11-02
 
 ### Changed
