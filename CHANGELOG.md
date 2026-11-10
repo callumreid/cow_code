@@ -13,6 +13,7 @@ what each feature is, and the films, live in the [feature reel](docs/features/RE
 ### Changed
 
 - cowcode in Slack answers only Callum, in channels and in DMs
+- a cowcode thread asked for a mid-job update posts it to Slack as the cowcode app, not with Callum's own Slack token
 
 ## 2026-11-02
 

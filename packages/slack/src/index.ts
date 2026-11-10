@@ -15,7 +15,11 @@ import { App, LogLevel, SocketModeReceiver, type Logger } from "@slack/bolt"
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { homedir } from "node:os"
 import { join } from "node:path"
-import { createWorker, messageText } from "./work"
+import { say } from "./say"
+import { createWorker, messageText, slackify } from "./work"
+
+// `cow-slack say <channel> <thread_ts>`: a one-shot post as the bot (see say.ts), not the door.
+if (process.argv[2] === "say") process.exit(await say(process.argv.slice(3), await Bun.stdin.text()))
 
 const bot = process.env.COW_SLACK_BOT_TOKEN
 const appToken = process.env.COW_SLACK_APP_TOKEN
@@ -106,15 +110,6 @@ async function ask(text: string): Promise<AskResult> {
   })
   if (!res.ok) throw new Error(`office/ask ${res.status}: ${(await res.text()).slice(0, 200)}`)
   return (await res.json()) as AskResult
-}
-
-function slackify(text: string) {
-  // Slack mrkdwn: bold is *x* not **x**, headings become bold lines, keep it under the 40k limit.
-  return text
-    .replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g, "<$2|$1>")
-    .replace(/\*\*(.+?)\*\*/g, "*$1*")
-    .replace(/^#{1,6}\s+(.+)$/gm, "*$1*")
-    .slice(0, 39000)
 }
 
 // The bot acts with Callum's credentials on the box, so it answers only him.
