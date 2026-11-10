@@ -3,7 +3,7 @@ import { showToast } from "@/utils/toast"
 import { base64Encode } from "@opencode-ai/core/util/encode"
 import { Binary } from "@opencode-ai/core/util/binary"
 import { useNavigate, useParams, useSearchParams } from "@solidjs/router"
-import { batch, startTransition, type Accessor } from "solid-js"
+import { batch, createSignal, startTransition, type Accessor } from "solid-js"
 import { useTabs } from "@/context/tabs"
 import { useServerSync, type ServerSync } from "@/context/server-sync"
 import { useLanguage } from "@/context/language"
@@ -24,6 +24,7 @@ import { normalizeSessionInfo } from "@/utils/session"
 import { Event } from "@opencode-ai/schema/event"
 import { blobDataUrl } from "@/utils/draft-store"
 import { imageCapability } from "../model-capabilities"
+import { createSessionWithRetry } from "./create-session"
 
 type PendingPrompt = {
   abort: AbortController
@@ -251,6 +252,9 @@ export function createPromptSubmit(input: PromptSubmitInput) {
   const [search] = useSearchParams<{ draftId?: string }>()
   const tabs = useTabs()
   const pendingKey = (sessionID: string) => ScopedKey.from(sdk().scope, sessionID)
+  // True while a send is creating a new thread. Repeat sends are ignored until it settles, so a
+  // slow create (the tunnel to the box) cannot turn a second click or Enter into a second thread.
+  const [creating, setCreating] = createSignal(false)
 
   const errorMessage = (err: unknown) => {
     if (err && typeof err === "object" && "message" in err && typeof err.message === "string") return err.message
@@ -323,7 +327,17 @@ export function createPromptSubmit(input: PromptSubmitInput) {
 
   const handleSubmit = async (event: Event, opts?: { steer?: boolean }) => {
     event.preventDefault()
+    if (params.id) return submit(opts)
+    if (creating()) return
+    setCreating(true)
+    try {
+      await submit(opts)
+    } finally {
+      setCreating(false)
+    }
+  }
 
+  const submit = async (opts?: { steer?: boolean }) => {
     const target = prompt.capture()
     const submission = createPromptSubmissionState({
       target,
@@ -415,12 +429,16 @@ export function createPromptSubmit(input: PromptSubmitInput) {
 
     let session = input.info()
     if (!session && isNewSession) {
-      const created = await sdk()
-        .api.session.create({
-          agent: currentAgent.name,
-          model: { id: currentModel.id, providerID: currentModel.provider.id, variant },
-          location: { directory: sessionDirectory },
-        })
+      const created = await createSessionWithRetry({
+        id: Identifier.descending("session"),
+        create: (id) =>
+          sdk().api.session.create({
+            id,
+            agent: currentAgent.name,
+            model: { id: currentModel.id, providerID: currentModel.provider.id, variant },
+            location: { directory: sessionDirectory },
+          }),
+      })
         .then(normalizeSessionInfo)
         .catch((err) => {
           showToast({
@@ -670,5 +688,6 @@ export function createPromptSubmit(input: PromptSubmitInput) {
   return {
     abort,
     handleSubmit,
+    creating,
   }
 }

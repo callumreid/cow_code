@@ -593,6 +593,31 @@ const scenarios: Scenario[] = [
     .json(200, (body) => {
       check(body === false, "background route should be a no-op without running subagents")
     }),
+  http.protected
+    .get("/experimental/session/{sessionID}/transfer", "experimental.session.transfer.export")
+    .seeded((ctx) => ctx.session({ title: "Transfer export owner" }))
+    .at((ctx) => ({
+      path: route("/experimental/session/{sessionID}/transfer", { sessionID: ctx.state.id }),
+      headers: ctx.headers(),
+    }))
+    .json(200, (body, ctx) => {
+      check(typeof body === "object" && body !== null, "transfer export should be an object")
+      check((body as { info?: { id?: string } }).info?.id === ctx.state.id, "transfer export should carry the thread")
+      check(Array.isArray((body as { messages?: unknown }).messages), "transfer export should list messages")
+    }),
+  http.protected
+    .post("/experimental/session/transfer", "experimental.session.transfer.import")
+    .mutating()
+    .seeded((ctx) => ctx.session({ title: "Transfer import owner" }))
+    .at((ctx) => ({
+      path: "/experimental/session/transfer",
+      headers: ctx.headers(),
+      body: { info: ctx.state, messages: [] },
+    }))
+    .json(200, (body, ctx) => {
+      check((body as { sessionID?: string }).sessionID === ctx.state.id, "transfer import should return the thread")
+      check((body as { changes?: string }).changes === "none", "transfer import without changes should apply none")
+    }),
   http.protected.get("/experimental/resource", "experimental.resource.list").json(),
   http.protected
     .post("/sync/history", "sync.history.list")

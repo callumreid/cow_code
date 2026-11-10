@@ -52,6 +52,7 @@ import { usePermission } from "@/context/permission"
 import { useLanguage } from "@/context/language"
 import { usePlatform } from "@/context/platform"
 import { createSessionTabs } from "@/pages/session/helpers"
+import { createThreadLocationControl } from "@/components/prompt-input/thread-location-control"
 import { createTextFragment, getCursorPosition, setCursorPosition, setRangeEdge } from "./prompt-input/editor-dom"
 import { createPromptAttachments } from "./prompt-input/attachments"
 import { ACCEPTED_FILE_TYPES, pickAttachmentFiles } from "./prompt-input/files"
@@ -1225,7 +1226,13 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     return permission.isAutoAccepting(id, sdk().directory)
   })
 
-  const { abort, handleSubmit } =
+  const location = createThreadLocationControl({
+    prompt,
+    sessionID: () => props.controls.session.id,
+    working,
+  })
+
+  const { abort, handleSubmit, creating } =
     props.submission ??
     createPromptSubmit({
       prompt,
@@ -1671,11 +1678,11 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
             />
 
             <div class="flex items-center gap-1 pointer-events-auto">
-              <Tooltip placement="top" inactive={!working() && blank()} value={tip()}>
+              <Tooltip placement="top" inactive={(!working() && blank()) || !!creating?.()} value={tip()}>
                 <IconButton
                   data-action="prompt-submit"
                   type="button"
-                  disabled={!working() && blank()}
+                  disabled={(!working() && blank()) || !!creating?.()}
                   tabIndex={store.mode === "normal" ? undefined : -1}
                   icon={stopping() ? "stop" : store.mode === "shell" ? "arrow-undo-down" : "arrow-up"}
                   variant="primary"
@@ -1764,23 +1771,45 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                     <TooltipKeybind
                       placement="top"
                       gutter={4}
-                      title={language.t("command.agent.cycle")}
-                      keybind={command.keybind("agent.cycle")}
+                      title={location.available() ? "Where this thread runs" : language.t("command.agent.cycle")}
+                      keybind={location.available() ? "" : command.keybind("agent.cycle")}
                     >
-                      <Select
-                        size="normal"
-                        options={props.controls.agents.options}
-                        current={props.controls.agents.current}
-                        onSelect={(value) => {
-                          props.controls.agents.select(value)
-                          restoreFocus()
-                        }}
-                        class="capitalize max-w-[160px] text-text-base"
-                        valueClass="truncate text-13-regular text-text-base"
-                        triggerStyle={control()}
-                        triggerProps={{ "data-action": "prompt-agent" }}
-                        variant="ghost"
-                      />
+                      <Show
+                        when={location.available()}
+                        fallback={
+                          <Select
+                            size="normal"
+                            options={props.controls.agents.options}
+                            current={props.controls.agents.current}
+                            onSelect={(value) => {
+                              props.controls.agents.select(value)
+                              restoreFocus()
+                            }}
+                            class="capitalize max-w-[160px] text-text-base"
+                            valueClass="truncate text-13-regular text-text-base"
+                            triggerStyle={control()}
+                            triggerProps={{ "data-action": "prompt-agent" }}
+                            variant="ghost"
+                          />
+                        }
+                      >
+                        <Select
+                          size="normal"
+                          options={location.options().map((item) => item.id)}
+                          current={location.current()}
+                          label={(id: string) => location.options().find((item) => item.id === id)?.label ?? id}
+                          onSelect={(value) => {
+                            if (value) location.select(value)
+                            restoreFocus()
+                          }}
+                          disabled={location.moving()}
+                          class="max-w-[180px] text-text-base"
+                          valueClass="truncate text-13-regular text-text-base"
+                          triggerStyle={control()}
+                          triggerProps={{ "data-action": "prompt-location" }}
+                          variant="ghost"
+                        />
+                      </Show>
                     </TooltipKeybind>
                   </div>
                 </Show>

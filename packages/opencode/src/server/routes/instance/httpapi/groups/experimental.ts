@@ -2,6 +2,7 @@ import { AccountID, OrgID } from "@/account/schema"
 import { MCP } from "@/mcp"
 
 import { Session } from "@/session/session"
+import * as SessionTransfer from "@/session/transfer"
 import { SessionID } from "@/session/schema"
 import { Worktree } from "@/worktree"
 import { NonNegativeInt } from "@opencode-ai/core/schema"
@@ -18,6 +19,14 @@ import { described } from "./metadata"
 import { QueryBoolean } from "./query"
 import { ProviderV2 } from "@opencode-ai/core/provider"
 import { ModelV2 } from "@opencode-ai/core/model"
+
+export class ApiSessionTransferError extends Schema.ErrorClass<ApiSessionTransferError>("SessionTransferError")(
+  {
+    name: Schema.Literal("SessionTransferError"),
+    data: Schema.Struct({ message: Schema.String }),
+  },
+  { httpApiStatus: 400 },
+) {}
 
 const ConsoleStateResponse = Schema.Struct({
   consoleManagedProviders: Schema.mutable(Schema.Array(Schema.String)),
@@ -98,6 +107,8 @@ export const ExperimentalPaths = {
   worktreeReset: "/experimental/worktree/reset",
   session: "/experimental/session",
   sessionBackground: "/experimental/session/:sessionID/background",
+  sessionExport: "/experimental/session/:sessionID/transfer",
+  sessionImport: "/experimental/session/transfer",
   resource: "/experimental/resource",
 } as const
 
@@ -230,6 +241,32 @@ export const ExperimentalApi = HttpApi.make("experimental")
             summary: "List sessions",
             description:
               "Get a list of all OpenCode sessions across projects, sorted by most recently updated. Archived sessions are excluded by default.",
+          }),
+        ),
+        HttpApiEndpoint.get("sessionExport", ExperimentalPaths.sessionExport, {
+          params: { sessionID: SessionID },
+          query: WorkspaceRoutingQuery,
+          success: described(SessionTransfer.ExportResult, "Thread with its messages and working-tree changes"),
+          error: [HttpApiError.BadRequest, HttpApiError.NotFound],
+        }).annotateMerge(
+          OpenApi.annotations({
+            identifier: "experimental.session.transfer.export",
+            summary: "Export thread for transfer",
+            description:
+              "Export a thread, its messages, branch and uncommitted changes so another machine's server can import it.",
+          }),
+        ),
+        HttpApiEndpoint.post("sessionImport", ExperimentalPaths.sessionImport, {
+          query: WorkspaceRoutingQuery,
+          payload: SessionTransfer.ImportPayload,
+          success: described(SessionTransfer.ImportResult, "Thread imported"),
+          error: [HttpApiError.BadRequest, ApiSessionTransferError],
+        }).annotateMerge(
+          OpenApi.annotations({
+            identifier: "experimental.session.transfer.import",
+            summary: "Import transferred thread",
+            description:
+              "Import a thread exported by another machine's server into the requested folder, replacing any earlier copy, and apply its uncommitted changes.",
           }),
         ),
         HttpApiEndpoint.post("sessionBackground", ExperimentalPaths.sessionBackground, {

@@ -29,6 +29,7 @@ import { usePlatform } from "@/context/platform"
 import { useSDK } from "@/context/sdk"
 import { useSync } from "@/context/sync"
 import { createSessionTabs } from "@/pages/session/helpers"
+import { createThreadLocationControl } from "@/components/prompt-input/thread-location-control"
 import { showToast } from "@/utils/toast"
 import { moo } from "@/utils/moo"
 import { PromptInputV2, type PromptInputV2Suggestion } from "@opencode-ai/session-ui/v2/prompt-input"
@@ -118,6 +119,12 @@ export function usePromptInputV2Controller(props: PromptInputV2ControllerProps):
   })
   const info = createMemo(() => (props.controls.session.id ? sync().session.get(props.controls.session.id) : undefined))
   const working = createMemo(() => sync().data.session_working(props.controls.session.id ?? ""))
+
+  const location = createThreadLocationControl({
+    prompt,
+    sessionID: () => props.controls.session.id,
+    working,
+  })
   const attachments = createMemo(() =>
     prompt.current().filter((part): part is ImageAttachmentPart => part.type === "image"),
   )
@@ -400,14 +407,8 @@ export function usePromptInputV2Controller(props: PromptInputV2ControllerProps):
         event.preventDefault()
       },
       get agent() {
-        return props.controls.agents.visible && props.controls.agents.options.length > 0
-          ? {
-              options: () => props.controls.agents.options.map((name) => ({ id: name, label: name })),
-              current: () => props.controls.agents.current,
-              onSelect: (value: string) => props.controls.agents.select(value),
-              keybind: () => command.keybindParts("agent.cycle"),
-            }
-          : undefined
+        if (!location.available()) return undefined
+        return { options: location.options, current: location.current, onSelect: location.select }
       },
       variant: {
         options: () => variants().map((value) => ({ id: value, label: value })),
@@ -418,6 +419,7 @@ export function usePromptInputV2Controller(props: PromptInputV2ControllerProps):
       submit: {
         stopping,
         working,
+        busy: submission.creating,
         onSubmit: (opts) => void submission.handleSubmit(new Event("submit"), opts),
         onSteerQueued: props.onSteerQueued,
         onStop: () => void submission.abort(),

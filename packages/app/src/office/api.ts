@@ -190,6 +190,9 @@ function errorMessage(body: string, status: number) {
   if (parsed && typeof parsed === "object" && "error" in parsed && typeof parsed.error === "string") {
     return parsed.error
   }
+  // Typed HttpApi errors: { name, data: { message } }.
+  const data = parsed && typeof parsed === "object" && "data" in parsed ? parsed.data : undefined
+  if (data && typeof data === "object" && "message" in data && typeof data.message === "string") return data.message
   const text = body.trim()
   if (text && text.length <= 300) return text
   return `Request failed with status ${status}`

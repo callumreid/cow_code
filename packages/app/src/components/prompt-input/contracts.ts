@@ -8,6 +8,8 @@ export type PromptInputState = ReturnType<typeof usePrompt>
 export type PromptInputSubmission = {
   abort: () => Promise<void> | void
   handleSubmit: (event: Event, opts?: { steer?: boolean }) => Promise<void> | void
+  /** A send is creating a new thread; Send stays disabled until it settles. */
+  creating?: () => boolean
 }
 
 export type PromptInputControls = {

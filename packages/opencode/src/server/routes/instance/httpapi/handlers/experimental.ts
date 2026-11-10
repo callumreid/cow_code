@@ -7,6 +7,8 @@ import { RuntimeFlags } from "@/effect/runtime-flags"
 import { MCP } from "@/mcp"
 import { Project } from "@/project/project"
 import { Session } from "@/session/session"
+import * as SessionTransfer from "@/session/transfer"
+import { Git as CoreGit } from "@opencode-ai/core/git"
 import type { SessionID } from "@/session/schema"
 import { ToolJsonSchema } from "@/tool/json-schema"
 import { ToolRegistry } from "@/tool/registry"
@@ -15,7 +17,13 @@ import { Effect, Option } from "effect"
 import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse"
 import { HttpApiBuilder, HttpApiError } from "effect/unstable/httpapi"
 import { InstanceHttpApi } from "../api"
-import { ConsoleSwitchPayload, SessionListQuery, ToolListQuery, WorktreeApiError } from "../groups/experimental"
+import {
+  ApiSessionTransferError,
+  ConsoleSwitchPayload,
+  SessionListQuery,
+  ToolListQuery,
+  WorktreeApiError,
+} from "../groups/experimental"
 
 function mapWorktreeError<A, R>(self: Effect.Effect<A, Worktree.Error, R>) {
   return self.pipe(
@@ -34,6 +42,7 @@ export const experimentalHandlers = HttpApiBuilder.group(InstanceHttpApi, "exper
     const worktreeSvc = yield* Worktree.Service
     const sessions = yield* Session.Service
     const background = yield* BackgroundJob.Service
+    const coreGit = yield* CoreGit.Service
     const flags = yield* RuntimeFlags.Service
 
     const capabilities = Effect.fn("ExperimentalHttpApi.capabilities")(function* () {
@@ -175,6 +184,32 @@ export const experimentalHandlers = HttpApiBuilder.group(InstanceHttpApi, "exper
       return yield* mcp.resources()
     })
 
+    const sessionExport = Effect.fn("ExperimentalHttpApi.sessionExport")(function* (ctx: {
+      params: { sessionID: SessionID }
+    }) {
+      return yield* SessionTransfer.exportSession(ctx.params.sessionID).pipe(
+        Effect.catchTag("NotFoundError", () => Effect.fail(new HttpApiError.NotFound({}))),
+        Effect.provideService(Session.Service, sessions),
+        Effect.provideService(CoreGit.Service, coreGit),
+      )
+    })
+
+    const sessionImport = Effect.fn("ExperimentalHttpApi.sessionImport")(function* (ctx: {
+      payload: SessionTransfer.ImportPayload
+    }) {
+      return yield* SessionTransfer.importSession(ctx.payload).pipe(
+        Effect.provideService(CoreGit.Service, coreGit),
+        Effect.mapError(
+          (error) => new ApiSessionTransferError({ name: "SessionTransferError", data: { message: error.message } }),
+        ),
+        Effect.catchDefect((defect) =>
+          Effect.logError("session transfer import failed", defect).pipe(
+            Effect.andThen(Effect.fail(new HttpApiError.BadRequest({}))),
+          ),
+        ),
+      )
+    })
+
     return handlers
       .handle("capabilities", capabilities)
       .handle("console", getConsole)
@@ -188,6 +223,8 @@ export const experimentalHandlers = HttpApiBuilder.group(InstanceHttpApi, "exper
       .handle("worktreeReset", worktreeReset)
       .handle("session", session)
       .handle("sessionBackground", sessionBackground)
+      .handle("sessionExport", sessionExport)
+      .handle("sessionImport", sessionImport)
       .handle("resource", resource)
   }),
 )

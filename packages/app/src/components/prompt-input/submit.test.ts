@@ -335,7 +335,11 @@ describe("prompt submit worktree selection", () => {
 
     expect(createdClients).toEqual(["/repo/worktree-a", "/repo/worktree-b"])
     expect(createdSessions).toEqual(["/repo/worktree-a", "/repo/worktree-b"])
-    expect(sessionCreateInputs).toEqual([
+    // Each send mints its own thread id, reused only by that send's retries.
+    const ids = sessionCreateInputs.map((input) => (input as { id?: string }).id)
+    expect(ids.every((id) => id?.startsWith("ses_"))).toBe(true)
+    expect(new Set(ids).size).toBe(2)
+    expect((sessionCreateInputs as Array<Record<string, unknown>>).map(({ id: _id, ...rest }) => rest)).toEqual([
       {
         agent: "agent",
         model: { id: "model", providerID: "provider", variant: undefined },

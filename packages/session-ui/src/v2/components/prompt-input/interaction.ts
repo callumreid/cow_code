@@ -37,6 +37,8 @@ export type PromptInputV2ViewConfig = {
   submit: {
     stopping: Accessor<boolean>
     working?: Accessor<boolean>
+    /** A send is already in flight (e.g. creating the thread); Send stays disabled until it settles. */
+    busy?: Accessor<boolean>
     onSubmit: (opts?: { steer?: boolean }) => void
     onSteerQueued?: () => boolean
     onStop: () => void
@@ -348,6 +350,7 @@ export function createPromptInputV2Controller(input: {
       draft.removeAttachment(id)
     },
     canSubmit() {
+      if (input.view.submit.busy?.()) return false
       const persisted = draft.state
       if (persisted.prompt.some((part) => part.type === "image")) return true
       if (persisted.context.items.some((item) => !!item.comment?.trim())) return true

@@ -246,6 +246,22 @@ export const { use: useTabs, provider: TabsProvider } = createSimpleContext({
         memory.remove(`draft:${draftID}`)
         removeDraftPersisted(draftID)
       },
+      /** A thread moved to another machine: its tab now points at the same session id there. */
+      retargetSession(from: Omit<SessionTab, "type">, to: Omit<SessionTab, "type">) {
+        const next = { type: "session" as const, ...to }
+        void startTransition(() => {
+          setStore(
+            produce((tabs) => {
+              const index = tabs.findIndex(
+                (tab) => tab.type === "session" && tab.server === from.server && tab.sessionId === from.sessionId,
+              )
+              if (index === -1) tabs.push(next)
+              else tabs[index] = next
+            }),
+          )
+          navigateTab(next)
+        })
+      },
       removeTab,
       // User-initiated close: records the tab so it can be reopened.
       // Cleanup paths (missing sessions, archive, server removal) go through
