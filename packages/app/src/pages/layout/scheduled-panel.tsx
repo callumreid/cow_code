@@ -1,4 +1,4 @@
-import { createMemo, createSignal, For, onCleanup, Show, type JSX } from "solid-js"
+import { createEffect, createMemo, createSignal, For, onCleanup, Show, type JSX } from "solid-js"
 import { makeEventListener } from "@solid-primitives/event-listener"
 import { Icon } from "@opencode-ai/ui/icon"
 import { IconButton } from "@opencode-ai/ui/icon-button"
@@ -11,7 +11,11 @@ import type { Routine, RoutineRun, RoutineRunStatus } from "@/routines/types"
 
 type Status = RoutineRunStatus | "never"
 
-const STATUS_DOT: Record<Status, string> = {
+/** A job the sidebar asked to show: its row opens (with its log) and scrolls into view. */
+const [focusedRoutine, setFocusedRoutine] = createSignal<string>()
+export const focusScheduledRoutine = (name: string) => setFocusedRoutine(name)
+
+export const STATUS_DOT: Record<Status, string> = {
   running: "bg-icon-info-base animate-pulse",
   ok: "bg-icon-success-base",
   failed: "bg-icon-critical-base",
@@ -81,7 +85,7 @@ function until(time: number, now: number) {
   return when(time, now)
 }
 
-function statusOf(routine: Routine): Status {
+export function statusOf(routine: Routine): Status {
   if (routine.running) return "running"
   return routine.last?.status ?? "never"
 }
@@ -175,6 +179,13 @@ const RoutineRow = (props: {
     setOpen(next)
     if (next && !log()) void loadLog()
   }
+  let row: HTMLDivElement | undefined
+  createEffect(() => {
+    if (focusedRoutine() !== props.routine.name) return
+    setFocusedRoutine(undefined)
+    if (!open()) toggle()
+    requestAnimationFrame(() => row?.scrollIntoView({ block: "start", behavior: "smooth" }))
+  })
   const runNow = async () => {
     setStarting(true)
     setRunError(undefined)
@@ -183,7 +194,7 @@ const RoutineRow = (props: {
   }
 
   return (
-    <div class="rounded-lg border border-border-weaker-base">
+    <div ref={row} class="rounded-lg border border-border-weaker-base">
       <div class="flex items-center gap-3 px-3 py-2.5">
         <button
           type="button"

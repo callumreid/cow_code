@@ -21,6 +21,7 @@ import {
   homeSessionServerStatus,
   isOfficeOverseerSession,
   latestRoutineSessions,
+  scheduledActivity,
   routineSessionName,
   latestRootSession,
   sortedRootSessions,
@@ -451,5 +452,38 @@ describe("layout workspace helpers", () => {
     const picked = latestRoutineSessions([sweepOld, eod, subagent, sweepNew, archived, retired, ordinary], jobs)
 
     expect(picked.map((item) => item.id)).toEqual(["sweep-new", "eod"])
+  })
+  test("scheduled activity lists every enabled job: its thread, or the job itself", () => {
+    const job = (name: string, kind: "llm" | "shell", lastAt?: number, loaded = true) =>
+      ({
+        name,
+        label: `dev.coval.${name}`,
+        title: name,
+        kind,
+        schedule: "every 5 minutes",
+        loaded,
+        runs: [],
+        last: lastAt ? { startedAt: lastAt - 5, endedAt: lastAt, status: "ok" as const, summary: "done" } : null,
+      }) as Parameters<typeof scheduledActivity>[0][number]
+    const thread = session({
+      id: "sweep",
+      directory: "/Users/bronson/coval",
+      title: "routine: pr-review-sweep stamp",
+      time: { created: 30, updated: 30, archived: undefined },
+    })
+    const items = scheduledActivity(
+      [
+        job("pr-review-sweep", "llm", 25),
+        job("stamp-check", "shell", 40),
+        job("pr-keep-updated", "shell", 10),
+        job("daily-prod-validation", "llm", 50, false),
+      ],
+      [thread],
+    )
+    expect(items.map((item) => [item.type, item.name])).toEqual([
+      ["job", "stamp-check"],
+      ["thread", "pr-review-sweep"],
+      ["job", "pr-keep-updated"],
+    ])
   })
 })

@@ -1,20 +1,24 @@
 import { base64Encode } from "@opencode-ai/core/util/encode"
-import { createEffect, createMemo, For, type JSX, Show } from "solid-js"
+import { createEffect, createMemo, For, type JSX, Match, Show, Switch } from "solid-js"
 import { createStore } from "solid-js/store"
 import { Icon } from "@opencode-ai/ui/icon"
 import { useLanguage } from "@/context/language"
 import { Persist, persisted } from "@/utils/persist"
 import { useServerSync } from "@/context/server-sync"
 import type { RoutinesStore } from "@/routines/store"
-import { latestRoutineSessions } from "./helpers"
+import type { Routine } from "@/routines/types"
+import { scheduledActivity } from "./helpers"
+import { focusScheduledRoutine, STATUS_DOT, statusOf } from "./scheduled-panel"
 import { SessionItem } from "./sidebar-items"
 import type { WorkspaceSidebarContext } from "./sidebar-workspace"
 
 const RETAINED_ROOTS = 100
 
 /**
- * Each scheduled job's latest thread, shown in the sidebar like any other thread whatever project
- * is open: the working cow while it runs, the Scheduled badge once it has finished.
+ * One row per scheduled job that is set to run: its latest thread, shown like any other thread
+ * whatever project is open (the working cow while it runs, the Scheduled badge once it has
+ * finished), or, for a job that leaves no thread (a script, like the stamp check), the job itself
+ * with its latest run; clicking that opens it in Scheduled.
  *
  * Routine threads never appeared on their own. The runner starts them in ~/coval, which is not a git
  * repo, so the server files them under the global "/" project - one nobody opens, and whose own list
@@ -25,6 +29,7 @@ export const SidebarScheduledRuns = (props: {
   store: RoutinesStore
   ctx: WorkspaceSidebarContext
   mobile?: boolean
+  onOpenScheduled?: () => void
 }): JSX.Element => {
   const serverSync = useServerSync()
   const language = useLanguage()
@@ -58,15 +63,16 @@ export const SidebarScheduledRuns = (props: {
     for (const directory of directories()) void serverSync().project.loadSessions(directory, { limit: RETAINED_ROOTS })
   })
 
-  const latest = createMemo(() =>
-    latestRoutineSessions(
+  const items = createMemo(() =>
+    scheduledActivity(
+      props.store.data()?.routines ?? [],
       stores().flatMap((store) => store.session ?? []),
-      new Set(routines().map((routine) => routine.name)),
     ),
   )
+  const threads = createMemo(() => items().flatMap((item) => (item.type === "thread" ? [item.session] : [])))
 
   return (
-    <Show when={latest().length > 0}>
+    <Show when={items().length > 0}>
       <div class="shrink-0 pb-2 mb-2 border-b border-border-weaker-base">
         <button
           type="button"
@@ -76,31 +82,70 @@ export const SidebarScheduledRuns = (props: {
         >
           <Icon name={state.expanded ? "chevron-down" : "chevron-right"} size="small" />
           <span class="flex-1 text-left">{language.t("sidebar.scheduledRuns")}</span>
-          <Show when={props.store.runningCount() > 0} fallback={<span class="tabular-nums">{latest().length}</span>}>
+          <Show when={props.store.runningCount() > 0} fallback={<span class="tabular-nums">{items().length}</span>}>
             <span class="text-icon-info-base">
               {language.plural("sidebar.nav.runningNow", props.store.runningCount())}
             </span>
           </Show>
         </button>
         <Show when={state.expanded}>
-          <For each={latest()}>
-            {(session) => (
-              <SessionItem
-                session={session}
-                list={latest()}
-                navList={props.ctx.navList}
-                slug={base64Encode(session.directory)}
-                mobile={props.mobile}
-                showChild
-                sidebarExpanded={props.ctx.sidebarExpanded}
-                clearHoverProjectSoon={props.ctx.clearHoverProjectSoon}
-                prefetchSession={props.ctx.prefetchSession}
-                archiveSession={props.ctx.archiveSession}
-              />
+          <For each={items()}>
+            {(item) => (
+              <Switch>
+                <Match when={item.type === "thread" && item}>
+                  {(thread) => (
+                    <SessionItem
+                      session={thread().session}
+                      list={threads()}
+                      navList={props.ctx.navList}
+                      slug={base64Encode(thread().session.directory)}
+                      mobile={props.mobile}
+                      showChild
+                      sidebarExpanded={props.ctx.sidebarExpanded}
+                      clearHoverProjectSoon={props.ctx.clearHoverProjectSoon}
+                      prefetchSession={props.ctx.prefetchSession}
+                      archiveSession={props.ctx.archiveSession}
+                    />
+                  )}
+                </Match>
+                <Match when={item.type === "job" && item}>
+                  {(job) => (
+                    <ScheduledJobRow
+                      routine={job().routine}
+                      onOpen={() => {
+                        focusScheduledRoutine(job().name)
+                        props.onOpenScheduled?.()
+                      }}
+                    />
+                  )}
+                </Match>
+              </Switch>
             )}
           </For>
         </Show>
       </div>
     </Show>
+  )
+}
+
+/** A job with no thread to open: its latest run, styled like the thread rows above it. */
+const ScheduledJobRow = (props: { routine: Routine; onOpen: () => void }): JSX.Element => {
+  const run = () => props.routine.running ?? props.routine.last
+  return (
+    <button
+      type="button"
+      onClick={() => props.onOpen()}
+      title={run()?.summary ?? props.routine.title}
+      class="w-full flex items-center gap-2 rounded-md pl-2 pr-2 py-1.5 text-left hover:bg-surface-raised-base-hover"
+    >
+      <Icon name="chevron-right" size="small" class="shrink-0 text-icon-weak" />
+      <span class="shrink-0 size-4 flex items-center justify-center">
+        <span class={`size-1.5 rounded-full ${STATUS_DOT[statusOf(props.routine)]}`} />
+      </span>
+      <span class="flex-1 min-w-0 truncate text-14-regular text-text-strong">
+        routine: {props.routine.name}
+        <Show when={run()?.summary}>{(summary) => <span class="text-text-weak"> · {summary()}</span>}</Show>
+      </span>
+    </button>
   )
 }

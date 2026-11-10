@@ -3,6 +3,7 @@ import { type Session } from "@opencode-ai/sdk/v2/client"
 import { pathKey } from "@/utils/path-key"
 import type { ServerConnection } from "@/context/server"
 import type { HomeProjectSelection } from "@/context/layout"
+import type { Routine } from "@/routines/types"
 
 type SessionStore = {
   session?: Session[]
@@ -46,6 +47,38 @@ export const latestRoutineSessions = (sessions: Iterable<Session>, jobs: Readonl
     if (!current || compareSessionTime(session, current) < 0) byJob.set(name, session)
   }
   return [...byJob.values()].sort(compareSessionTime)
+}
+
+export type ScheduledActivityItem =
+  | { type: "thread"; name: string; session: Session; at: number }
+  | { type: "job"; name: string; routine: Routine; at: number }
+
+/**
+ * The sidebar's "Scheduled activity": one row per job that is set to run (its launchd job is
+ * loaded, so paused or removed jobs drop out), newest activity first. A job that leaves threads
+ * shows its latest thread; a script job (or an agent job whose thread is not loaded yet) shows
+ * the job itself with its latest run.
+ */
+export const scheduledActivity = (
+  routines: readonly Routine[],
+  sessions: Iterable<Session>,
+): ScheduledActivityItem[] => {
+  const active = routines.filter((routine) => routine.loaded)
+  const threads = new Map(
+    latestRoutineSessions(sessions, new Set(active.map((routine) => routine.name))).map((session) => [
+      routineSessionName(session)!,
+      session,
+    ]),
+  )
+  return active
+    .map((routine): ScheduledActivityItem => {
+      const session = threads.get(routine.name)
+      if (session)
+        return { type: "thread", name: routine.name, session, at: session.time.updated ?? session.time.created }
+      const run = routine.running ?? routine.last
+      return { type: "job", name: routine.name, routine, at: run ? (run.endedAt ?? run.startedAt) : 0 }
+    })
+    .sort((a, b) => b.at - a.at || a.name.localeCompare(b.name))
 }
 
 const isRootVisibleSession = (session: Session, directory: string, hidden?: (session: Session) => boolean) =>
