@@ -1,4 +1,5 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js"
+import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import {
   CallToolResultSchema,
   ListToolsResultSchema,
@@ -42,7 +43,22 @@ export function defs(client: Client, timeout?: number) {
   return listTools(client, timeout ?? DEFAULT_TIMEOUT).pipe(Effect.catch(() => Effect.void))
 }
 
-export function convertTool(mcpTool: MCPToolDef, client: Client, timeout?: number): Tool {
+/**
+ * `_meta` for a `tools/call`: which session, and which thread (its root session), is calling.
+ * A local server uses it to keep per-thread state, such as each thread's own browser tab.
+ * Only processes this server started get it; requests to remote servers are unchanged.
+ */
+export function sessionMeta(client: Client, input: { sessionID: string; threadID?: string }) {
+  if (!(client.transport instanceof StdioClientTransport)) return undefined
+  return { "cowcode/sessionID": input.sessionID, "cowcode/threadID": input.threadID ?? input.sessionID }
+}
+
+export function convertTool(
+  mcpTool: MCPToolDef,
+  client: Client,
+  timeout?: number,
+  meta?: Record<string, unknown>,
+): Tool {
   const inputSchema: JSONSchema7 = {
     ...(mcpTool.inputSchema as JSONSchema7),
     type: "object",
@@ -58,6 +74,7 @@ export function convertTool(mcpTool: MCPToolDef, client: Client, timeout?: numbe
         {
           name: mcpTool.name,
           arguments: (args || {}) as Record<string, unknown>,
+          ...(meta ? { _meta: meta } : {}),
         },
         CallToolResultSchema,
         {

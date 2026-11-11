@@ -55,6 +55,7 @@ import { eq } from "drizzle-orm"
 import { SessionTable } from "@opencode-ai/core/session/sql"
 import { SessionReminders } from "./reminders"
 import { SessionTools } from "./tools"
+import { SessionThread } from "./thread"
 import { SessionRecovery } from "./recovery"
 import { checkBudget } from "./budget"
 import { SessionGuard } from "./guard"
@@ -1279,6 +1280,7 @@ const layer = Layer.effect(
           const tools = yield* SessionTools.resolve({
             agent,
             session,
+            thread: yield* SessionThread.threadRoot(sessions, session),
             model,
             processor: handle,
             bypassAgentCheck,

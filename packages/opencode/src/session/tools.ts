@@ -42,6 +42,8 @@ export const resolve = Effect.fn("SessionTools.resolve")(function* (input: {
   agent: Agent.Info
   model: Provider.Model
   session: Session.Info
+  /** Root session of the thread; local MCP servers receive it with each tool call. */
+  thread?: string
   processor: Pick<SessionProcessor.Handle, "message" | "updateToolCall" | "completeToolCall">
   bypassAgentCheck: boolean
   messages: SessionV1.WithParts[]
@@ -388,7 +390,12 @@ export const resolve = Effect.fn("SessionTools.resolve")(function* (input: {
   if (flags.experimentalCodeMode) return tools
 
   for (const [key, entry] of Object.entries(input.agent.name === "farmer" ? {} : yield* mcp.tools())) {
-    const item = McpCatalog.convertTool(entry.def, entry.client, entry.timeout)
+    const item = McpCatalog.convertTool(
+      entry.def,
+      entry.client,
+      entry.timeout,
+      McpCatalog.sessionMeta(entry.client, { sessionID: input.session.id, threadID: input.thread }),
+    )
     const execute = item.execute
     if (!execute) continue
 

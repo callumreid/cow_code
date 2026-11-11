@@ -4,12 +4,13 @@ export type CdpMessage = {
   sessionId?: string
   method?: string
   params?: {
-    targetInfo?: { type?: string; targetId?: string }
+    targetInfo?: { type?: string; targetId?: string; openerId?: string }
     sessionId?: string
     targetId?: string
+    waitingForDebugger?: boolean
     [key: string]: unknown
   }
-  result?: { sessionId?: string; [key: string]: unknown }
+  result?: { sessionId?: string; targetId?: string; [key: string]: unknown }
   error?: { code: number; message: string }
 }
 
@@ -62,4 +63,27 @@ export function wipeError(message: CdpMessage) {
         "Refused: this browser profile is shared and holds Callum's sign-ins, so cookies and site data cannot be cleared here. For local or test auth work use a separate browser context, or delete only the one cookie you set.",
     },
   })
+}
+
+/** Closing Chrome ends every thread's tab and the watch view. */
+export const closesBrowser = (method: string) => /^Browser\.(close|crash|crashGpuProcess)$/.test(method)
+
+export function refused(message: CdpMessage, text: string) {
+  return JSON.stringify({ id: message.id, sessionId: message.sessionId, error: { code: -32000, message: text } })
+}
+
+export const foreignTabError = (message: CdpMessage) =>
+  refused(
+    message,
+    "Refused: that tab belongs to another CowCode thread or to Callum. Each thread drives only the tabs it opened; open your own with a new tab.",
+  )
+
+/**
+ * Agent connections name their session in the path: /cowcode/thread/<session>/json/version.
+ * A connection without the prefix (an older wrapper or another local tool) shares one session.
+ */
+export function agentPath(pathname: string) {
+  const match = /^\/cowcode\/thread\/([\w.-]{1,128})(\/.*)?$/.exec(pathname)
+  if (!match) return { session: undefined, prefix: "", path: pathname }
+  return { session: match[1]!, prefix: `/cowcode/thread/${match[1]}`, path: match[2] ?? "/" }
 }

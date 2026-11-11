@@ -6,6 +6,7 @@ import { MCP } from "@/mcp"
 import { McpCatalog } from "@/mcp/catalog"
 import { Agent } from "@/agent/agent"
 import { Session } from "@/session/session"
+import { SessionThread } from "@/session/thread"
 import { Permission } from "@/permission"
 import { Plugin } from "@/plugin"
 
@@ -137,6 +138,7 @@ const invokeChildTool = Effect.fn("CodeMode.invokeChildTool")(function* (input: 
   args: Record<string, unknown>
   callID: string
   ctx: Tool.Context
+  thread: string
 }) {
   yield* input.plugin.trigger(
     "tool.execute.before",
@@ -147,8 +149,12 @@ const invokeChildTool = Effect.fn("CodeMode.invokeChildTool")(function* (input: 
     yield* input.ctx.ask({ permission: input.entry.key, metadata: {}, patterns: ["*"], always: ["*"] })
     // Deliberately mirrors McpCatalog.convertTool's transport call so the MCP service stays free of tool-loop concerns.
     return yield* Effect.promise(async () => {
+      const meta = McpCatalog.sessionMeta(input.entry.tool.client, {
+        sessionID: input.ctx.sessionID,
+        threadID: input.thread,
+      })
       const raw = await input.entry.tool.client.callTool(
-        { name: input.entry.tool.def.name, arguments: input.args },
+        { name: input.entry.tool.def.name, arguments: input.args, ...(meta ? { _meta: meta } : {}) },
         CallToolResultSchema,
         {
           resetTimeoutOnProgress: true,
@@ -207,6 +213,7 @@ export const CodeModeTool = Tool.define(
         }
         const agent = yield* agents.get(ctx.agent)
         const session = yield* sessions.get(ctx.sessionID).pipe(Effect.orDie)
+        const thread = yield* SessionThread.threadRoot(sessions, session)
         const ruleset = Permission.merge(agent.permission, session.permission ?? [])
         const mcpTools = Permission.visibleTools(yield* mcp.tools(), ruleset)
         const servers = Object.keys(yield* mcp.clients()).map(McpCatalog.sanitize)
@@ -227,6 +234,7 @@ export const CodeModeTool = Tool.define(
               args: (input ?? {}) as Record<string, unknown>,
               callID: `${ctx.callID ?? entry.key}/${childCalls}`,
               ctx,
+              thread,
             })
             return projectMcpResult(result, (attachment: Attachment) => void attachments.push(attachment))
           }).pipe(

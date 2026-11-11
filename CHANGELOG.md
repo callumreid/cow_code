@@ -12,6 +12,8 @@ what each feature is, and the films, live in the [feature reel](docs/features/RE
 - a separate task mentioned in a Slack thread that already has cowcode work in flight starts its own session beside it; a follow-up joins the job it is about
 - cowcode reads the Coval app's reply in a thread where it has an open job and acts on the verdict without being asked
 - mentions that arrive while the Slack door is restarting or reconnecting are picked up by a sweep instead of being lost
+- every thread gets its own browser tab in the box's shared Chrome: the Browser panel shows the tab of the thread you are looking at, threads working at once can no longer trample each other's page, and sign-ins are still shared
+- taking control in a thread's Browser panel pauses only that thread's agent; a thread's tabs close when it is archived or after two hours without browser use
 
 ### Changed
 

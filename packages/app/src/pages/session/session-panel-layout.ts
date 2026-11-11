@@ -8,7 +8,20 @@ export function sessionPanelLayout(input: { review: boolean; browser?: boolean; 
   }
 }
 
-export function browserCandidates(http: { url: string; username?: string; password?: string }) {
+/** The thread a session belongs to: its root session. The Browser panel shows that thread's tab. */
+export function browserThread(sessionID: string | undefined, parentOf: (sessionID: string) => string | undefined) {
+  const seen = new Set<string>()
+  let current = sessionID
+  while (current && !seen.has(current)) {
+    seen.add(current)
+    const parent = parentOf(current)
+    if (!parent) break
+    current = parent
+  }
+  return current
+}
+
+export function browserCandidates(http: { url: string; username?: string; password?: string }, thread?: string) {
   const rawOrigin = typeof window !== "undefined" ? window.location.origin : ""
   const origin = /^https?:\/\//i.test(rawOrigin) ? rawOrigin : "http://127.0.0.1:4096"
   const base = new URL(http.url || origin, origin)
@@ -17,7 +30,11 @@ export function browserCandidates(http: { url: string; username?: string; passwo
   const token = http.password
     ? authTokenFromCredentials({ username: http.username, password: http.password })
     : undefined
-  const query = token ? `?auth_token=${encodeURIComponent(token)}` : ""
+  const params = [
+    ...(token ? [`auth_token=${encodeURIComponent(token)}`] : []),
+    ...(thread ? [`thread=${encodeURIComponent(thread)}`] : []),
+  ]
+  const query = params.length ? `?${params.join("&")}` : ""
   const proxiedWs = `${wsProto}//${base.host}/computer/ws${query}`
   const proxiedHttp = `${httpProto}//${base.host}/computer/${query}`
   if (base.protocol === "https:") {

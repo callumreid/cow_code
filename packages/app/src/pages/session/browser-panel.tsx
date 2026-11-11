@@ -33,7 +33,7 @@ const MAC_COMMANDS: Record<string, string> = {
   z: "undo",
 }
 
-export function BrowserPanel(props: { stacked?: boolean } = {}) {
+export function BrowserPanel(props: { stacked?: boolean; thread?: string } = {}) {
   const language = useLanguage()
   const prompt = usePrompt()
   const serverSDK = useServerSDK()
@@ -49,6 +49,7 @@ export function BrowserPanel(props: { stacked?: boolean } = {}) {
     currentTab: "",
     mobileText: "",
     owner: "agent",
+    empty: false,
     recording: false,
     artifacts: [] as { url: string; filename: string; video: boolean }[],
   })
@@ -91,7 +92,9 @@ export function BrowserPanel(props: { stacked?: boolean } = {}) {
   }
 
   createEffect(() => {
-    const candidates = browserCandidates(serverSDK().server.http).ws
+    // Each thread has its own tab; switching threads reconnects to the new thread's tab.
+    const candidates = browserCandidates(serverSDK().server.http, props.thread).ws
+    setState({ frameSrc: "", urlValue: "", tabs: [], currentTab: "", empty: false })
     let disposed = false
     let retryTimer: ReturnType<typeof setTimeout> | undefined
     let attempt = 0
@@ -169,8 +172,14 @@ export function BrowserPanel(props: { stacked?: boolean } = {}) {
               .catch(() => setState("status", language.t("browser.captureFailed")))
             return
           }
+          if (msg.type === "empty") {
+            recorder.stop()
+            setState({ frameSrc: "", urlValue: "", tabs: [], currentTab: "", empty: true, status: "" })
+            return
+          }
           if (msg.type === "frame" && msg.data) {
             if (msg.meta) meta = msg.meta
+            setState("empty", false)
             setState("frameSrc", `data:image/jpeg;base64,${msg.data}`)
             setState("status", `${meta.deviceWidth}×${meta.deviceHeight}`)
           } else if (msg.type === "url" && typeof msg.url === "string") {
@@ -295,7 +304,7 @@ export function BrowserPanel(props: { stacked?: boolean } = {}) {
   }
 
   const popOut = () => {
-    const url = browserCandidates(serverSDK().server.http).popout
+    const url = browserCandidates(serverSDK().server.http, props.thread).popout
     platform.openExternal(url)
   }
 
@@ -500,9 +509,24 @@ export function BrowserPanel(props: { stacked?: boolean } = {}) {
         <Show
           when={state.frameSrc}
           fallback={
-            <div class="h-full w-full flex items-center justify-center text-13-regular text-text-weak">
-              {state.status}
-            </div>
+            <Show
+              when={state.empty}
+              fallback={
+                <div class="h-full w-full flex items-center justify-center text-13-regular text-text-weak">
+                  {state.status}
+                </div>
+              }
+            >
+              <div
+                class="h-full w-full flex flex-col items-center justify-center gap-1.5 px-6 text-center"
+                data-slot="browser-empty"
+              >
+                <div class="text-13-medium text-text-base">{language.t("browser.empty.title")}</div>
+                <div class="max-w-[320px] text-12-regular text-text-weak">
+                  {language.t("browser.empty.description")}
+                </div>
+              </div>
+            </Show>
           }
         >
           <img

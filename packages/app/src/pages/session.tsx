@@ -83,7 +83,7 @@ import {
   sessionPanelWidthMax,
 } from "@/pages/session/session-panel-width"
 import { SessionSidePanel } from "@/pages/session/session-side-panel"
-import { sessionPanelLayout } from "@/pages/session/session-panel-layout"
+import { browserThread, sessionPanelLayout } from "@/pages/session/session-panel-layout"
 import { SessionReviewEmptyChangesV2 } from "@opencode-ai/session-ui/v2/session-review-empty-changes-v2"
 import { SessionReviewEmptyNoGitV2 } from "@opencode-ai/session-ui/v2/session-review-empty-no-git-v2"
 import { SessionReviewV2SidebarToggle } from "@opencode-ai/session-ui/v2/session-review-v2"
@@ -541,6 +541,7 @@ export default function Page() {
 
   const info = createMemo(() => (params.id ? sync().session.get(params.id) : undefined))
   const isChildSession = createMemo(() => !!info()?.parentID)
+  const browserPanelThread = createMemo(() => browserThread(params.id, (id) => sync().session.get(id)?.parentID))
   const canReview = createMemo(() => !!sync().project)
   const reviewTab = createMemo(() => isDesktop())
   const tabState = createSessionTabs({
@@ -2325,7 +2326,7 @@ export default function Page() {
         </div>
 
         <Show when={!newSessionDesign() && desktopBrowserOpen()}>
-          <BrowserPanel />
+          <BrowserPanel thread={browserPanelThread()} />
         </Show>
         <Show when={!newSessionDesign() && !desktopBrowserOpen() && desktopSidePanelOpen()}>
           <Suspense>
@@ -2350,7 +2351,7 @@ export default function Page() {
             <div class="min-w-0 h-full flex flex-1 flex-col">
               <Show when={isDesktop() && desktopBrowserOpen()}>
                 <div class="min-h-0 flex-1 flex">
-                  <BrowserPanel stacked={desktopV2PanelLayout().stacked} />
+                  <BrowserPanel stacked={desktopV2PanelLayout().stacked} thread={browserPanelThread()} />
                 </div>
               </Show>
               <Show when={isDesktop() && !desktopBrowserOpen() && (desktopV2ReviewOpen() || desktopFileTreeOpen())}>

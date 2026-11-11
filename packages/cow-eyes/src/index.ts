@@ -2,14 +2,15 @@
 // --remote-debugging-port=9222 by cow-browser.sh) as a JPEG screencast over a WebSocket and relays
 // mouse, wheel, keyboard, and text back through the Chrome DevTools Protocol. Runs with basic auth
 // (the cow server password) on 0.0.0.0:4099; the phone reaches it through the gate at /computer/.
-import { readFileSync } from "node:fs"
+import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs"
 import { homedir } from "node:os"
-import { join } from "node:path"
+import { dirname, join } from "node:path"
 import { createHmac, timingSafeEqual } from "node:crypto"
 import type { ServerWebSocket } from "bun"
 import html from "./index.html" with { type: "text" }
 import { normalizeUrl } from "./cdp"
-import { startAgentProxy } from "./agent-proxy"
+import { startAgentProxy, type WindowBounds } from "./agent-proxy"
+import { createThreadTabs, validSession } from "./threads"
 
 const PORT = Number(process.env.COW_EYES_PORT ?? 4099)
 const CDP = (process.env.COW_CDP ?? "http://127.0.0.1:9222").replace(/\/+$/, "")
@@ -87,10 +88,15 @@ function dismissManagedProfileNotice(target: Target) {
   } catch {}
 }
 
-async function targets(): Promise<Target[]> {
+/** Every page tab Chrome has, including ones the tab picker hides. */
+async function pages(): Promise<Target[]> {
   const r = await fetch(`${CDP}/json/list`, { signal: AbortSignal.timeout(5_000) })
   if (!r.ok) throw new Error("Browser is unavailable")
-  const all = ((await r.json()) as Target[]).filter((t) => t.type === "page")
+  return ((await r.json()) as Target[]).filter((t) => t.type === "page")
+}
+
+async function targets(): Promise<Target[]> {
+  const all = await pages()
   for (const t of all) {
     if (t.url.startsWith("chrome://managed-user-profile-notice")) dismissManagedProfileNotice(t)
   }
@@ -118,6 +124,9 @@ async function closeTab(id: string) {
 type State = {
   reconnectTimer?: ReturnType<typeof setTimeout>
   closed?: boolean
+  /** The thread (root session) this viewer follows; without one it follows the whole browser. */
+  thread?: string
+  showing: number
   cdp?: WebSocket
   target?: Target
   seq: number
@@ -134,29 +143,75 @@ const send = (ws: Sock, obj: unknown) => {
 }
 
 const viewers = new Set<Sock>()
+// The tab a viewer without a thread shows: the one any agent used last.
 let selectedTarget = ""
 let targetSelection = 0
+
+const threadsFile = process.env.COW_BROWSER_THREADS_FILE ?? join(homedir(), ".config/cow/browser-threads.json")
+let saving: ReturnType<typeof setTimeout> | undefined
+const threads = createThreadTabs({
+  changed(thread) {
+    // Tab ownership outlives a bridge restart, so idle and archived threads still get cleaned up.
+    saving ??= setTimeout(() => {
+      saving = undefined
+      try {
+        mkdirSync(dirname(threadsFile), { recursive: true })
+        writeFileSync(`${threadsFile}.tmp`, JSON.stringify(threads.snapshot()))
+        renameSync(`${threadsFile}.tmp`, threadsFile)
+      } catch {}
+    }, 500)
+    for (const viewer of viewers) if (threadOf(viewer) === thread) void show(viewer)
+  },
+})
+try {
+  threads.load(JSON.parse(readFileSync(threadsFile, "utf8")))
+} catch {}
+
 // Ownership survives transport reconnect. Returning to the agent is always explicit.
-let humanControl = false
-const controlState = () => ({ type: "control", owner: humanControl ? "human" : "agent", target: selectedTarget })
-const broadcast = (value: unknown) => {
-  for (const viewer of viewers) send(viewer, value)
+// A person takes over one thread's browser from that thread's panel, or every thread's from the
+// whole-browser view.
+let humanAll = false
+const humanThreads = new Set<string>()
+const human = (session: string) => humanAll || humanThreads.has(threads.thread(session))
+// A viewer may name any session of a thread (the app can be looking at a subagent's session).
+const threadOf = (ws: Sock) => (ws.data.thread ? threads.thread(ws.data.thread) : undefined)
+const viewerHuman = (ws: Sock) => humanAll || humanThreads.has(threadOf(ws) ?? "")
+const controlState = (ws: Sock) => ({
+  type: "control",
+  owner: viewerHuman(ws) ? "human" : "agent",
+  target: ws.data.target?.id ?? "",
+  thread: threadOf(ws),
+})
+const broadcastControl = () => {
+  for (const viewer of viewers) send(viewer, controlState(viewer))
 }
 async function selectTarget(id: string, agent = false) {
   if (selectedTarget === id) return
   const revision = ++targetSelection
   const target = (await targets()).find((item) => item.id === id)
-  if (!target || revision !== targetSelection || (agent && humanControl)) return
+  if (!target || revision !== targetSelection || (agent && humanAll)) return
   selectedTarget = id
-  for (const viewer of viewers) attach(viewer, target)
-  broadcast(controlState())
+  for (const viewer of viewers) {
+    if (viewer.data.thread) continue
+    attach(viewer, target)
+    send(viewer, controlState(viewer))
+  }
 }
+const windowBounds = ((): WindowBounds | undefined => {
+  const value = process.env.COW_BROWSER_WINDOW ?? "0,0,1440,900"
+  const [left, top, width, height] = value.split(",").map(Number)
+  if ([left, top, width, height].some((part) => !Number.isFinite(part))) return
+  return { left: left!, top: top!, width: width!, height: height! }
+})()
 const agentProxy = startAgentProxy({
   cdp: CDP,
   port: Number(process.env.COW_AGENT_CDP_PORT ?? 4100),
-  human: () => humanControl,
-  select: (id) => {
-    void selectTarget(id, true).catch(() => undefined)
+  threads,
+  human,
+  bounds: windowBounds,
+  acted: (target) => {
+    threads.act(target)
+    void selectTarget(target, true).catch(() => undefined)
   },
 })
 
@@ -284,47 +339,128 @@ function attach(ws: Sock, target: Target) {
       st.cdp = undefined
       send(ws, { type: "detached" })
       setTimeout(() => {
-        if (!st.cdp && !st.closed) void attachFirst(ws)
+        if (!st.cdp && !st.closed) void show(ws)
       }, 500)
     }
   }
   cdp.onerror = () => send(ws, { type: "error", message: "could not attach to the browser tab" })
 }
 
-async function attachFirst(ws: Sock) {
+function release(ws: Sock) {
+  const st = ws.data
+  for (const pending of st.pending.values()) {
+    clearTimeout(pending.timer)
+    pending.resolve(undefined)
+  }
+  st.pending.clear()
+  if (st.shotTimer) clearTimeout(st.shotTimer)
+  st.shotTimer = undefined
+  const old = st.cdp
+  st.cdp = undefined
+  st.target = undefined
+  st.call = undefined
   try {
-    const list = await targets()
-    if (ws.data.closed) return
-    if (list.length) {
-      const target = list.find((item) => item.id === selectedTarget) ?? list[0]!
-      selectedTarget = target.id
-      attach(ws, target)
-      send(ws, {
-        type: "tabs",
-        tabs: list.map(({ id, title, url }) => ({ id, title, url })),
-        current: selectedTarget,
-      })
+    old?.close()
+  } catch {}
+}
+
+const tabList = (list: Target[], thread: string | undefined) => {
+  const own = thread ? new Set(threads.tabs(thread)) : undefined
+  return list.filter((item) => !own || own.has(item.id)).map(({ id, title, url }) => ({ id, title, url }))
+}
+
+/** Point a viewer at the tab its scope calls for: its thread's tab, or the last tab any agent used. */
+async function show(ws: Sock) {
+  const revision = ++ws.data.showing
+  try {
+    const all = await pages()
+    if (ws.data.closed || revision !== ws.data.showing) return
+    const thread = threadOf(ws)
+    if (thread) {
+      const current = threads.current(thread)
+      const target = all.find((item) => item.id === current?.target)
+      // The tab is gone; dropping it re-runs this for the thread's next tab, or the empty state.
+      if (current && !target) return threads.drop(current.target)
+      if (!target) {
+        release(ws)
+        send(ws, { type: "empty", thread })
+        send(ws, { type: "tabs", tabs: [], current: "" })
+        return
+      }
+      if (ws.data.target?.id !== target.id || !ws.data.cdp) attach(ws, target)
+      send(ws, { type: "tabs", tabs: tabList(all, thread), current: target.id })
       return
     }
-    const created = await newTab("about:blank")
-    selectedTarget = created.id
-    attach(ws, created)
+    const list = await targets()
+    if (ws.data.closed || revision !== ws.data.showing) return
+    const target = list.find((item) => item.id === selectedTarget) ?? list[0] ?? (await newTab("about:blank"))
+    selectedTarget = target.id
+    if (ws.data.target?.id !== target.id || !ws.data.cdp) attach(ws, target)
     send(ws, {
       type: "tabs",
-      tabs: [{ id: created.id, title: created.title, url: created.url }],
-      current: created.id,
+      tabs: list.length ? tabList(list, undefined) : [{ id: target.id, title: target.title, url: target.url }],
+      current: selectedTarget,
     })
   } catch (error) {
     if (!ws.data.closed && !ws.data.reconnectTimer)
       ws.data.reconnectTimer = setTimeout(() => {
         ws.data.reconnectTimer = undefined
-        if (!ws.data.closed) void attachFirst(ws)
+        if (!ws.data.closed) void show(ws)
       }, 2_000)
     send(ws, {
       type: "error",
       message: `browser unreachable at ${CDP}: ${error instanceof Error ? error.message : String(error)}`,
     })
   }
+}
+
+// A thread's tab closes when its session is archived or deleted, or after a long idle period.
+// Only tabs recorded as opened for a thread are ever closed here.
+const idleMs = Number(process.env.COW_BROWSER_TAB_IDLE_MINUTES ?? 120) * 60_000
+const serverUrl = (process.env.COW_SERVER_URL ?? "http://127.0.0.1:4096").replace(/\/+$/, "")
+async function closeThreadTabs(session: string) {
+  for (const target of threads.get(session)?.tabs ?? []) await agentProxy.close(target)
+  threads.remove(session)
+}
+async function sessionEnded(session: string) {
+  if (!session.startsWith("ses")) return false
+  const response = await fetch(`${serverUrl}/session/${encodeURIComponent(session)}`, {
+    headers: { authorization: expectedAuth },
+    signal: AbortSignal.timeout(5_000),
+  }).catch(() => undefined)
+  if (!response) return false
+  const info = (await response.json().catch(() => undefined)) as
+    | { id?: string; name?: string; time?: { archived?: number } }
+    | undefined
+  // Only the CowCode server's own answers count; anything else on that port must not close tabs.
+  if (response.status === 404) return info?.name === "NotFoundError"
+  return response.ok && info?.id === session && typeof info.time?.archived === "number"
+}
+let sweeps = 0
+async function sweep() {
+  const all = await pages().catch(() => undefined)
+  if (!all) return
+  threads.prune(new Set(all.map((item) => item.id)))
+  for (const entry of threads.idle(idleMs)) {
+    if (human(entry.session)) continue
+    await closeThreadTabs(entry.session)
+  }
+  if (sweeps++ % 5 !== 0) return
+  const ended = new Map<string, boolean>()
+  const check = async (session: string) => {
+    if (!ended.has(session)) ended.set(session, await sessionEnded(session))
+    return ended.get(session)!
+  }
+  for (const entry of threads.list())
+    if ((await check(entry.session)) || (await check(entry.thread))) await closeThreadTabs(entry.session)
+}
+setInterval(() => void sweep().catch(() => undefined), Number(process.env.COW_BROWSER_SWEEP_SECONDS ?? 60) * 1_000)
+
+/** A person opens a tab: in a thread's view it becomes that thread's tab, so its agent can use it. */
+async function openTab(ws: Sock, url: string) {
+  const thread = threadOf(ws)
+  if (!thread) return selectTarget((await newTab(url)).id)
+  await agentProxy.open(threads.current(thread)?.session ?? thread, url, thread)
 }
 
 const corsHeaders = {
@@ -334,7 +470,7 @@ const corsHeaders = {
 }
 
 const server = Bun.serve<State>({
-  hostname: "0.0.0.0",
+  hostname: process.env.COW_EYES_HOST ?? "0.0.0.0",
   port: PORT,
   async fetch(req, server) {
     if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders })
@@ -345,7 +481,18 @@ const server = Bun.serve<State>({
         headers: { ...corsHeaders, "www-authenticate": 'Basic realm="cow"' },
       })
     if (url.pathname.endsWith("/ws")) {
-      if (server.upgrade(req, { data: { seq: 0, lastFrameAt: 0, pending: new Map() } }))
+      const thread = url.searchParams.get("thread")
+      if (
+        server.upgrade(req, {
+          data: {
+            seq: 0,
+            lastFrameAt: 0,
+            showing: 0,
+            pending: new Map(),
+            thread: validSession(thread) ? thread : undefined,
+          },
+        })
+      )
         return undefined as unknown as Response
       return new Response("upgrade failed", { status: 400, headers: corsHeaders })
     }
@@ -353,6 +500,8 @@ const server = Bun.serve<State>({
       const list = await targets().catch(() => [])
       return Response.json(list, { headers: corsHeaders })
     }
+    if (url.pathname.endsWith("/api/threads"))
+      return Response.json(threads.list(), { headers: { ...corsHeaders, "cache-control": "no-store" } })
     if (url.pathname.endsWith("/api/health")) {
       const list = await targets().catch(() => undefined)
       return Response.json(
@@ -361,8 +510,10 @@ const server = Bun.serve<State>({
           browser: list ? "reachable" : "unavailable",
           tabs: list?.length ?? 0,
           target: selectedTarget,
-          control: humanControl ? "human" : "agent",
+          control: humanAll ? "human" : "agent",
           agentProxyPort: agentProxy.port,
+          threads: threads.list().filter((entry) => entry.tabs.length).length,
+          humanThreads: [...humanThreads],
         },
         { status: list ? 200 : 503, headers: { ...corsHeaders, "cache-control": "no-store" } },
       )
@@ -378,8 +529,8 @@ const server = Bun.serve<State>({
   websocket: {
     open(ws) {
       viewers.add(ws)
-      send(ws, controlState())
-      void attachFirst(ws)
+      send(ws, controlState(ws))
+      void show(ws)
     },
     message(ws, raw) {
       let m: any
@@ -390,8 +541,17 @@ const server = Bun.serve<State>({
       }
       const st = ws.data
       if (m.type === "control") {
-        humanControl = m.owner === "human"
-        broadcast(controlState())
+        const thread = threadOf(ws)
+        if (m.owner === "human") {
+          if (thread) humanThreads.add(thread)
+          else humanAll = true
+        } else {
+          // Returning to the agent from any view also ends a whole-browser takeover, so the
+          // button can never be stuck on a pause this viewer did not start.
+          humanAll = false
+          if (thread) humanThreads.delete(thread)
+        }
+        broadcastControl()
         return
       }
       if (m.type === "ping") {
@@ -417,23 +577,22 @@ const server = Bun.serve<State>({
         })
         return
       }
-      if (m.type !== "tabs" && !humanControl) {
+      if (m.type !== "tabs" && !viewerHuman(ws)) {
         send(ws, { type: "error", message: "Take control before interacting with the browser" })
         return
       }
       switch (m.type) {
         case "tabs":
-          void targets()
-            .then((t) =>
-              send(ws, {
-                type: "tabs",
-                tabs: t.map(({ id, title, url }) => ({ id, title, url })),
-                current: st.target?.id,
-              }),
-            )
+          void (st.thread ? pages() : targets())
+            .then((t) => send(ws, { type: "tabs", tabs: tabList(t, threadOf(ws)), current: st.target?.id }))
             .catch(() => undefined)
           break
         case "tab":
+          // A thread's viewer switches only between that thread's tabs.
+          if (st.thread) {
+            if (threads.tabs(threadOf(ws)!).includes(String(m.id))) threads.act(String(m.id))
+            break
+          }
           void targets()
             .then((t) => {
               const x = t.find((y) => y.id === m.id)
@@ -442,21 +601,25 @@ const server = Bun.serve<State>({
             .catch(() => undefined)
           break
         case "newtab":
-          void newTab(normalizeUrl(String(m.url ?? "")))
-            .then((t) => selectTarget(t.id))
-            .catch((err) => send(ws, { type: "error", message: String(err) }))
+          void openTab(ws, normalizeUrl(String(m.url ?? ""))).catch((err) =>
+            send(ws, { type: "error", message: String(err) }),
+          )
           break
-        case "closetab":
-          void closeTab(String(m.id ?? st.target?.id ?? ""))
-            .then(() => attachFirst(ws))
+        case "closetab": {
+          const id = String(m.id ?? st.target?.id ?? "")
+          if (st.thread) {
+            if (threads.tabs(threadOf(ws)!).includes(id)) void agentProxy.close(id)
+            break
+          }
+          void closeTab(id)
+            .then(() => show(ws))
             .catch(() => send(ws, { type: "error", message: "Could not close browser tab" }))
           break
+        }
         case "navigate": {
           const targetUrl = normalizeUrl(String(m.url ?? ""))
           if (!st.cdp) {
-            void newTab(targetUrl)
-              .then((t) => selectTarget(t.id))
-              .catch(() => attachFirst(ws))
+            void openTab(ws, targetUrl).catch(() => show(ws))
             break
           }
           void st.call?.("Page.navigate", { url: targetUrl }).then(() => scheduleFallbackShot(ws, st, 250))
@@ -474,7 +637,7 @@ const server = Bun.serve<State>({
           break
         case "reload":
           if (!st.cdp) {
-            void attachFirst(ws)
+            void show(ws)
             break
           }
           void st.call?.("Page.reload").then(() => scheduleFallbackShot(ws, st, 250))
@@ -531,4 +694,4 @@ const server = Bun.serve<State>({
     },
   },
 })
-console.log(`cow-eyes on 0.0.0.0:${server.port} -> ${CDP}; agent CDP on 127.0.0.1:${agentProxy.port}`)
+console.log(`cow-eyes on ${server.hostname}:${server.port} -> ${CDP}; agent CDP on 127.0.0.1:${agentProxy.port}`)

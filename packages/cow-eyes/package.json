@@ -6,6 +6,7 @@
   "scripts": {
     "build": "bun build --compile --target=bun-darwin-arm64 src/index.ts --outfile dist/cow-eyes && bun build --compile --target=bun-darwin-arm64 src/agent.ts --outfile dist/cow-browser-agent",
     "dev": "bun run src/index.ts",
+    "test": "bun test ./src/threads.test.ts ./src/agent-router.test.ts",
     "test:integration": "node node_modules/@playwright/test/cli.js test --config playwright.config.ts",
     "typecheck": "tsgo --noEmit"
   },

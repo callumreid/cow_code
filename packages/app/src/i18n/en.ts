@@ -109,6 +109,9 @@ export const dict = {
   "browser.returnAgent": "Return to agent",
   "browser.humanControl": "You have control · agent browser actions paused",
   "browser.agentControl": "Watching the agent’s active tab",
+  "browser.empty.title": "No browser tab for this thread yet",
+  "browser.empty.description":
+    "The agent gets its own tab the first time it uses the browser. To open one yourself, take control and enter a URL.",
   "browser.takeControlHint": "Take control to interact with this browser",
   "browser.attachScreenshot": "Attach screenshot",
   "browser.record": "Record",

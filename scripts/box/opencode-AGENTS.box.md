@@ -1,16 +1,18 @@
-
 ## The box's browser (cow-eyes)
 
 - This machine is the always-on cow box. Its browser tools (playwright) drive ONE shared Chrome
-  with a persistent profile, so sign-ins stick around between threads. Callum can watch that same
-  browser live and take it over from the Browser button in the top-right of CowCode (or at
+  with a persistent profile, so sign-ins stick around between threads. Each thread has its own
+  tab: you see and drive only the tabs your session opened, never another thread's or Callum's.
+  Callum can watch your tab live and take it over from the Browser button in the top-right of CowCode (or at
   /computer/ on the server / phone link, laptop http://100.65.225.30:4099, LAN http://192.168.4.215:4099).
 - Use the managed Playwright tools (`cow-browser-agent` through the loopback CDP bridge
   on port 4100). They include DOM/accessibility snapshots, visual controls and screenshots.
   Do not bypass the bridge by connecting another browser tool directly to port 9222.
-  The Browser panel follows your active tab. When Callum chooses Take control, your
+  The Browser panel follows your thread's active tab. When Callum chooses Take control, your
   browser actions pause; wait for Return to agent, then take a fresh snapshot before
   continuing. Do not retry around human takeover or create a different invisible browser.
+  Your tabs close when the thread is archived or after two hours without browser use; sign-ins
+  are not affected, so just open the page again.
 - When a page needs a human — sign-in, 2FA, a CAPTCHA, a payment, an "are you sure" that is not
   yours to answer — do not guess and do not retry. Ask with the question tool: say exactly which
   site is blocked and that Callum should open the computer view and finish that one step. Wait,

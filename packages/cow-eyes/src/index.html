@@ -53,6 +53,7 @@
       else if (m.type === "url") { if (document.activeElement !== url) url.value = m.url; send({ type: "tabs" }) }
       else if (m.type === "attached") { url.value = m.target.url; status.textContent = "attached"; send({ type: "tabs" }) }
       else if (m.type === "tabs") { tabs.innerHTML = ""; for (const t of m.tabs) { const o = document.createElement("option"); o.value = t.id; o.textContent = (t.title || t.url || "tab").slice(0, 40); o.selected = t.id === m.current; tabs.appendChild(o) } }
+      else if (m.type === "empty") { v.style.display = "none"; url.value = ""; status.textContent = "this thread has no browser tab yet" }
       else if (m.type === "detached") { status.textContent = "reattaching…"; send({ type: "tabs" }) }
       else if (m.type === "error") { status.textContent = m.message }
     }

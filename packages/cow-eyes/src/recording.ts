@@ -9,8 +9,8 @@ const MAX_BYTES = 50 * 1024 * 1024
 
 type Artifact = { path: string; bytes: number; durationMs: number }
 
-/** Encode only the shared visible stream; never enumerate or record other browser tabs. */
-export function createAgentRecording(output: string) {
+/** Encode only the calling thread's visible stream; never enumerate or record other browser tabs. */
+export function createAgentRecording(output: string, thread?: string) {
   let active: { stop: (error?: Error) => void; done: Promise<Artifact | Error> } | undefined
   let last: Artifact | Error | undefined
   return {
@@ -79,7 +79,7 @@ export function createAgentRecording(output: string) {
       )
       const token = Buffer.from(`cow:${password}`).toString("base64")
       const socket = new WebSocket(
-        `ws://127.0.0.1:${process.env.COW_EYES_PORT ?? 4099}/ws?auth_token=${encodeURIComponent(token)}`,
+        `ws://127.0.0.1:${process.env.COW_EYES_PORT ?? 4099}/ws?auth_token=${encodeURIComponent(token)}${thread ? `&thread=${encodeURIComponent(thread)}` : ""}`,
       )
       const stop = (error?: Error) => {
         if (finishing) return
@@ -137,11 +137,15 @@ export function createAgentRecording(output: string) {
       const firstFrame = Date.now() + 8_000
       while (!frame && !finishing && Date.now() < firstFrame) await Bun.sleep(50)
       if (!frame || finishing) {
-        stop(new Error("The browser stream did not provide a frame; open the Browser panel to check its connection."))
+        stop(
+          new Error(
+            "The browser stream did not provide a frame. Open a page in this thread's tab first, or open the Browser panel to check its connection.",
+          ),
+        )
         const result = await done
         throw result instanceof Error ? result : new Error("Browser recording stopped during startup.")
       }
-      return `Recording the shared visible browser. Call browser_recording_stop for the saved WebM. Recording stops automatically after ${MAX_SECONDS} seconds or about 50 MB. Browser video only; no audio.`
+      return `Recording this thread's browser tab. Call browser_recording_stop for the saved WebM. Recording stops automatically after ${MAX_SECONDS} seconds or about 50 MB. Browser video only; no audio.`
     },
     async stop() {
       const current = active
@@ -172,7 +176,7 @@ export const recordingTools = [
   {
     name: "browser_recording_start",
     description:
-      "Start a video of only the browser currently visible in CowCode. Follows the shared tab, with no audio. Requires the managed browser bridge and ffmpeg. Stops after five minutes or about 50 MB. Call browser_recording_stop to receive the saved WebM file.",
+      "Start a video of only this thread's browser tab as CowCode shows it. Follows the tab the thread is using, with no audio. Requires the managed browser bridge and ffmpeg. Stops after five minutes or about 50 MB. Call browser_recording_stop to receive the saved WebM file.",
     inputSchema: { type: "object", properties: {}, additionalProperties: false },
   },
   {
