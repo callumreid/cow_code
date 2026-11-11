@@ -135,6 +135,10 @@ export type Job = {
   before?: string
   started: number
   wake?: number
+  // Mentions that arrived while this job was running or waiting: each is handed to the session as
+  // soon as its current turn ends (a wait is cut short), and carries the job's reaction too.
+  pending?: { ts: string; text: string }[]
+  also?: string[]
 }
 type Thread = { sessionID: string; seen?: string; job?: Job }
 type State = { threads: Record<string, Thread> }
@@ -258,14 +262,28 @@ export function createWorker(options: WorkerOptions) {
     const outcome = await (async (): Promise<Outcome> => {
       try {
         for (;;) {
-          if (job.wake) {
-            await sleep(Math.max(0, job.wake - Date.now()))
+          if (job.wake && !job.pending?.length) await nap(key, job.wake - Date.now())
+          if (job.wake || job.pending?.length) {
+            const next = job.pending?.shift()
+            const thread = state.threads[key]
+            const prompt = next
+              ? nextPrompt({
+                  context: await slack
+                    .context(job.channel, job.thread, { after: thread?.seen, skip: next.ts })
+                    .catch((error) => `(the thread could not be read: ${message(error)})`),
+                  request: next.text,
+                })
+              : wake(job)
+            if (next && thread) thread.seen = next.ts
             job.before = (await latest(job.sessionID))?.info.id
             job.wake = undefined
             save()
-            await send(job.sessionID, wake(job))
+            await send(job.sessionID, prompt)
+            if (next) log(`${key} passed on a new mention (${next.ts})`)
           }
           const result = await turn(job)
+          // A mention is waiting: it goes in now, whatever this turn said about waiting.
+          if (job.pending?.length) continue
           if (result.status !== "waiting") return result
           if (Date.now() - job.started > jobTimeout)
             return {
@@ -289,11 +307,27 @@ export function createWorker(options: WorkerOptions) {
     await slack
       .post(job.channel, job.thread, outcome.text)
       .catch((error) => log(`${key} post failed: ${message(error)}`))
-    await slack.unreact(job.channel, job.ts, emoji.working).catch(() => {})
-    await slack.react(job.channel, job.ts, outcome.status === "done" ? emoji.done : emoji.failed).catch(() => {})
+    for (const ts of [job.ts, ...(job.also ?? [])]) {
+      await slack.unreact(job.channel, ts, emoji.working).catch(() => {})
+      await slack.react(job.channel, ts, outcome.status === "done" ? emoji.done : emoji.failed).catch(() => {})
+    }
   }
 
-  // One job at a time per thread: a second mention waits for the first to finish.
+  // A wait that a new mention can cut short.
+  const pokes = new Map<string, () => void>()
+  const nap = (key: string, ms: number) =>
+    new Promise<void>((resolve) => {
+      const done = () => {
+        clearTimeout(timer)
+        pokes.delete(key)
+        resolve()
+      }
+      const timer = setTimeout(done, Math.max(0, ms))
+      pokes.set(key, done)
+    })
+
+  // One job at a time per thread. A mention that arrives while a job is active joins that job
+  // (see submit); only a mention racing a job's start-up waits here.
   const tails = new Map<string, Promise<void>>()
   function chain(key: string, run: () => Promise<void>) {
     const next = (tails.get(key) ?? Promise.resolve())
@@ -364,7 +398,16 @@ export function createWorker(options: WorkerOptions) {
   return {
     submit(input: { channel: string; thread: string; ts: string; text: string }) {
       const key = `${input.channel}:${input.thread}`
-      return chain(key, () => start(key, input))
+      const job = state.threads[key]?.job
+      if (!job) return chain(key, () => start(key, input))
+      // The thread's job is running or waiting. Queueing behind it would leave this mention
+      // unanswered until the whole job ended (a 30-minute wait, on 2026-11-10).
+      job.pending = [...(job.pending ?? []), { ts: input.ts, text: input.text }]
+      job.also = [...(job.also ?? []), input.ts]
+      save()
+      log(`${key} new mention ${input.ts} joins the running job`)
+      pokes.get(key)?.()
+      return slack.react(input.channel, input.ts, emoji.working).catch(() => {})
     },
     // Jobs that were running or waiting when the process last stopped.
     resume() {
@@ -372,6 +415,7 @@ export function createWorker(options: WorkerOptions) {
         const job = thread.job
         if (!job) continue
         log(`${key} resuming session ${job.sessionID}`)
+        for (const ts of job.also ?? []) void slack.react(job.channel, ts, emoji.working).catch(() => {})
         void chain(key, () => settle(key, job))
       }
     },

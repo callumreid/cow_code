@@ -18,6 +18,7 @@ what each feature is, and the films, live in the [feature reel](docs/features/RE
 ### Fixed
 
 - keep scheduled activity rows stable while threads update to avoid repeatedly rebuilding the sidebar
+- a new @cowcode mention in a thread whose job is still running or waiting is picked up right away instead of sitting unanswered until that job ends
 
 ## 2026-11-02
 
