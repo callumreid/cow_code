@@ -16,11 +16,14 @@ import { App, LogLevel, SocketModeReceiver, type Logger } from "@slack/bolt"
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { homedir } from "node:os"
 import { join } from "node:path"
+import { browser, covalSignedIn } from "./browser"
 import { say } from "./say"
 import { COVAL_APP, createWorker, messageText, slackify } from "./work"
 
 // `cow-slack say <channel> <thread_ts>`: a one-shot post as the bot (see say.ts), not the door.
 if (process.argv[2] === "say") process.exit(await say(process.argv.slice(3), await Bun.stdin.text()))
+// `cow-slack browser`: is the box browser signed in to the Coval app (see browser.ts).
+if (process.argv[2] === "browser") process.exit(await browser())
 
 const bot = process.env.COW_SLACK_BOT_TOKEN
 const appToken = process.env.COW_SLACK_APP_TOKEN
@@ -279,6 +282,32 @@ async function sweep(all: boolean) {
     }
   }
 }
+// The Coval sign-in in the box browser: tell Callum once when it is lost, and wake the jobs that
+// were waiting for it the moment it is back.
+const signInFile = join(homedir(), ".coval/state/cow-browser-coval")
+async function watchBrowser() {
+  const now = await covalSignedIn()
+  if (now === undefined) return
+  const before = (() => {
+    try {
+      return readFileSync(signInFile, "utf8").trim() === "in"
+    } catch {
+      return undefined
+    }
+  })()
+  if (before === now) return
+  writeFileSync(signInFile, now ? "in\n" : "out\n")
+  console.log(`${stamp()} cow-slack: box browser is now signed ${now ? "in to" : "out of"} app.coval.dev`)
+  if (now) return worker.notice("The box browser is signed in to app.coval.dev again.")
+  if (notify)
+    await app.client.chat
+      .postMessage({
+        channel: notify,
+        text: "The box browser is signed out of app.coval.dev. Sign in on the computer view (use a new tab); cowcode jobs that need the Coval UI are stuck until then.",
+      })
+      .catch(() => {})
+}
+
 let sweeping = false
 let sweeps = 0
 async function tick() {
@@ -417,6 +446,8 @@ await app.start()
 botUserId = (await app.client.auth.test()).user_id
 console.log(`cow-slack: connected as ${botUserId}; farmer at ${server}; pushes ${notify ? "on" : "off"}`)
 worker.resume()
+void watchBrowser()
+setInterval(() => void watchBrowser(), 2 * 60_000)
 void tick()
 setInterval(() => void tick(), 30_000)
 void watch()

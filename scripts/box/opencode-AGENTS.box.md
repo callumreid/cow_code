@@ -16,6 +16,13 @@
   site is blocked and that Callum should open the computer view and finish that one step. Wait,
   then continue in the same tab.
 - Never type Callum's passwords or codes yourself, even if you can find them.
+- The profile is shared by every thread and holds Callum's sign-ins. Never clear its cookies or
+  storage, never sign out of anything in it (no `context.clearCookies()`, no `Clerk.signOut()`), and
+  never leave a network stub behind: scope `page.route` to a tab you opened, and `unrouteAll` and
+  close that tab before you finish. Do local or test auth work in a separate browser context. On
+  2026-11-10 one thread cleared cookies to debug localhost and signed every job out of the Coval app.
+- `~/.local/bin/cow-slack browser` says whether the browser is signed in to app.coval.dev without
+  touching a tab. Run it before work that needs the Coval UI, and tell Callum at once if it is not.
 
 ## Mentioning pull requests
 

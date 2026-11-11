@@ -18,6 +18,7 @@ what each feature is, and the films, live in the [feature reel](docs/features/RE
 - cowcode in Slack answers only Callum, in channels and in DMs
 - cowcode calls a finding fix done only with three phrasings proven after the fix, every transcript read, the finding resolved in Coval and the Coval app asked to confirm
 - cowcode posts a result to Slack once, not once itself and again when the job ends
+- the box tells Callum when its browser loses the Coval sign-in and wakes waiting cowcode jobs when it is back; agents may no longer clear the shared browser's cookies
 - a cowcode thread asked for a mid-job update posts it to Slack as the cowcode app, not with Callum's own Slack token
 
 ### Fixed

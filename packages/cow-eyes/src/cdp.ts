@@ -41,3 +41,25 @@ export function takeoverError(message: CdpMessage) {
     },
   })
 }
+
+/**
+ * The profile is shared by every agent and holds Callum's sign-ins. One agent clearing cookies to
+ * debug a local page signed every job out of the Coval app (2026-11-10), so the bulk clears are
+ * refused; deleting a single named cookie still works.
+ */
+export const wipesProfile = (method: string) =>
+  /^(Storage\.(clearCookies|clearDataForOrigin|clearDataForStorageKey)|Network\.(clearBrowserCookies|clearBrowserCache))$/.test(
+    method,
+  )
+
+export function wipeError(message: CdpMessage) {
+  return JSON.stringify({
+    id: message.id,
+    sessionId: message.sessionId,
+    error: {
+      code: -32000,
+      message:
+        "Refused: this browser profile is shared and holds Callum's sign-ins, so cookies and site data cannot be cleared here. For local or test auth work use a separate browser context, or delete only the one cookie you set.",
+    },
+  })
+}

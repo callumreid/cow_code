@@ -107,7 +107,8 @@ export const RULES = `How this job works:
 - Code changes go in a fresh git worktree cut from origin/main of the right repo under ~/coval. Open PRs ready for review and give their full GitHub URLs.
 - Do not use the question tool. Your final reply is posted to the thread for you as cowcode. If you need a decision from Callum, say exactly what and stop.
 - Updates before the job is finished: only the ones Callum asked for, one short post per milestone, as cowcode: pipe the text to "${SAY} <channel> <thread_ts>" (the thread's ids are at the top of the job). Never post to Slack any other way, and never with Callum's own Slack token (~/.slack_token) or any other credential: that posts as him. Do not post the final result this way as well as replying with it: if you have already posted it, reply with only the STATUS line.
-- If the job will need the Coval web app in the box browser (marking a finding, checking UI), open it at the start. If it is signed out, tell Callum in the thread straight away so he can sign in on the computer view while you work, instead of finding out at the last step.
+- The box browser is shared by every agent and holds Callum's sign-ins. Never clear its cookies or storage, never sign out of anything in it, and never leave a network stub (page.route) behind: do local or test auth work in a separate browser context, and close what you opened. One session clearing cookies signs every job out.
+- If the job will need the Coval web app in the box browser (marking a finding, checking UI), run "~/.local/bin/cow-slack browser" at the start. If it says signed out, tell Callum in the thread straight away so he can sign in on the computer view while you work, then carry on with everything that does not need it; you are told when the sign-in is back.
 - Fixing a Coval investigation finding is done only when all of this is true: the pre-fix baseline reproduces the defect; post-fix simulations cover at least three different user phrasings of the trigger and you have read every transcript; the fix is deployed and re-validated at the deployed revision; the finding is marked resolved in the Coval app with a note linking the PR, the deployed revision and the runs; and you have then asked the Coval app in the thread whether it agrees (post "<@${COVAL_APP}> ..." with the command above) and dealt with its answer. Short of that it is "waiting" or "failed", never "done". Say plainly what is proven and what is not: one phrasing is not "validated".
 - When you have to wait on something slow (CI, a merge queue, a deploy), do not sleep in a loop. End your turn with a one-line note and "STATUS: waiting <minutes>" (1 to 60); you are woken after that to carry on.
 - Keep the reply short and plain: what you did, the links, anything Callum has to know.
@@ -199,7 +200,7 @@ export type Job = {
   wake?: number
   // Mentions that arrived while this job was running or waiting: each is handed to the session as
   // soon as its current turn ends (a wait is cut short), and carries the job's reaction too.
-  pending?: { ts: string; text: string; who?: string }[]
+  pending?: { ts: string; text: string; who?: string; notice?: boolean }[]
   also?: string[]
   text?: string
   nudges?: number
@@ -340,9 +341,11 @@ export function createWorker(options: WorkerOptions) {
               : ""
             const prompt = !next
               ? wake(job)
-              : next.who
-                ? botPrompt({ who: next.who, context, reply: next.text })
-                : nextPrompt({ context, request: next.text })
+              : next.notice
+                ? `Update for your open job: ${next.text} If your job was waiting on this, carry on with it now; if not, ignore this and carry on. The same job rules apply; end with the STATUS line.`
+                : next.who
+                  ? botPrompt({ who: next.who, context, reply: next.text })
+                  : nextPrompt({ context, request: next.text })
             if (next && thread) thread.seen = next.ts
             job.before = (await latest(job.sessionID))?.info.id
             job.wake = undefined
@@ -515,11 +518,11 @@ export function createWorker(options: WorkerOptions) {
         thread.job?.pending?.some((item) => item.ts === ts),
     )
 
-  function hand(key: string, item: { ts: string; text: string; who?: string }) {
+  function hand(key: string, item: { ts: string; text: string; who?: string; notice?: boolean }) {
     const job = state.threads[key]?.job
     if (!job) return false
     job.pending = [...(job.pending ?? []), item]
-    if (!item.who) job.also = [...(job.also ?? []), item.ts]
+    if (!item.who && !item.notice) job.also = [...(job.also ?? []), item.ts]
     save()
     pokes.get(key)?.()
     return true
@@ -557,6 +560,11 @@ export function createWorker(options: WorkerOptions) {
       job.nudges = (job.nudges ?? 0) + 1
       hand(base, item)
       log(`${base} ${item.who} replied (${item.ts}); handed to the running job`)
+    },
+    // Something every open job may be waiting on has changed (the box browser is signed in again).
+    notice(text: string) {
+      for (const [key, thread] of Object.entries(state.threads))
+        if (thread.job && hand(key, { ts: `${Date.now() / 1000}`, text, notice: true })) log(`${key} told: ${text}`)
     },
     // Threads to sweep for missed mentions and bot replies: active ones, or every recent one.
     threads(all: boolean) {

@@ -1,4 +1,4 @@
-import { allowedDuringTakeover, takeoverError, type CdpMessage } from "./cdp"
+import { allowedDuringTakeover, takeoverError, wipeError, wipesProfile, type CdpMessage } from "./cdp"
 
 /** Local agents share the visible target and cannot send input while a person owns the browser. */
 export function startAgentProxy(input: {
@@ -98,6 +98,10 @@ export function startAgentProxy(input: {
         if (!message.method || message.id === undefined) return
         if (input.human() && !allowedDuringTakeover(message.method)) {
           client.send(takeoverError(message))
+          return
+        }
+        if (wipesProfile(message.method)) {
+          client.send(wipeError(message))
           return
         }
         if (message.method === "Target.attachToTarget" && typeof message.params?.targetId === "string") {
