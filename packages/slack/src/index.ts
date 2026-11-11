@@ -10,13 +10,14 @@
 //      http://127.0.0.1:4096), COW_SERVER_PASSWORD_FILE (default ~/.config/opencode/server-password),
 //      COW_SLACK_WORK_USERS (comma-separated Slack user ids the bot answers; default Callum),
 //      COW_SLACK_WORK_MODEL (default cloudflare-workers-ai/@cf/zai-org/glm-5.3),
-//      COW_SLACK_WORK_VARIANT (default medium), COW_SLACK_WORK_DIR (default ~/coval).
+//      COW_SLACK_WORK_VARIANT (default medium), COW_SLACK_WORK_DIR (default ~/coval),
+//      COW_SLACK_VERDICT_BOTS (bot user ids whose thread replies go to an active job; default the Coval app).
 import { App, LogLevel, SocketModeReceiver, type Logger } from "@slack/bolt"
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { homedir } from "node:os"
 import { join } from "node:path"
 import { say } from "./say"
-import { createWorker, messageText, slackify } from "./work"
+import { COVAL_APP, createWorker, messageText, slackify } from "./work"
 
 // `cow-slack say <channel> <thread_ts>`: a one-shot post as the bot (see say.ts), not the door.
 if (process.argv[2] === "say") process.exit(await say(process.argv.slice(3), await Bun.stdin.text()))
@@ -24,7 +25,9 @@ if (process.argv[2] === "say") process.exit(await say(process.argv.slice(3), awa
 const bot = process.env.COW_SLACK_BOT_TOKEN
 const appToken = process.env.COW_SLACK_APP_TOKEN
 if (!bot || !appToken) {
-  console.error("cow-slack: COW_SLACK_BOT_TOKEN and COW_SLACK_APP_TOKEN are required (see scripts/box/slack-manifest.json)")
+  console.error(
+    "cow-slack: COW_SLACK_BOT_TOKEN and COW_SLACK_APP_TOKEN are required (see scripts/box/slack-manifest.json)",
+  )
   process.exit(2)
 }
 const server = (process.env.COW_SERVER_URL ?? "http://127.0.0.1:4096").replace(/\/+$/, "")
@@ -72,8 +75,12 @@ function leave(why: string) {
   console.error(`${stamp()} cow-slack: ${why}; exiting so launchd starts a clean process`)
   setTimeout(() => process.exit(3), 500)
 }
-process.on("uncaughtException", (error) => leave(`uncaught error: ${error instanceof Error ? error.message : String(error)}`))
-process.on("unhandledRejection", (error) => leave(`unhandled rejection: ${error instanceof Error ? error.message : String(error)}`))
+process.on("uncaughtException", (error) =>
+  leave(`uncaught error: ${error instanceof Error ? error.message : String(error)}`),
+)
+process.on("unhandledRejection", (error) =>
+  leave(`unhandled rejection: ${error instanceof Error ? error.message : String(error)}`),
+)
 app.error(async (error) => console.error("cow-slack: bolt error", error.message))
 const socket = receiver.client
 const reconnects: number[] = []
@@ -113,9 +120,19 @@ async function ask(text: string): Promise<AskResult> {
 }
 
 // The bot acts with Callum's credentials on the box, so it answers only him.
-const workers = new Set((process.env.COW_SLACK_WORK_USERS ?? "U0A71JFNCAZ").split(",").map((id) => id.trim()).filter(Boolean))
+const workers = new Set(
+  (process.env.COW_SLACK_WORK_USERS ?? "U0A71JFNCAZ")
+    .split(",")
+    .map((id) => id.trim())
+    .filter(Boolean),
+)
 let botUserId: string | undefined
-async function handle(text: string, channel: string, thread: string, say: (m: { text: string; thread_ts: string }) => Promise<unknown>) {
+async function handle(
+  text: string,
+  channel: string,
+  thread: string,
+  say: (m: { text: string; thread_ts: string }) => Promise<unknown>,
+) {
   const clean = text.replace(/<@[A-Z0-9]+>/g, "").trim()
   if (!clean) return
   try {
@@ -123,7 +140,10 @@ async function handle(text: string, channel: string, thread: string, say: (m: { 
     const reply = await ask(clean)
     await say({ text: slackify(reply.text) || "(no reply)", thread_ts: thread })
   } catch (error) {
-    await say({ text: `the farmer is unreachable: ${error instanceof Error ? error.message : String(error)}`, thread_ts: thread })
+    await say({
+      text: `the farmer is unreachable: ${error instanceof Error ? error.message : String(error)}`,
+      thread_ts: thread,
+    })
   }
 }
 
@@ -137,8 +157,20 @@ async function nameOf(user: string) {
   names.set(user, name)
   return name
 }
-const clock = new Intl.DateTimeFormat("en-US", { timeZone: "America/Los_Angeles", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })
-type ThreadMessage = Parameters<typeof messageText>[0] & { ts?: string; user?: string; bot_id?: string; username?: string; bot_profile?: { name?: string } }
+const clock = new Intl.DateTimeFormat("en-US", {
+  timeZone: "America/Los_Angeles",
+  month: "short",
+  day: "numeric",
+  hour: "numeric",
+  minute: "2-digit",
+})
+type ThreadMessage = Parameters<typeof messageText>[0] & {
+  ts?: string
+  user?: string
+  bot_id?: string
+  username?: string
+  bot_profile?: { name?: string }
+}
 async function threadContext(channel: string, thread: string, range: { after?: string; skip: string }) {
   const lines: string[] = []
   let cursor: string | undefined
@@ -166,10 +198,95 @@ const worker = createWorker({
   slack: {
     react: async (channel, timestamp, name) => void (await app.client.reactions.add({ channel, timestamp, name })),
     unreact: async (channel, timestamp, name) => void (await app.client.reactions.remove({ channel, timestamp, name })),
-    post: async (channel, thread_ts, text) => void (await app.client.chat.postMessage({ channel, thread_ts, text: slackify(text) || "(no reply)", unfurl_links: false })),
+    post: async (channel, thread_ts, text) =>
+      void (await app.client.chat.postMessage({
+        channel,
+        thread_ts,
+        text: slackify(text) || "(no reply)",
+        unfurl_links: false,
+      })),
     context: threadContext,
   },
 })
+
+// Socket Mode delivers a mention once: one that arrives while the door is restarting or
+// reconnecting is gone (2026-11-10: a redeploy and a reconnect storm each cost one). Every mention
+// the door takes gets its reaction at once, so a mention from Callum without one was missed. The
+// sweep reads the threads the door works in (active ones every 30 seconds, recent ones and their
+// channels every 3 minutes), takes those, and hands the Coval app's replies to the job they follow.
+const verdictBots = new Set(
+  (process.env.COW_SLACK_VERDICT_BOTS ?? COVAL_APP)
+    .split(",")
+    .map((id) => id.trim())
+    .filter(Boolean),
+)
+type Swept = ThreadMessage & { thread_ts?: string; reactions?: { users?: string[] }[] }
+const request = (text: string) => text.replace(/<@[A-Z0-9]+>/g, "").trim()
+const missed = (m: Swept) =>
+  Boolean(
+    m.ts &&
+      m.user &&
+      !m.bot_id &&
+      workers.has(m.user) &&
+      m.text?.includes(`<@${botUserId}>`) &&
+      request(m.text) &&
+      !m.reactions?.some((reaction) => reaction.users?.includes(botUserId!)) &&
+      !worker.owns(m.ts),
+  )
+async function sweep(all: boolean) {
+  for (const t of worker.threads(all)) {
+    try {
+      const res = await app.client.conversations.replies({
+        channel: t.channel,
+        ts: t.thread,
+        oldest: t.after,
+        limit: 200,
+      })
+      for (const m of (res.messages ?? []) as Swept[]) {
+        if (!m.ts || (t.after && Number(m.ts) <= Number(t.after))) continue
+        if (missed(m)) {
+          console.log(`${stamp()} cow-slack: picking up a missed mention ${m.ts} in ${t.key}`)
+          void worker.submit({ channel: t.channel, thread: t.thread, ts: m.ts, text: request(m.text!) })
+          continue
+        }
+        if (t.active && m.user && verdictBots.has(m.user))
+          worker.nudge(t.key, { ts: m.ts, text: messageText(m), who: m.bot_profile?.name ?? (await nameOf(m.user)) })
+      }
+    } catch (error) {
+      console.error(`${stamp()} cow-slack: sweep of ${t.key} failed`, error instanceof Error ? error.message : error)
+    }
+  }
+  if (!all) return
+  for (const c of worker.channels()) {
+    try {
+      const oldest = c.after ?? String(Date.now() / 1000 - 600)
+      const res = await app.client.conversations.history({ channel: c.channel, oldest, limit: 100 })
+      let newest = oldest
+      for (const m of (res.messages ?? []) as Swept[]) {
+        if (!m.ts) continue
+        if (Number(m.ts) > Number(newest)) newest = m.ts
+        if (m.thread_ts && m.thread_ts !== m.ts) continue
+        if (!missed(m)) continue
+        console.log(`${stamp()} cow-slack: picking up a missed mention ${m.ts} in ${c.channel}`)
+        void worker.submit({ channel: c.channel, thread: m.ts, ts: m.ts, text: request(m.text!) })
+      }
+      worker.swept(c.channel, newest)
+    } catch (error) {
+      console.error(
+        `${stamp()} cow-slack: sweep of ${c.channel} failed`,
+        error instanceof Error ? error.message : error,
+      )
+    }
+  }
+}
+let sweeping = false
+let sweeps = 0
+async function tick() {
+  if (sweeping || !botUserId) return
+  sweeping = true
+  await sweep(sweeps++ % 6 === 0).catch(() => {})
+  sweeping = false
+}
 
 app.event("app_mention", async ({ event }) => {
   const e = event as { user?: string; bot_id?: string; text?: string; channel: string; ts: string; thread_ts?: string }
@@ -183,7 +300,15 @@ app.event("app_mention", async ({ event }) => {
 })
 
 app.message(async ({ message, say }) => {
-  const m = message as { channel_type?: string; subtype?: string; text?: string; channel: string; ts: string; thread_ts?: string; user?: string }
+  const m = message as {
+    channel_type?: string
+    subtype?: string
+    text?: string
+    channel: string
+    ts: string
+    thread_ts?: string
+    user?: string
+  }
   if (m.subtype || !m.text) return
   if (m.channel_type !== "im") return // channels only respond to mentions
   if (botUserId && m.user === botUserId) return
@@ -203,7 +328,9 @@ async function watch() {
   if (!notify) return
   for (;;) {
     try {
-      const res = await fetch(`${server}/global/event`, { headers: { authorization: auth, accept: "text/event-stream" } })
+      const res = await fetch(`${server}/global/event`, {
+        headers: { authorization: auth, accept: "text/event-stream" },
+      })
       if (!res.ok || !res.body) throw new Error(`event stream ${res.status}`)
       const reader = res.body.getReader()
       const decoder = new TextDecoder()
@@ -216,7 +343,11 @@ async function watch() {
         while ((idx = buffer.indexOf("\n\n")) >= 0) {
           const chunk = buffer.slice(0, idx)
           buffer = buffer.slice(idx + 2)
-          const data = chunk.split("\n").filter((l) => l.startsWith("data:")).map((l) => l.slice(5).trim()).join("")
+          const data = chunk
+            .split("\n")
+            .filter((l) => l.startsWith("data:"))
+            .map((l) => l.slice(5).trim())
+            .join("")
           if (!data) continue
           try {
             await onEvent(JSON.parse(data))
@@ -232,7 +363,14 @@ async function watch() {
 
 type ThreadEvent = {
   type?: string
-  properties?: { sessionID?: string; title?: string; bucket?: string; muted?: boolean; projectName?: string; waiting?: { kind: string; id?: string; message?: string; title?: string; permission?: string } }
+  properties?: {
+    sessionID?: string
+    title?: string
+    bucket?: string
+    muted?: boolean
+    projectName?: string
+    waiting?: { kind: string; id?: string; message?: string; title?: string; permission?: string }
+  }
 }
 async function onEvent(raw: unknown) {
   const e = raw as { payload?: ThreadEvent } & ThreadEvent
@@ -250,22 +388,35 @@ async function onEvent(raw: unknown) {
     // A rate-limited routine will be retried by its schedule; one line is enough.
     if (/Too Many Requests|rate limit/i.test(t.waiting?.message ?? "")) {
       pushed.add(key)
-      await app.client.chat.postMessage({ channel: notify!, text: `${t.title ?? t.sessionID} — hit the model's rate limit; the next scheduled run retries` })
+      await app.client.chat.postMessage({
+        channel: notify!,
+        text: `${t.title ?? t.sessionID} — hit the model's rate limit; the next scheduled run retries`,
+      })
       return
     }
   }
   pushed.add(key)
   if (pushed.size > 500) pushed.delete(pushed.values().next().value as string)
   const why =
-    t.waiting?.kind === "permission" ? `needs permission: ${t.waiting.title ?? t.waiting.permission ?? ""}` :
-    t.waiting?.kind === "question" ? "has a question" :
-    t.waiting?.kind === "error" ? `failed: ${t.waiting.message ?? ""}` :
-    t.bucket === "failed" ? "failed" : "needs you"
-  await app.client.chat.postMessage({ channel: notify!, text: `${t.projectName ?? ""} · ${t.title ?? t.sessionID} — ${why}`.trim() })
+    t.waiting?.kind === "permission"
+      ? `needs permission: ${t.waiting.title ?? t.waiting.permission ?? ""}`
+      : t.waiting?.kind === "question"
+        ? "has a question"
+        : t.waiting?.kind === "error"
+          ? `failed: ${t.waiting.message ?? ""}`
+          : t.bucket === "failed"
+            ? "failed"
+            : "needs you"
+  await app.client.chat.postMessage({
+    channel: notify!,
+    text: `${t.projectName ?? ""} · ${t.title ?? t.sessionID} — ${why}`.trim(),
+  })
 }
 
 await app.start()
 botUserId = (await app.client.auth.test()).user_id
 console.log(`cow-slack: connected as ${botUserId}; farmer at ${server}; pushes ${notify ? "on" : "off"}`)
 worker.resume()
+void tick()
+setInterval(() => void tick(), 30_000)
 void watch()

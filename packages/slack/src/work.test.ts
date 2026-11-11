@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { blockText, messageText, parseOutcome } from "./work"
+import { blockText, messageText, parseOutcome, repeats } from "./work"
 
 describe("parseOutcome", () => {
   test("reads the final status line and strips it", () => {
@@ -26,6 +26,26 @@ describe("parseOutcome", () => {
   test("a reply with no status line counts as done, an empty one as failed", () => {
     expect(parseOutcome("All set.")).toEqual({ status: "done", text: "All set." })
     expect(parseOutcome("  ").status).toBe("failed")
+  })
+})
+
+describe("final reply", () => {
+  test("a bare STATUS: done has nothing to post", () => {
+    expect(parseOutcome("STATUS: done")).toEqual({ status: "done", text: "" })
+  })
+  test("is a repeat when the session just posted the same links itself", () => {
+    const now = 1_000_000
+    const said = {
+      at: now - 60_000,
+      text: "Deployed. PR https://github.com/coval-ai/x/pull/2 run https://app.coval.dev/covi/runs/abc",
+    }
+    expect(repeats("All done: https://github.com/coval-ai/x/pull/2 merged.", said, now)).toBe(true)
+    expect(repeats("Also opened https://github.com/coval-ai/x/pull/3", said, now)).toBe(false)
+    expect(repeats("All done, no links.", said, now)).toBe(false)
+    expect(repeats("All done: https://github.com/coval-ai/x/pull/2", { ...said, at: now - 11 * 60_000 }, now)).toBe(
+      false,
+    )
+    expect(repeats("All done: https://github.com/coval-ai/x/pull/2", undefined, now)).toBe(false)
   })
 })
 

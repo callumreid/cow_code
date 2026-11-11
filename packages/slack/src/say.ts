@@ -1,10 +1,10 @@
 // `cow-slack say <channel> <thread_ts>` posts stdin to a Slack thread as the cowcode bot. It exists
 // so a work session never reaches for Callum's own Slack token to give an update: the bot token
 // stays with this binary, and it only posts in threads where Callum mentioned cowcode.
-import { readFileSync } from "node:fs"
+import { readFileSync, writeFileSync } from "node:fs"
 import { homedir } from "node:os"
 import { join } from "node:path"
-import { slackify } from "./work"
+import { readSaid, saidFile, slackify } from "./work"
 
 function botToken() {
   if (process.env.COW_SLACK_BOT_TOKEN) return process.env.COW_SLACK_BOT_TOKEN
@@ -55,6 +55,12 @@ export async function say(args: string[], input: string): Promise<number> {
     console.error(`cow-slack say: Slack refused the post: ${body.error ?? res.status}`)
     return 1
   }
+  // The door reads this so it does not post the same result again when the job ends.
+  try {
+    const said = readSaid(stateFile)
+    said[`${channel}:${thread}`] = { at: Date.now(), text }
+    writeFileSync(saidFile(stateFile), JSON.stringify(said))
+  } catch {}
   console.log(`posted as cowcode (${body.ts})`)
   return 0
 }

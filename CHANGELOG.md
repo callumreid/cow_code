@@ -9,10 +9,15 @@ what each feature is, and the films, live in the [feature reel](docs/features/RE
 
 - mention @cowcode in a Slack channel and it does the work on the box: one GLM thread per Slack thread, a cow on your message while it works and when it finishes, the result posted back, and follow-up mentions carry on in the same thread
 - the sidebar has a Slack group listing the threads @cowcode started, on any project, so the work can be followed live
+- a separate task mentioned in a Slack thread that already has cowcode work in flight starts its own session beside it; a follow-up joins the job it is about
+- cowcode reads the Coval app's reply in a thread where it has an open job and acts on the verdict without being asked
+- mentions that arrive while the Slack door is restarting or reconnecting are picked up by a sweep instead of being lost
 
 ### Changed
 
 - cowcode in Slack answers only Callum, in channels and in DMs
+- cowcode calls a finding fix done only with three phrasings proven after the fix, every transcript read, the finding resolved in Coval and the Coval app asked to confirm
+- cowcode posts a result to Slack once, not once itself and again when the job ends
 - a cowcode thread asked for a mid-job update posts it to Slack as the cowcode app, not with Callum's own Slack token
 
 ### Fixed
