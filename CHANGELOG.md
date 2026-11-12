@@ -13,6 +13,7 @@ what each feature is, and the films, live in the [feature reel](docs/features/RE
 ### Fixed
 
 - the sidebar's Slack group also lists Slack threads on a server that runs no scheduled jobs
+- when barn can't be reached at launch, CowCode switches to this machine's own server after 15 seconds instead of waiting on the "Could not reach barn" screen; barn stays the default for the next launch
 
 ## 2026-11-10
 

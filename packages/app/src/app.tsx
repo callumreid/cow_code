@@ -617,6 +617,14 @@ function ConnectionError(props: { onRetry?: () => void; onServerSelected?: (key:
 
   const timer = setInterval(() => props.onRetry?.(), 1000)
   onCleanup(() => clearInterval(timer))
+  // When a remote server (barn) is down, carry on with this machine's own server instead of waiting
+  // on a splash screen: the MacBook stands in for barn. The default server is unchanged, so the
+  // next launch tries the remote one again.
+  const fallback = setTimeout(() => {
+    const local = others().find((conn) => ServerConnection.builtin(conn))
+    if (local) props.onServerSelected?.(ServerConnection.key(local))
+  }, 15_000)
+  onCleanup(() => clearTimeout(fallback))
 
   return (
     <div class="h-dvh w-screen flex flex-col items-center justify-center bg-background-base gap-6 p-6">
