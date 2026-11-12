@@ -8,3 +8,4 @@ export COW_SERVER_USERNAME=opencode
 export COW_SERVER_PASSWORD_FILE="$HOME/Library/Application Support/ai.opencode.desktop.dev/opencode/companion-password"
 export COW_BROWSER_PROFILE="$HOME/Library/Application Support/CowCode/browser-profile"
 export COW_BROWSER_OUTPUT_DIR="$HOME/Library/Application Support/CowCode/browser-output"
+export COW_BROWSER_SIGNIN_WHERE="in the separate CowCode agent Chrome window on the MacBook (it is a second Chrome, now showing the Coval sign-in page), or in the Browser panel on the job's thread in CowCode"

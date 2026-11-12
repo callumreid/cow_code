@@ -37,15 +37,47 @@ export async function covalSignedIn(cdp = process.env.COW_BROWSER_CDP ?? "http:/
   }
 }
 
-/** `cow-slack browser`: exit 0 signed in, 1 signed out, 3 could not tell. */
+// Where Callum signs in to the agents' browser, in words he can act on. The agent Chrome is a
+// separate browser with its own profile: signing in to his everyday Chrome does nothing for it
+// (2026-11-12, he signed in there and the job still saw the sign-in page).
+export const signInWhere = () =>
+  process.env.COW_BROWSER_SIGNIN_WHERE ??
+  "on barn's computer view (the Browser panel in CowCode on a barn thread), where the Coval sign-in page is open"
+
+/**
+ * Put the Coval sign-in page in front in the agent Chrome: reuse a tab already on app.coval.dev or
+ * open one, then raise it. Best effort; nothing here touches cookies.
+ */
+export async function openSignIn(cdp = process.env.COW_BROWSER_CDP ?? "http://127.0.0.1:9222") {
+  try {
+    const tabs = (await (await fetch(`${cdp}/json`, { signal: AbortSignal.timeout(5000) })).json()) as {
+      id: string
+      type: string
+      url?: string
+    }[]
+    const existing = tabs.find((tab) => tab.type === "page" && /^https:\/\/app\.coval\.dev\/sign/.test(tab.url ?? ""))
+    const tab =
+      existing ??
+      ((await (
+        await fetch(`${cdp}/json/new?https://app.coval.dev/`, { method: "PUT", signal: AbortSignal.timeout(5000) })
+      ).json()) as { id: string })
+    await fetch(`${cdp}/json/activate/${tab.id}`, { signal: AbortSignal.timeout(5000) })
+    return true
+  } catch {
+    return false
+  }
+}
+
+/** `cow-slack browser`: exit 0 signed in, 1 signed out, 3 could not tell. Signed out opens the sign-in page. */
 export async function browser(): Promise<number> {
   const state = await covalSignedIn()
+  if (state === false) await openSignIn()
   console.log(
     state === undefined
-      ? "could not read the box browser's cookies"
+      ? "could not read the agent browser's cookies"
       : state
-        ? "the box browser is signed in to app.coval.dev"
-        : "the box browser is SIGNED OUT of app.coval.dev: Callum has to sign in on the computer view",
+        ? "the agent browser is signed in to app.coval.dev"
+        : `the agent browser is SIGNED OUT of app.coval.dev. Ask Callum to sign in ${signInWhere()}. Tell him plainly it is a separate browser from his everyday Chrome: signing in there does not help.`,
   )
   return state === undefined ? 3 : state ? 0 : 1
 }

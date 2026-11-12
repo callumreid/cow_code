@@ -14,6 +14,7 @@ what each feature is, and the films, live in the [feature reel](docs/features/RE
 
 - the sidebar's Slack group also lists Slack threads on a server that runs no scheduled jobs
 - when barn can't be reached at launch, CowCode switches to this machine's own server after 15 seconds instead of waiting on the "Could not reach barn" screen; barn stays the default for the next launch
+- when the agent browser is signed out of Coval, cowcode opens the Coval sign-in page in that browser and says exactly where to sign in, making clear it is a separate Chrome from the everyday one
 
 ## 2026-11-10
 

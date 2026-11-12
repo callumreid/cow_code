@@ -26,7 +26,7 @@ import { App, LogLevel, SocketModeReceiver, type Logger } from "@slack/bolt"
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { homedir, hostname } from "node:os"
 import { join } from "node:path"
-import { browser, covalSignedIn } from "./browser"
+import { browser, covalSignedIn, openSignIn, signInWhere } from "./browser"
 import { say } from "./say"
 import { COVAL_APP, createWorker, messageText, slackify } from "./work"
 
@@ -349,11 +349,12 @@ async function watchBrowser() {
   writeFileSync(signInFile, now ? "in\n" : "out\n")
   console.log(`${stamp()} cow-slack: box browser is now signed ${now ? "in to" : "out of"} app.coval.dev`)
   if (now) return worker.notice("The box browser is signed in to app.coval.dev again.")
+  await openSignIn()
   if (notify)
     await app.client.chat
       .postMessage({
         channel: notify,
-        text: "The box browser is signed out of app.coval.dev. Sign in on the computer view (use a new tab); cowcode jobs that need the Coval UI are stuck until then.",
+        text: `The agent browser is signed out of app.coval.dev. Sign in ${signInWhere()}. It is a separate browser from your everyday Chrome, so signing in there does not help. cowcode jobs that need the Coval UI wait until then.`,
       })
       .catch(() => {})
 }
