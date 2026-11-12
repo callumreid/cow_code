@@ -3,6 +3,17 @@
 every change to the cow lands here, newest first, one line per thing you would notice.
 what each feature is, and the films, live in the [feature reel](docs/features/README.md).
 
+## 2026-11-12
+
+### Added
+
+- the MacBook stands in for barn: when barn's cow server stops answering, @cowcode's Slack door takes over on the MacBook within about 90 seconds, runs jobs on CowCode's own server there, and hands back when barn returns and nothing of its own is still running (`scripts/laptop/install.sh`)
+- the MacBook gets barn's browser setup: one shared agent Chrome with its own signed-in profile, a tab per thread, and the Browser panel's watch and take-over view
+
+### Fixed
+
+- the sidebar's Slack group also lists Slack threads on a server that runs no scheduled jobs
+
 ## 2026-11-10
 
 ### Added

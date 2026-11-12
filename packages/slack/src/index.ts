@@ -11,10 +11,20 @@
 //      COW_SLACK_WORK_USERS (comma-separated Slack user ids the bot answers; default Callum),
 //      COW_SLACK_WORK_MODEL (default cloudflare-workers-ai/@cf/zai-org/glm-5.3),
 //      COW_SLACK_WORK_VARIANT (default medium), COW_SLACK_WORK_DIR (default ~/coval),
-//      COW_SLACK_VERDICT_BOTS (bot user ids whose thread replies go to an active job; default the Coval app).
+//      COW_SLACK_VERDICT_BOTS (bot user ids whose thread replies go to an active job; default the Coval app),
+//      COW_SLACK_THREAD_PUSHES (off: no "needs you" DMs for this server's threads),
+//      COW_SLACK_WATCH_CHANNELS (channels swept for missed top-level mentions even before any work there),
+//      COW_SLACK_SWEEP_LOOKBACK_MINUTES (how far back a channel's first sweep looks; default 10).
+//
+// Standby (the MacBook covering for barn): with COW_SLACK_PRIMARY_URL set, the door stays off Slack
+// while that server answers its health check, takes over once it has failed for three checks in a
+// row, and leaves again (exit 0, launchd waits it out) when the primary is back and this machine has
+// no job of its own still running. COW_SLACK_PRIMARY_USERNAME / COW_SLACK_PRIMARY_PASSWORD_FILE
+// authenticate the check. Slack hands each event to one connection, so a brief overlap while both
+// are up never answers a mention twice.
 import { App, LogLevel, SocketModeReceiver, type Logger } from "@slack/bolt"
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs"
-import { homedir } from "node:os"
+import { homedir, hostname } from "node:os"
 import { join } from "node:path"
 import { browser, covalSignedIn } from "./browser"
 import { say } from "./say"
@@ -38,6 +48,42 @@ const passwordFile = process.env.COW_SERVER_PASSWORD_FILE ?? join(homedir(), ".c
 const password = readFileSync(passwordFile, "utf8").split("\n")[0].trim()
 const auth = `Basic ${Buffer.from(`${process.env.COW_SERVER_USERNAME ?? "cow"}:${password}`).toString("base64")}`
 const notify = process.env.COW_SLACK_NOTIFY_CHANNEL
+const threadPushes = (process.env.COW_SLACK_THREAD_PUSHES ?? "on") !== "off"
+const watchChannels = (process.env.COW_SLACK_WATCH_CHANNELS ?? "")
+  .split(",")
+  .map((id) => id.trim())
+  .filter(Boolean)
+const lookback = Number(process.env.COW_SLACK_SWEEP_LOOKBACK_MINUTES ?? 10) * 60
+const primary = process.env.COW_SLACK_PRIMARY_URL?.replace(/\/+$/, "")
+const primaryAuth = (() => {
+  if (!primary) return undefined
+  const file = process.env.COW_SLACK_PRIMARY_PASSWORD_FILE
+  const secret = file ? readFileSync(file, "utf8").split("\n")[0].trim() : ""
+  return `Basic ${Buffer.from(`${process.env.COW_SLACK_PRIMARY_USERNAME ?? "cow"}:${secret}`).toString("base64")}`
+})()
+async function localUp() {
+  try {
+    const res = await fetch(`${server}/global/health`, {
+      headers: { authorization: auth },
+      signal: AbortSignal.timeout(10_000),
+    })
+    return res.ok
+  } catch {
+    return false
+  }
+}
+async function primaryUp() {
+  if (!primary) return false
+  try {
+    const res = await fetch(`${primary}/global/health`, {
+      headers: { authorization: primaryAuth! },
+      signal: AbortSignal.timeout(10_000),
+    })
+    return res.ok && ((await res.json()) as { healthy?: boolean }).healthy === true
+  } catch {
+    return false
+  }
+}
 
 // The receiver is built by hand so the Socket Mode client is reachable: launchd keeps this process
 // alive, but a wedged client (2026-09-10: a "server explicit disconnect" during the handshake left
@@ -89,6 +135,7 @@ const socket = receiver.client
 const reconnects: number[] = []
 let connected = false
 let lastConnected = Date.now()
+let started = false
 socket.on("connected", () => {
   connected = true
   lastConnected = Date.now()
@@ -108,6 +155,8 @@ setInterval(() => {
     writeFileSync(heartbeat, `${lastConnected}\n`)
     return
   }
+  // A door on standby has not connected on purpose.
+  if (!started) lastConnected = Date.now()
   if (Date.now() - lastConnected > 3 * 60_000) leave("no Slack connection for three minutes")
 }, 30_000)
 
@@ -130,6 +179,7 @@ const workers = new Set(
     .filter(Boolean),
 )
 let botUserId: string | undefined
+let takeover = false
 async function handle(
   text: string,
   channel: string,
@@ -260,9 +310,9 @@ async function sweep(all: boolean) {
     }
   }
   if (!all) return
-  for (const c of worker.channels()) {
+  for (const c of worker.channels(watchChannels)) {
     try {
-      const oldest = c.after ?? String(Date.now() / 1000 - 600)
+      const oldest = c.after ?? String(Date.now() / 1000 - lookback)
       const res = await app.client.conversations.history({ channel: c.channel, oldest, limit: 100 })
       let newest = oldest
       for (const m of (res.messages ?? []) as Swept[]) {
@@ -354,7 +404,7 @@ const pushed = new Set<string>()
 const lastFailure = new Map<string, number>()
 const FAILURE_COOLDOWN_MS = 15 * 60_000
 async function watch() {
-  if (!notify) return
+  if (!notify || !threadPushes) return
   for (;;) {
     try {
       const res = await fetch(`${server}/global/event`, {
@@ -442,9 +492,55 @@ async function onEvent(raw: unknown) {
   })
 }
 
+const dm = (text: string) =>
+  notify
+    ? app.client.chat.postMessage({ channel: notify, text }).then(
+        () => undefined,
+        () => undefined,
+      )
+    : Promise.resolve()
+
+if (primary && !worker.active()) {
+  // Standby: stay off Slack while the primary is healthy. The heartbeat keeps saying "alive".
+  let down = 0
+  let waiting = false
+  console.log(`${stamp()} cow-slack: standby for ${primary}`)
+  while (down < 3) {
+    writeFileSync(heartbeat, `${Date.now()}\n`)
+    down = (await primaryUp()) ? 0 : down + 1
+    if (down && down < 3) console.log(`${stamp()} cow-slack: primary failed its health check (${down}/3)`)
+    // Nothing to take over with while this machine's own server (the CowCode app) is not running.
+    if (down >= 3 && !(await localUp())) {
+      if (!waiting) console.log(`${stamp()} cow-slack: primary is down but ${server} is not answering; waiting for it`)
+      waiting = true
+      down = 2
+    }
+    if (down < 3) await new Promise((r) => setTimeout(r, 30_000))
+  }
+  console.log(`${stamp()} cow-slack: primary is down; taking over Slack`)
+  takeover = true
+}
 await app.start()
+started = true
 botUserId = (await app.client.auth.test()).user_id
-console.log(`cow-slack: connected as ${botUserId}; farmer at ${server}; pushes ${notify ? "on" : "off"}`)
+console.log(
+  `cow-slack: connected as ${botUserId}; farmer at ${server}; pushes ${notify && threadPushes ? "on" : "off"}`,
+)
+if (takeover)
+  await dm(
+    `barn's cow server is not answering, so this machine (${hostname()}) has taken over @cowcode. Threads it starts show in CowCode on this machine.`,
+  )
+if (primary) {
+  // Hand back when the primary is healthy again and nothing of ours is still running.
+  let up = 0
+  setInterval(async () => {
+    up = (await primaryUp()) ? up + 1 : 0
+    if (up < 2 || worker.active()) return
+    console.log(`${stamp()} cow-slack: primary is back and no local job is running; handing Slack back`)
+    await dm(`barn is back, so ${hostname()} has handed @cowcode back to it.`)
+    process.exit(0)
+  }, 60_000)
+}
 worker.resume()
 void watchBrowser()
 setInterval(() => void watchBrowser(), 2 * 60_000)

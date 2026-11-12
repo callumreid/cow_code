@@ -577,8 +577,12 @@ export function createWorker(options: WorkerOptions) {
         })
     },
     // Channels the door has worked in, with how far each has been swept for new-thread mentions.
-    channels() {
-      const known = new Set(Object.keys(state.threads).map((key) => key.split(":")[0]))
+    // Jobs still running or waiting on this machine.
+    active() {
+      return Object.values(state.threads).filter((thread) => thread.job).length
+    },
+    channels(seeds: string[] = []) {
+      const known = new Set([...Object.keys(state.threads).map((key) => key.split(":")[0]), ...seeds])
       return [...known].map((channel) => ({ channel, after: state.channels?.[channel] }))
     },
     swept(channel: string, ts: string) {

@@ -1,10 +1,11 @@
 import { base64Encode } from "@opencode-ai/core/util/encode"
-import { createEffect, createMemo, For, type JSX, Show, untrack } from "solid-js"
+import { createEffect, createMemo, createSignal, For, type JSX, onCleanup, Show, untrack } from "solid-js"
 import { createStore } from "solid-js/store"
 import { Icon } from "@opencode-ai/ui/icon"
 import { useLanguage } from "@/context/language"
 import { Persist, persisted } from "@/utils/persist"
 import { useServerSync } from "@/context/server-sync"
+import { officeFetch, type OfficeSdk } from "@/office/api"
 import type { RoutinesStore } from "@/routines/store"
 import { recentSlackSessions, routineDirectories } from "./helpers"
 import { SessionItem } from "./sidebar-items"
@@ -17,8 +18,28 @@ const RETAINED_ROOTS = 100
  * can be followed while it runs. Like routine threads (see SidebarScheduledRuns) they are started in
  * ~/coval, which the server files under the global "/" project, so no project list ever shows them.
  */
+/**
+ * Where this server keeps Slack-started threads, from the global session list. A server that runs
+ * no scheduled jobs (the MacBook standing in for barn) has an empty routines feed, so the routines'
+ * directory alone would leave its Slack threads unlisted.
+ */
+async function slackDirectories(sdk: OfficeSdk, fetcher?: typeof fetch) {
+  const response = await officeFetch(
+    sdk,
+    `/experimental/session?roots=true&limit=20&search=${encodeURIComponent("slack · ")}`,
+    {
+      fetch: fetcher,
+      signal: AbortSignal.timeout(15_000),
+    },
+  )
+  const sessions = (await response.json()) as { directory?: string; title?: string }[]
+  return [...new Set(sessions.filter((s) => s.directory && s.title?.startsWith("slack · ")).map((s) => s.directory!))]
+}
+
 export const SidebarSlackThreads = (props: {
   store: RoutinesStore
+  sdk: () => OfficeSdk
+  fetcher: () => typeof fetch | undefined
   ctx: WorkspaceSidebarContext
   mobile?: boolean
 }): JSX.Element => {
@@ -26,9 +47,26 @@ export const SidebarSlackThreads = (props: {
   const language = useLanguage()
   const [state, setState] = persisted(Persist.global("sidebar-slack-threads"), createStore({ expanded: true }))
 
-  const directories = createMemo(() => routineDirectories(props.store.data()?.routines ?? []), [] as string[], {
-    equals: (a, b) => a.length === b.length && a.every((directory, index) => directory === b[index]),
+  const [found, setFound] = createSignal<string[]>([])
+  const look = () => {
+    const sdk = props.sdk()
+    void slackDirectories(sdk, props.fetcher())
+      .then((list) => props.sdk() === sdk && setFound(list))
+      .catch(() => undefined)
+  }
+  createEffect(() => {
+    props.sdk()
+    setFound([])
+    untrack(look)
   })
+  const timer = setInterval(look, 60_000)
+  onCleanup(() => clearInterval(timer))
+
+  const directories = createMemo(
+    () => [...new Set([...routineDirectories(props.store.data()?.routines ?? []), ...found()])].sort(),
+    [] as string[],
+    { equals: (a, b) => a.length === b.length && a.every((directory, index) => directory === b[index]) },
+  )
   const stores = createMemo(() => directories().map((directory) => serverSync().child(directory)[0]))
   createEffect(() => {
     const current = directories()

@@ -2328,7 +2328,13 @@ export default function LegacyLayout(props: ParentProps) {
                           {language.t("command.session.new")}
                         </Button>
                       </div>
-                      <SidebarSlackThreads store={routines} ctx={workspaceSidebarCtx} mobile={panelProps.mobile} />
+                      <SidebarSlackThreads
+                        store={routines}
+                        sdk={() => serverSDK()}
+                        fetcher={() => platform.fetch}
+                        ctx={workspaceSidebarCtx}
+                        mobile={panelProps.mobile}
+                      />
                       <SidebarScheduledRuns store={routines} ctx={workspaceSidebarCtx} mobile={panelProps.mobile} />
                       <div class="flex-1 min-h-0">
                         <LocalWorkspace
@@ -2354,7 +2360,13 @@ export default function LegacyLayout(props: ParentProps) {
                         {language.t("workspace.new")}
                       </Button>
                     </div>
-                    <SidebarSlackThreads store={routines} ctx={workspaceSidebarCtx} mobile={panelProps.mobile} />
+                    <SidebarSlackThreads
+                      store={routines}
+                      sdk={() => serverSDK()}
+                      fetcher={() => platform.fetch}
+                      ctx={workspaceSidebarCtx}
+                      mobile={panelProps.mobile}
+                    />
                     <SidebarScheduledRuns store={routines} ctx={workspaceSidebarCtx} mobile={panelProps.mobile} />
                     <div class="relative flex-1 min-h-0">
                       <DragDropProvider
