@@ -1,7 +1,44 @@
-<!doctype html><html><head><meta charset="utf-8"><title>Pasture preview</title><style>html,body,iframe{margin:0;width:100%;height:100%;border:0}</style></head><body><iframe id="guest" sandbox="allow-scripts" src="../panel/index.html"></iframe><script>
-const frame = document.querySelector('#guest');
-const envelope = {channel:'openchamber.sdk',v:1};
-const make = (number, props={}) => ({number,title:`Sample pull request ${number}`,url:`https://github.com/example/project/pull/${number}`,repository:{nameWithOwner:'example/project'},author:{login:'example'},reviewDecision:null,mergeStateStatus:'BLOCKED',reviewThreads:{nodes:[],pageInfo:{hasNextPage:false}},commits:{nodes:[]},...props});
-const result = {data:{open:{issueCount:4,pageInfo:{hasNextPage:false},nodes:[make(1,{isDraft:true}),make(2),make(3,{reviewDecision:'CHANGES_REQUESTED'}),make(4,{reviewDecision:'APPROVED',mergeStateStatus:'CLEAN'})]},merged:{issueCount:1,pageInfo:{hasNextPage:false},nodes:[make(5,{mergedAt:'2026-11-15T10:00:00Z'})]}}};
-window.addEventListener('message', (event) => { if (event.source !== frame.contentWindow || event.data.channel !== envelope.channel) return; const m=event.data; if(m.type==='hello') frame.contentWindow.postMessage({...envelope,type:'connection',payload:{connection:{connected:true,account:'example'}}},'*'); if(m.type==='request') frame.contentWindow.postMessage({...envelope,type:'result',id:m.id,ok:true,payload:{status:200,body:JSON.stringify(result)}},'*'); });
-</script></body></html>
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Pasture preview</title><style>html,body,iframe{margin:0;width:100%;height:100%;border:0}</style></head>
+<body>
+<iframe id="guest" sandbox="allow-scripts" src="../panel/index.html"></iframe>
+<script>
+const frame = document.querySelector('#guest')
+const envelope = { channel: 'openchamber.sdk', v: 1 }
+const make = (number, props = {}) => ({
+  number, title: `Sample pull request ${number}`, url: `https://github.com/example/backend/pull/${number}`,
+  repository: { nameWithOwner: 'example/backend' }, author: { login: 'example' },
+  updatedAt: `2026-11-${String(10 + number).padStart(2, '0')}T10:00:00Z`,
+  reviewDecision: null, mergeStateStatus: 'BLOCKED',
+  reviewThreads: { nodes: [], pageInfo: { hasNextPage: false } }, commits: { nodes: [] }, ...props,
+})
+const open = [
+  make(1, { isDraft: true }),
+  make(2, { title: 'Keep the data pipeline moving', reviewDecision: 'REVIEW_REQUIRED' }),
+  make(3, { title: 'Fix the failing test', commits: { nodes: [{ commit: { statusCheckRollup: { state: 'FAILURE' } } }] } }),
+  make(4, { title: 'Ready for the merge queue', reviewDecision: 'APPROVED', mergeStateStatus: 'CLEAN' }),
+  make(5, { title: 'A frontend change waiting on feedback', repository: { nameWithOwner: 'example/frontend' }, reviewDecision: 'CHANGES_REQUESTED' }),
+]
+const merged = [
+  make(6, { title: 'A recently merged change', mergedAt: '2026-11-15T10:00:00Z' }),
+  make(7, { title: 'A frontend change that landed', repository: { nameWithOwner: 'example/frontend' }, mergedAt: '2026-11-14T10:00:00Z' }),
+]
+window.addEventListener('message', (event) => {
+  if (event.source !== frame.contentWindow || event.data.channel !== envelope.channel) return
+  const message = event.data
+  if (message.type === 'hello') frame.contentWindow.postMessage({ ...envelope, type: 'connection', payload: { connection: { connected: true, account: 'example' } } }, '*')
+  if (message.type === 'request') {
+    const isMerged = JSON.stringify(message).includes('PastureMerged')
+    if (isMerged && new URLSearchParams(location.search).has('fail-merged')) {
+      frame.contentWindow.postMessage({ ...envelope, type: 'result', id: message.id, ok: true, payload: { status: 503, body: '{}' } }, '*')
+      return
+    }
+    const nodes = isMerged ? merged : open
+    const result = { data: { prs: { issueCount: nodes.length, pageInfo: { hasNextPage: false, endCursor: null }, nodes } } }
+    frame.contentWindow.postMessage({ ...envelope, type: 'result', id: message.id, ok: true, payload: { status: 200, body: JSON.stringify(result) } }, '*')
+  }
+})
+</script>
+</body>
+</html>

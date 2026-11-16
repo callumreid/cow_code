@@ -1,5 +1,97 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Pasture</title>
-<style>
-:root{color-scheme:light dark;font:13px system-ui,sans-serif}*{box-sizing:border-box}body{margin:0;background:#19231c;color:#f7f7ef}#root{height:100vh;display:flex;flex-direction:column}header{display:flex;align-items:center;gap:8px;padding:8px 10px;flex-wrap:wrap;background:#202c23}h1{font-size:15px;margin:0;margin-right:auto}button{font:inherit;color:inherit;background:#3b5040;border:1px solid #68796b;border-radius:7px;padding:5px 9px;cursor:pointer}button:hover{background:#526a57}button:focus-visible{outline:2px solid #fff}#status{padding:6px 10px;background:#26392c;min-height:30px}#field{position:relative;flex:1;min-height:180px;overflow:hidden}canvas{width:100%;height:100%;display:block;touch-action:none}#tip,#detail{position:absolute;background:#17241cf0;border:1px solid #718477;border-radius:9px;padding:10px;box-shadow:0 3px 15px #0006;max-width:min(340px,90%)}#tip{pointer-events:none;top:8px;left:8px}#detail{bottom:12px;left:12px}#detail strong,#detail span{display:block;margin-bottom:5px}#detail button{margin:4px 5px 0 0}footer{padding:6px 10px;background:#202c23;color:#c6d3c8;font-size:12px}[hidden]{display:none!important}
-</style></head><body><div id="root"><header><h1>🐄 Pasture</h1><button id="refresh">Refresh</button><button id="tour" aria-pressed="false">Tour</button></header><div id="status" role="status">Connecting to OpenChamber…</div><div id="field"><canvas id="scene" aria-label="A pasture with pull requests as cows"></canvas><div id="tip" hidden></div><div id="detail" hidden><strong id="title"></strong><span id="meta"></span><span id="explanation"></span><button id="moo">Moo</button><button id="open">Open PR</button><button id="down">Put it down</button></div></div><footer>Hover a cow for its PR · click to lift · double-click to open · drag to look around</footer></div><script src="main.js"></script></body></html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Pasture</title>
+  <style>
+    :root { color-scheme: light dark; font: 14px system-ui, sans-serif; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--oc-bg, #19231c); color: var(--oc-fg, #f7f7ef); }
+    #root { height: 100vh; display: flex; flex-direction: column; }
+    header { display: flex; align-items: center; gap: 10px; padding: 10px 14px; flex-wrap: wrap; background: var(--oc-elevated, #202c23); border-bottom: 1px solid var(--oc-border, #405245); }
+    h1 { font-size: 15px; margin: 0 auto 0 0; }
+    button { font: inherit; }
+    .control { color: inherit; background: var(--oc-subtle, #3b5040); border: 1px solid var(--oc-border, #68796b); border-radius: 7px; padding: 6px 10px; cursor: pointer; }
+    .control:hover { background: var(--oc-hover, #526a57); }
+    button:focus-visible, summary:focus-visible { outline: 2px solid var(--oc-focus, #a9daba); outline-offset: 2px; }
+    #status { padding: 7px 14px; min-height: 34px; background: var(--oc-muted-surface, #26392c); color: var(--oc-muted, #d6e3d7); font-size: 0.85rem; }
+    #field { position: relative; flex: 1; min-height: 180px; overflow: hidden; }
+    canvas { width: 100%; height: 100%; display: block; touch-action: none; }
+    #tip, #detail { position: absolute; background: #17241cf0; color: #f7f7ef; border: 1px solid #718477; border-radius: 9px; padding: 10px; box-shadow: 0 3px 15px #0006; max-width: min(340px,90%); }
+    #tip { pointer-events: none; top: 8px; left: 8px; }
+    #detail { bottom: 12px; left: 12px; }
+    #detail strong, #detail span { display: block; margin-bottom: 5px; }
+    #detail .control { margin: 4px 5px 0 0; background: #3b5040; color: #fff; }
+    footer { padding: 7px 14px; background: var(--oc-elevated, #202c23); color: var(--oc-muted, #c6d3c8); font-size: 0.85rem; }
+    #list { flex: 1; min-height: 0; overflow: auto; background: var(--oc-bg, #19231c); }
+    .list-shell { max-width: 1000px; margin: auto; padding: 22px 20px 44px; }
+    .list-title { display: flex; align-items: baseline; gap: 12px; margin-bottom: 18px; }
+    .list-title h2 { margin: 0; font-size: 1.15rem; }
+    .list-title p { margin: 0; color: var(--oc-muted, #c6d3c8); font-size: 0.85rem; }
+    .empty { color: var(--oc-muted, #c6d3c8); padding: 12px 0; }
+    .repo { margin: 0 0 23px; }
+    .repo-heading { display: flex; align-items: baseline; gap: 8px; margin: 0 0 7px; font-size: 0.86rem; font-weight: 650; }
+    .repo-count { color: var(--oc-muted, #c6d3c8); font-weight: 400; }
+    .rows { border: 1px solid var(--oc-border, #405245); border-radius: 10px; overflow: hidden; background: var(--oc-elevated, #202c23); }
+    .pr-row { display: grid; grid-template-columns: minmax(125px, 165px) minmax(0, 1fr) auto; gap: 12px; align-items: center; width: 100%; text-align: left; color: inherit; background: transparent; border: 0; border-top: 1px solid var(--oc-border, #405245); padding: 12px 14px; cursor: pointer; }
+    .pr-row:first-child { border-top: 0; }
+    .pr-row:hover { background: var(--oc-hover, #33483a); }
+    .pr-state { display: flex; align-items: center; gap: 7px; font-size: 0.82rem; font-weight: 600; }
+    .pr-state::before { content: ""; width: 7px; height: 7px; flex: none; border-radius: 50%; background: currentColor; }
+    .pr-state[data-tone="success"] { color: var(--oc-success-text, #91d6a2); }
+    .pr-state[data-tone="warning"] { color: var(--oc-warning-text, #efcb7a); }
+    .pr-state[data-tone="error"] { color: var(--oc-error-text, #f39a91); }
+    .pr-state[data-tone="muted"] { color: var(--oc-muted, #c6d3c8); }
+    .pr-main { min-width: 0; }
+    .pr-name { display: block; overflow-wrap: anywhere; font-weight: 600; }
+    .pr-number { color: var(--oc-muted, #c6d3c8); font-weight: 400; margin-right: 7px; }
+    .pr-detail { display: block; margin-top: 3px; color: var(--oc-muted, #c6d3c8); font-size: 0.8rem; overflow-wrap: anywhere; }
+    .pr-time { color: var(--oc-muted, #c6d3c8); font-size: 0.8rem; white-space: nowrap; }
+    #history { border-top: 1px solid var(--oc-border, #405245); margin-top: 28px; padding-top: 16px; }
+    #history summary { cursor: pointer; font-weight: 650; padding: 4px 0 12px; }
+    #history-count { color: var(--oc-muted, #c6d3c8); font-weight: 400; }
+    @media (max-width: 600px) {
+      header { gap: 8px; }
+      .list-shell { padding: 16px 12px 32px; }
+      .pr-row { grid-template-columns: minmax(0, 1fr) auto; gap: 6px 10px; }
+      .pr-state { grid-column: 1 / -1; }
+      .pr-time { align-self: start; }
+    }
+    [hidden] { display: none !important; }
+  </style>
+</head>
+<body>
+  <div id="root">
+    <header>
+      <h1>🐄 Pasture</h1>
+      <div id="view-tabs"></div>
+      <button id="refresh" class="control">Refresh</button>
+      <button id="tour" class="control" aria-pressed="false">Tour</button>
+    </header>
+    <div id="status" role="status">Connecting to OpenChamber…</div>
+    <div id="field">
+      <canvas id="scene" aria-label="A pasture with pull requests as cows"></canvas>
+      <div id="tip" hidden></div>
+      <div id="detail" hidden>
+        <strong id="title"></strong><span id="meta"></span><span id="explanation"></span>
+        <button id="moo" class="control">Moo</button>
+        <button id="open" class="control">Open PR</button>
+        <button id="down" class="control">Put it down</button>
+      </div>
+    </div>
+    <div id="list" hidden>
+      <div class="list-shell">
+        <div class="list-title"><h2>Pull requests</h2><p id="open-count"></p></div>
+        <div id="open-list" aria-label="Open pull requests"></div>
+        <details id="history">
+          <summary>Recently merged · last 30 days <span id="history-count"></span></summary>
+          <div id="history-list"></div>
+        </details>
+      </div>
+    </div>
+    <footer id="field-help">Hover a cow for its PR · click to lift · double-click to open · drag to look around</footer>
+  </div>
+  <script src="main.js"></script>
+</body>
+</html>

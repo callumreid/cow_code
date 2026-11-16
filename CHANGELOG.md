@@ -8,6 +8,7 @@ what each feature is, and the films, live in the [feature reel](docs/features/RE
 ### Added
 
 - Added an OpenChamber Pasture extension with GitHub pull request cows and the shared 3D field.
+- the OpenChamber pasture flips to a pull request list, grouped by repo with checks and review status, and a recent-merges section
 
 ## 2026-11-12
 
