@@ -1,0 +1,47 @@
+{
+  "name": "@cowcode/openchamber-pasture",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "test": "bun test test/github.test.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "openchamber": {
+    "apiVersion": 1,
+    "engines": {
+      "openchamber": ">=2.7.2"
+    },
+    "id": "cowcode-pasture",
+    "name": "Pasture",
+    "icon": "landscape",
+    "contributes": {
+      "panel": {
+        "entry": "panel/index.html"
+      },
+      "page": true,
+      "integration": {
+        "name": "Pasture GitHub",
+        "description": "Read your pull requests to populate the Pasture.",
+        "token": {
+          "apiOrigin": "https://api.github.com",
+          "account": {
+            "path": "/user",
+            "name": "login"
+          },
+          "scheme": "bearer"
+        }
+      }
+    }
+  },
+  "dependencies": {
+    "@openchamber/sdk": "2.7.2",
+    "three": "0.170.0"
+  },
+  "devDependencies": {
+    "@types/three": "^0.170.0",
+    "esbuild": "0.25.12",
+    "typescript": "^5.8.2"
+  }
+}

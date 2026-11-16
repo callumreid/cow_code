@@ -3,6 +3,12 @@
 every change to the cow lands here, newest first, one line per thing you would notice.
 what each feature is, and the films, live in the [feature reel](docs/features/README.md).
 
+## 2026-11-16
+
+### Added
+
+- Added an OpenChamber Pasture extension with GitHub pull request cows and the shared 3D field.
+
 ## 2026-11-12
 
 ### Added

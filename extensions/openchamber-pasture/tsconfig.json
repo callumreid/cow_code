@@ -1,0 +1,8 @@
+{
+  "compilerOptions": {
+    "target": "ES2022", "module": "ESNext", "moduleResolution": "Bundler", "strict": true,
+    "skipLibCheck": true, "noEmit": true, "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "baseUrl": ".", "paths": { "@/*": ["../../packages/app/src/*"], "three": ["./node_modules/@types/three"], "three/*": ["./node_modules/@types/three/*"] }
+  },
+  "include": ["src/**/*.ts"]
+}

@@ -1,0 +1,7 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Pasture preview</title><style>html,body,iframe{margin:0;width:100%;height:100%;border:0}</style></head><body><iframe id="guest" sandbox="allow-scripts" src="../panel/index.html"></iframe><script>
+const frame = document.querySelector('#guest');
+const envelope = {channel:'openchamber.sdk',v:1};
+const make = (number, props={}) => ({number,title:`Sample pull request ${number}`,url:`https://github.com/example/project/pull/${number}`,repository:{nameWithOwner:'example/project'},author:{login:'example'},reviewDecision:null,mergeStateStatus:'BLOCKED',reviewThreads:{nodes:[],pageInfo:{hasNextPage:false}},commits:{nodes:[]},...props});
+const result = {data:{open:{issueCount:4,pageInfo:{hasNextPage:false},nodes:[make(1,{isDraft:true}),make(2),make(3,{reviewDecision:'CHANGES_REQUESTED'}),make(4,{reviewDecision:'APPROVED',mergeStateStatus:'CLEAN'})]},merged:{issueCount:1,pageInfo:{hasNextPage:false},nodes:[make(5,{mergedAt:'2026-11-15T10:00:00Z'})]}}};
+window.addEventListener('message', (event) => { if (event.source !== frame.contentWindow || event.data.channel !== envelope.channel) return; const m=event.data; if(m.type==='hello') frame.contentWindow.postMessage({...envelope,type:'connection',payload:{connection:{connected:true,account:'example'}}},'*'); if(m.type==='request') frame.contentWindow.postMessage({...envelope,type:'result',id:m.id,ok:true,payload:{status:200,body:JSON.stringify(result)}},'*'); });
+</script></body></html>
