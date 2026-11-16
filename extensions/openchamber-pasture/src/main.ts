@@ -13,6 +13,7 @@ const tip = element("tip")
 const detail = element("detail")
 const history = element<HTMLDetailsElement>("history")
 const byID = new Map<string, Cow>()
+const HISTORY_REFRESH_MS = 15 * 60_000
 let selected: string | undefined
 let connected = false
 let connectionKey: string | undefined
@@ -27,6 +28,8 @@ let historyResult: SearchResult | undefined
 let historyLoading = false
 let historyQueued = false
 let historyError = ""
+let historyFetchedAt = 0
+let historyAttemptedAt = 0
 let fetchedAt = 0
 let lastError = ""
 let mergedError = ""
@@ -269,19 +272,21 @@ async function refresh() {
 }
 
 async function loadHistory(force = false) {
-  if (!connected || (historyResult && !force)) return
+  if (!connected || (historyResult && !force && Date.now() - historyFetchedAt < HISTORY_REFRESH_MS)) return
   if (historyLoading) {
     if (force) historyQueued = true
     return
   }
   const current = ++historyGeneration
   historyLoading = true
+  historyAttemptedAt = Date.now()
   historyError = ""
   renderHistory()
   try {
     const result = await searchPulls(request, `is:pr is:merged author:@me merged:>=${since(30)} sort:updated-desc`, true)
     if (current !== historyGeneration) return
     historyResult = result
+    historyFetchedAt = Date.now()
   } catch (error) {
     if (current !== historyGeneration) return
     historyError = error instanceof Error ? error.message : "Please check your connection."
@@ -332,6 +337,8 @@ host.onConnection((connection) => {
   historyLoading = false
   historyQueued = false
   historyError = ""
+  historyFetchedAt = 0
+  historyAttemptedAt = 0
   lastError = ""
   mergedError = ""
   refreshQueued = false
@@ -344,7 +351,7 @@ host.onConnection((connection) => {
 })
 const timer = window.setInterval(() => {
   void refresh()
-  if (history.open) void loadHistory(true)
+  if (history.open && Date.now() - historyAttemptedAt >= HISTORY_REFRESH_MS) void loadHistory(true)
 }, 60_000)
 window.addEventListener("pagehide", () => {
   connected = false
