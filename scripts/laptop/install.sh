@@ -19,6 +19,9 @@ for b in "$ROOT/packages/slack/dist/cow-slack" "$ROOT/packages/cow-eyes/dist/cow
 done
 for f in cow-env.sh cow-browser.sh cow-eyes.sh cow-slack.sh; do install -m 755 "$HERE/$f" "$HOME/bin/cow-laptop/$f"; done
 
+log "agent browser: Chrome for Testing, separate from Callum's Google Chrome"
+bash "$HERE/cow-agent-chrome-install.sh"
+
 log "Slack tokens"
 if [ ! -s "$HOME/.config/cow/slack-tokens.env" ]; then
   mkdir -p "$HOME/.config/cow"
