@@ -3,7 +3,8 @@
 
 - This MacBook stands in for barn. Browser tools drive ONE shared agent Chrome (its own profile,
   DevTools on 127.0.0.1:9222) through the cow-eyes bridge on 127.0.0.1:4100, each thread in its own
-  tab. Callum watches or takes over from the Browser button in CowCode.
+  tab. It runs windowless (no Dock icon or window), so Callum watches or takes over only from the
+  Browser button in CowCode. Never start another Chrome or open a native Chrome window for it.
 - The profile holds Callum's sign-ins. Never clear its cookies or storage, never sign out of anything
   in it, and never leave a `page.route` stub behind; do local or test auth work in a separate browser
   context. `~/.local/bin/cow-slack browser` says whether it is signed in to app.coval.dev.
