@@ -1,6 +1,6 @@
 {
   "name": "@cowcode/openchamber-pasture",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -21,6 +21,9 @@
         "entry": "panel/index.html"
       },
       "page": true,
+      "origins": [
+        "https://api.open-meteo.com"
+      ],
       "integration": {
         "name": "Pasture GitHub",
         "description": "Read your pull requests to populate the Pasture.",

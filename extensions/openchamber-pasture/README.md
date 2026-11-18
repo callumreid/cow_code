@@ -18,7 +18,7 @@ The panel queries GitHub every minute while open for the authenticated user's op
 
 Drafts, changes requested, awaiting and merged map to their pens, and queued PRs join the ready pen. Ready is conservative: GitHub must report approved and `CLEAN`, the returned review threads must all be resolved and complete, and any reported checks must have succeeded. This is an approximation, not an authorization to merge. A re-review label still reports the underlying changes-requested verdict. The field does not currently show closed-without-merge burns. Changes visible between refreshes use the original scene's hand/saucer animation. Cows beyond the field limit cannot be tracked there, and transitions are only observed while the panel is open.
 
-The San Francisco sun, resident characters and tour use the shared scene. Live weather, Datadog wolves, calendar parties and CowCode's desktop-only integrations are not connected here. No background service runs and no prompts are sent.
+The San Francisco sun, live San Francisco weather (Open-Meteo, keyless, every 10 minutes; the extension asks to allow `https://api.open-meteo.com`), resident characters and tour use the shared scene. Datadog wolves, calendar parties and CowCode's desktop-only integrations are not connected here. No background service runs and no prompts are sent.
 
 ## Development
 

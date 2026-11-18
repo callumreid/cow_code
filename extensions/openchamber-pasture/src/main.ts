@@ -3,7 +3,8 @@ import { applyHostReady, mountTabs } from "@openchamber/sdk/ui"
 import { createPastureScene } from "../../../packages/app/src/pasture/scene"
 import { breedFor, cowSeed } from "../../../packages/app/src/pasture/breeds"
 import { assignCollars, collarIndex } from "../../../packages/app/src/pasture/collars"
-import { sunPosition } from "../../../packages/app/src/pasture/sky"
+import { sunPosition, type Weather } from "../../../packages/app/src/pasture/sky"
+import { fetchWeather } from "../../../packages/app/src/pasture/weather"
 import { groupByRepo, searchPulls, type Cow, type Request, type SearchResult } from "./github"
 
 const element = <T extends HTMLElement>(id: string) => document.getElementById(id) as T
@@ -68,8 +69,22 @@ const scene = createPastureScene(element<HTMLCanvasElement>("scene"), {
   },
   onOpen(id) { void open(id) },
 })
-const sun = sunPosition(new Date())
-scene.setSky({ altitude: sun.altitude, azimuth: sun.azimuth, weather: null })
+// The sky over the field is San Francisco's: the sun moves every 30 s, the weather every 10 min.
+const WEATHER_REFRESH_MS = 10 * 60_000
+let weather: Weather | null = null
+function renderSky() {
+  const sun = sunPosition(new Date())
+  scene.setSky({ altitude: sun.altitude, azimuth: sun.azimuth, weather })
+}
+async function readWeather() {
+  // A failed read keeps the last good weather rather than clearing the sky.
+  const next = await fetchWeather().catch(() => null)
+  if (next) { weather = next; renderSky() }
+}
+renderSky()
+void readWeather()
+const sunTimer = window.setInterval(renderSky, 30_000)
+const weatherTimer = window.setInterval(() => void readWeather(), WEATHER_REFRESH_MS)
 
 function select(id?: string) {
   selected = id
@@ -360,6 +375,8 @@ window.addEventListener("pagehide", () => {
   generation++
   historyGeneration++
   clearInterval(timer)
+  clearInterval(sunTimer)
+  clearInterval(weatherTimer)
   scene.dispose()
   tabs.dispose()
   host.dispose()
