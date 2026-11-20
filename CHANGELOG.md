@@ -3,6 +3,12 @@
 every change to the cow lands here, newest first, one line per thing you would notice.
 what each feature is, and the films, live in the [feature reel](docs/features/README.md).
 
+## 2026-11-20
+
+### Added
+
+- Farmer’s Office joins OpenChamber on desktop and mobile with a shared inbox, voice and text conversation, and controls for dispatching and steering threads.
+
 ## 2026-11-16
 
 ### Added

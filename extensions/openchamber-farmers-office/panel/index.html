@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+    <title>Farmer’s Office</title>
+    <link rel="stylesheet" href="./office.css" />
+    <script defer src="./main.js"></script>
+  </head>
+  <body>
+    <main id="office">
+      <header>
+        <div>
+          <h1>Farmer’s Office</h1>
+          <div id="connection" role="status">Connecting to OpenChamber…</div>
+        </div>
+        <button id="talk" class="talk" disabled aria-label="Start voice conversation">◉&ensp; Talk</button>
+      </header>
+      <nav aria-label="Office views">
+        <button id="deskTab" aria-selected="true">Office</button
+        ><button id="workTab" aria-selected="false">All work</button
+        ><button id="startThread" class="new">＋ New thread</button>
+      </nav>
+      <p id="notice" role="alert" hidden></p>
+      <section id="deskView">
+        <div class="sectionHead">
+          <h2>Needs attention</h2>
+          <span id="attentionCount"></span>
+        </div>
+        <div id="inbox" aria-live="polite"></div>
+        <div class="sectionHead"><h2>Conversation</h2></div>
+        <div id="conversation" role="log" aria-label="Conversation with Farmer"></div>
+        <div id="proposals"></div>
+      </section>
+      <section id="workView" hidden>
+        <div class="sectionHead">
+          <h2>Threads</h2>
+          <button id="refresh" class="link">Refresh</button>
+        </div>
+        <input
+          id="search"
+          type="search"
+          placeholder="Search threads across projects"
+          aria-label="Search threads"
+        />
+        <div id="threads"></div>
+        <button id="more" hidden>Load more</button>
+      </section>
+      <aside id="details" hidden></aside>
+      <footer id="composer">
+        <div id="caption" hidden aria-live="polite"></div>
+        <form id="chat">
+          <textarea id="message" aria-label="Message Farmer" rows="2" placeholder="Ask Farmer…" required></textarea
+          ><button type="button" id="send" aria-label="Send message">Send</button>
+        </form>
+      </footer>
+    </main>
+  </body>
+</html>

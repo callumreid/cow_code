@@ -1,0 +1,66 @@
+{
+  "name": "openchamber-farmers-office",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "test": "node --test test/*.test.js",
+    "check": "bun run node_modules/@openchamber/sdk/scripts/check-guest.ts"
+  },
+  "openchamber": {
+    "apiVersion": 1,
+    "engines": {
+      "openchamber": ">=2.7.2"
+    },
+    "contributes": {
+      "panel": {
+        "id": "farmers-office",
+        "name": "Farmer’s Office",
+        "icon": "home-office-line",
+        "entry": "panel/index.html",
+        "mobile": true
+      },
+      "page": true,
+      "capabilities": [
+        "sessions",
+        "microphone"
+      ],
+      "service": {
+        "entry": "service/main.js",
+        "runtime": "host",
+        "keepRunning": true,
+        "provides": [
+          "opencode"
+        ],
+        "permissions": {
+          "exec": [
+            "secret"
+          ]
+        }
+      },
+      "sessionControl": {
+        "content": true,
+        "answers": true
+      },
+      "sessionEvents": {
+        "events": [
+          "turn-started",
+          "turn-finished",
+          "turn-failed",
+          "permission-asked",
+          "question-asked",
+          "session-deleted",
+          "session-archived"
+        ],
+        "content": true
+      },
+      "marks": true
+    }
+  },
+  "devDependencies": {
+    "@openchamber/sdk": "2.7.2",
+    "esbuild": "0.27.4",
+    "ws": "8.18.3"
+  }
+}
